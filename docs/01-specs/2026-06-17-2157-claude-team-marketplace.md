@@ -50,6 +50,9 @@ claude-starter/                         # the marketplace repo (= this repo)
 ├── plugins/
 │   ├── standards/
 │   │   ├── .claude-plugin/plugin.json
+│   │   ├── hooks/
+│   │   │   ├── hooks.json              # PreToolUse on Edit|Write|MultiEdit
+│   │   │   └── inject-standards.js     # ext → matching SKILL.md (node, no deps)
 │   │   └── skills/
 │   │       ├── general-coding-guidelines/SKILL.md
 │   │       ├── python-style/SKILL.md
@@ -93,6 +96,15 @@ relevant work appears. Content migrated verbatim from `~/.claude/rules/*.md` (ge
 
 Note: skills auto-load by description match; truly always-on enforcement is a property of
 committed CLAUDE.md. Per the brainstorming choice we use skills for cross-repo portability.
+
+**Deterministic file-type injection (hook):** because skill auto-load is probabilistic, the
+plugin also ships a `PreToolUse` hook (`hooks/inject-standards.js`, run via `node` — no external
+deps) on `Edit|Write|MultiEdit`. It maps the edited file's extension to the matching skill and
+injects that `SKILL.md` body (single source of truth) on every edit: `.py` → `python-style`;
+`.ts/.tsx/.js/.jsx/.mjs/.cjs` → `typescript-style`; `.css/.scss/.sass` → `css-style`. SQL is
+excluded (unreliable by extension); `general-coding-guidelines` and `team-docs-convention` stay
+skill-only. The language skills remain model-invocable for non-edit (review/discussion) cases.
+The hook exits 0 with no output on any non-match or error, so it never blocks an edit.
 
 ### Plugin: workflows
 

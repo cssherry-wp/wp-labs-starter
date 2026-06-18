@@ -12,7 +12,7 @@ This repo is itself the marketplace (`.claude-plugin/marketplace.json`). It ship
 
 | Plugin | What it gives you |
 |---|---|
-| **standards** | Coding-standard skills that auto-load by language: `general-coding-guidelines`, `python-style`, `typescript-style`, `css-style`, `sql-style`, plus `team-docs-convention` (our `docs/01-specs` + `docs/02-plans` paths). |
+| **standards** | Coding-standard skills (`general-coding-guidelines`, `python-style`, `typescript-style`, `css-style`, `sql-style`, `team-docs-convention`). A `PreToolUse` hook also injects the matching standard **deterministically by file type** on every edit (see [Deterministic standards](#deterministic-standards)). |
 | **workflows** | `/commit` (our structured commit-message format) and the `git-pr-prepare` + `github-pr-review` skills. |
 | **superpowers-team** | *Opt-in.* A fork of [superpowers](https://github.com/obra/superpowers) with our docs-path convention baked in. See [`plugins/superpowers-team/FORK.md`](plugins/superpowers-team/FORK.md). |
 
@@ -62,6 +62,29 @@ workspace-trust prompt).
 | `superpowers-team@claude-starter` | You want our docs-path convention baked into superpowers itself. **Disable stock `superpowers` first** — never enable both (duplicate skill names). |
 
 ## Notes
+
+### Deterministic standards
+
+Skills are model-invoked from their `description`, so language standards only *usually* load.
+To make them fire reliably, the `standards` plugin ships a `PreToolUse` hook
+(`hooks/inject-standards.js`) on `Edit|Write|MultiEdit`: it reads the target file's extension
+and injects the matching standard on **every** edit — no model judgment involved.
+
+- `.py` → `python-style`
+- `.ts/.tsx/.js/.jsx/.mjs/.cjs` → `typescript-style`
+- `.css/.scss/.sass` → `css-style`
+
+The hook reads the same `SKILL.md` files (single source of truth — no duplicated content). The
+skills also stay model-invocable, which covers reviewing/discussing these files when no edit
+happens (the hook only fires on edits).
+
+**SQL is deliberately excluded** from the hook: the `.sql` extension is an unreliable signal
+(SQL is often embedded in `.py`/`.ts` and migration files), so `sql-style` remains a normal
+model-invoked skill. `general-coding-guidelines` and `team-docs-convention` are likewise
+skill-only (not file-type specific).
+
+The hook runs on `node` (always present wherever Claude Code runs), so there's no extra
+dependency to install.
 
 ### superpowers: overlay (default) vs fork (opt-in)
 

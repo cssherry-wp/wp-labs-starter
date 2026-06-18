@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/inject-standards.js\"",
+            "timeout": 5,
+            "statusMessage": "Applying team coding standards for this file type..."
+          }
+        ]
+      }
+    ]
+  }
+}
