@@ -107,4 +107,8 @@ Specs go to `docs/01-specs/YYYY-MM-DD-HHmm-<name>.md`; plans to
 
 - Bump a plugin's `version` in its `.claude-plugin/plugin.json` when you change it; the team picks
   up changes on `/plugin update` (or `/plugin marketplace update claude-starter`).
-- Refresh the superpowers fork per [`FORK.md`](plugins/superpowers-team/FORK.md) when upstream releases.
+- The superpowers fork refreshes itself: a weekly GitHub Actions workflow
+  ([`.github/workflows/refresh-superpowers-fork.yml`](.github/workflows/refresh-superpowers-fork.yml))
+  checks upstream `obra/superpowers` and opens a PR when a new version appears. Run it on demand
+  from the Actions tab, or locally via `scripts/refresh-superpowers-fork.sh` (see
+  [`FORK.md`](plugins/superpowers-team/FORK.md)).

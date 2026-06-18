@@ -35,8 +35,17 @@ stock superpowers **or** this fork — never both (they define the same skill na
 
 ## How to refresh against a new upstream release
 
-1. Fetch the new upstream version (e.g. `git clone https://github.com/obra/superpowers && git checkout <new-sha>`).
-2. Re-copy the plugin essentials over this directory.
-3. Re-apply the two path replacements above (`docs/superpowers/specs` → `docs/01-specs`,
-   `docs/superpowers/plans` → `docs/02-plans`) and the `HHmm` filename pattern.
-4. Bump `version` in `.claude-plugin/plugin.json` and update the base commit here.
+This is automated. The weekly workflow `.github/workflows/refresh-superpowers-fork.yml`
+checks upstream and opens a PR when the version changed.
+
+To do it manually (or test), run:
+
+```bash
+scripts/refresh-superpowers-fork.sh           # rebuild if upstream is newer
+scripts/refresh-superpowers-fork.sh --check   # report only, no changes
+```
+
+The script re-copies the plugin essentials, re-applies the path convention
+(`docs/superpowers/specs` → `docs/01-specs`, `docs/superpowers/plans` → `docs/02-plans`,
+plus the `HHmm` filename pattern), bumps `version` in `.claude-plugin/plugin.json`, and
+rewrites the "Upstream base" section above. Review the diff before committing.

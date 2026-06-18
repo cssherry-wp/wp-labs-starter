@@ -1,0 +1,60 @@
+name: Refresh superpowers fork
+
+# Weekly check for a new upstream obra/superpowers release. When the upstream
+# plugin.json version differs from our fork's base version, rebuild the fork and
+# open a PR. Also runnable on demand via the Actions tab.
+on:
+  schedule:
+    - cron: "0 9 * * 1" # Mondays 09:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rebuild fork from upstream if newer
+        id: refresh
+        run: bash scripts/refresh-superpowers-fork.sh
+
+      - name: Open or update PR
+        if: steps.refresh.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.refresh.outputs.version }}
+          SHA: ${{ steps.refresh.outputs.sha }}
+        run: |
+          set -euo pipefail
+          # Defense-in-depth: VERSION/SHA come from upstream plugin.json — refuse anything
+          # outside a safe charset before it reaches a branch name, commit, or PR body.
+          case "$VERSION" in *[!A-Za-z0-9._-]*) echo "Refusing unsafe version: $VERSION" >&2; exit 1;; esac
+          case "$SHA" in *[!A-Fa-f0-9]*) echo "Refusing unsafe sha: $SHA" >&2; exit 1;; esac
+          branch="chore/refresh-superpowers-${VERSION}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git switch -C "$branch"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No file changes after rebuild; nothing to do."
+            exit 0
+          fi
+          git commit -m "Refresh superpowers-team to upstream ${VERSION}" -m "Automated rebuild of the vendored superpowers fork from obra/superpowers@${SHA}, with the team docs-path convention re-applied. Review the diff before merging."
+          git push -f origin "$branch"
+          if [ -n "$(gh pr list --head "$branch" --state open --json number --jq '.[].number')" ]; then
+            echo "PR already open for $branch (updated by force-push)."
+          else
+            gh pr create \
+              --base main \
+              --head "$branch" \
+              --title "Refresh superpowers-team to upstream ${VERSION}" \
+              --body "Automated refresh of the \`superpowers-team\` fork to upstream **${VERSION}** (obra/superpowers@\`${SHA}\`).
+
+          Rebuilt by \`scripts/refresh-superpowers-fork.sh\`: re-copied plugin essentials and re-applied the team docs-path convention (\`docs/01-specs\` / \`docs/02-plans\`, HHmm naming).
+
+          **Review before merging** — confirm the docs-path replacements still landed (upstream may have changed the surrounding wording) and that \`claude plugin validate\` passes."
+          fi
