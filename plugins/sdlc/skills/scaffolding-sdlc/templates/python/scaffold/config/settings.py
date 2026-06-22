@@ -5,6 +5,7 @@ loopback-only unless configured, and the secret key comes from the
 environment (a random per-process key is used only as a dev fallback so the
 app still runs locally without committing a predictable secret).
 """
+
 import os
 import secrets
 from pathlib import Path
@@ -17,9 +18,8 @@ DEBUG = os.environ.get("DJANGO_DEBUG", "") == "1"
 # Never a hardcoded/predictable value, so nothing sensitive is committed.
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY") or secrets.token_urlsafe(50)
 
-ALLOWED_HOSTS = [
-    h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h
-]
+_hosts = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
+ALLOWED_HOSTS = [h for h in _hosts.split(",") if h]
 
 INSTALLED_APPS = [
     "django.contrib.contenttypes",

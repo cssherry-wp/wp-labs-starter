@@ -32,6 +32,10 @@ select = ["E", "W", "F", "B", "BLE", "UP", "N", "SIM", "RUF", "S", "I"]
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
 "**/tests/test_*.py" = ["S101"]
+# Django Meta and DRF attributes are conventional untyped lists, not typed state.
+"api/models.py" = ["RUF012"]
+"api/serializers.py" = ["RUF012"]
+"api/views.py" = ["RUF012"]
 
 [tool.ruff.format]
 quote-style = "double"
