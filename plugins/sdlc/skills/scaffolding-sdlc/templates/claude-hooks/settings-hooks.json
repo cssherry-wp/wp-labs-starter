@@ -1,0 +1,13 @@
+{
+  "Stop": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "bash .claude/hooks/post_commit_doc.sh",
+          "statusMessage": "Documenting commit..."
+        }
+      ]
+    }
+  ]
+}
