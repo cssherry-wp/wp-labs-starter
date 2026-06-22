@@ -1,0 +1,64 @@
+name: PR Rebase
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  rebase:
+    runs-on: ubuntu-latest
+    steps:
+      # Preferred: GitHub App installation token. Falls back to a fine-grained
+      # PAT (REBASE_TOKEN), then GITHUB_TOKEN (which does NOT re-trigger CI).
+      - name: Mint GitHub App token (preferred)
+        id: app-token
+        continue-on-error: true
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.REBASE_APP_ID }}
+          private-key: ${{ secrets.REBASE_APP_PRIVATE_KEY }}
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token || secrets.REBASE_TOKEN || secrets.GITHUB_TOKEN }}
+      - name: Rebase behind PRs onto main
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.REBASE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          # Open, same-repo PRs based on main, not opted out via no-automation.
+          gh pr list --state open --base main \
+            --json number,headRefName,isCrossRepository,labels \
+            --jq '.[] | select(.isCrossRepository==false)
+                       | select((.labels // []) | any(.name=="no-automation") | not)
+                       | [.number, .headRefName] | @tsv' \
+          | while IFS="$(printf '\t')" read -r NUM BRANCH; do
+              echo "::group::PR #$NUM ($BRANCH)"
+              git fetch origin "$BRANCH"
+              if git merge-base --is-ancestor origin/main "origin/$BRANCH"; then
+                echo "#$NUM already contains main; skipping."
+                gh pr edit "$NUM" --remove-label needs-rebase || true
+                echo "::endgroup::"; continue
+              fi
+              git checkout -B "$BRANCH" "origin/$BRANCH"
+              if git rebase origin/main; then
+                if git push --force-with-lease origin "$BRANCH"; then
+                  gh pr edit "$NUM" --remove-label needs-rebase || true
+                  echo "rebased #$NUM"
+                else
+                  echo "push rejected (branch moved) for #$NUM"
+                fi
+              else
+                git rebase --abort
+                gh pr edit "$NUM" --add-label needs-rebase || true
+                gh pr comment "$NUM" --body "Automatic rebase onto \`main\` hit conflicts; please rebase manually. <!-- pr-rebase -->"
+              fi
+              echo "::endgroup::"
+            done
