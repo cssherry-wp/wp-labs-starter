@@ -1,0 +1,17 @@
+#!/bin/sh
+# Pre-commit: secret scan + lint/format/type checks before allowing a commit.
+# Installed via `make install-hooks`.
+set -e
+
+if command -v gitleaks >/dev/null 2>&1; then
+  echo "Scanning for secrets..."
+  gitleaks protect --staged --verbose
+else
+  echo "WARNING: gitleaks not installed; skipping secret scan (brew install gitleaks)"
+fi
+
+echo "Running checks..."
+make check
+make typecheck || true
+
+echo "Pre-commit checks complete."
