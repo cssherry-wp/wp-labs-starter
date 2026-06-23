@@ -9,7 +9,7 @@ description: Use when starting a new repo or adding SDLC automation to an existi
 
 Interactively bootstrap standardized SDLC automation into a repo: a runnable
 starter app (for a greenfield repo), a local task runner (Makefile), a git
-pre-commit hook, a Claude commit-doc Stop hook, GitHub Actions PR gates (lint,
+pre-commit hook, GitHub Actions PR gates (lint,
 typecheck, unit, Playwright e2e, security), Dependabot, PR-status labels, four
 Claude PR-automation workflows, and an optional hosting layer (Docker +
 docker-compose + Azure Bicep deploy) for web-app stacks.
@@ -52,7 +52,7 @@ directory; copy from there.
    can add and mark each present / partial / missing:
    - dev-loop: `Makefile`, tool configs, `.gitignore`, manifest
    - starter app (greenfield only)
-   - `git-hooks/pre-commit`; the `post_commit_doc.sh` Stop hook in `.claude/settings.json`
+   - `git-hooks/pre-commit`
    - each workflow: `ci.yml`, `security.yml`, `code-review.yml`, `claude.yml`,
      `claude-comment-triage.yml`, `pr-status-labels.yml`, `pr-rebase.yml`
    - `dependabot.yml`; the managed labels; hosting (`Dockerfile`,
@@ -94,12 +94,7 @@ directory; copy from there.
 4. **git pre-commit hook.** Copy `templates/git-hooks/pre-commit` →
    `.sdlc-hooks/pre-commit`, then run `make install-hooks` to symlink it.
 
-5. **Claude commit-doc hook.** Copy `templates/claude-hooks/post_commit_doc.sh`
-   → `.claude/hooks/`, and merge `templates/claude-hooks/settings-hooks.json`
-   into `.claude/settings.json` (append to any existing `Stop` array; do not
-   replace it). Docs land in `docs/`.
-
-6. **GitHub Actions.** Copy `templates/github/workflows/*.yml` →
+5. **GitHub Actions.** Copy `templates/github/workflows/*.yml` →
    `.github/workflows/` (gates `ci.yml`/`security.yml`, the Claude automation
    trio, `pr-status-labels.yml`, and `pr-rebase.yml`) and
    `templates/github/dependabot.yml` → `.github/dependabot.yml`. Skip any
@@ -108,7 +103,7 @@ directory; copy from there.
    force-pushes with lease; remind the user to add the GitHub App (preferred) or
    `REBASE_TOKEN` PAT secrets so rebased pushes re-trigger CI (see Prerequisites).
 
-7. **Hosting (web-app stacks).** For Python/Fullstack, offer the hosting layer:
+6. **Hosting (web-app stacks).** For Python/Fullstack, offer the hosting layer:
    copy `templates/<stack>/hosting/` (`Dockerfile`, `.dockerignore`,
    `docker-compose.yml`) to the repo root, `templates/azure/infra/` → `infra/`,
    `templates/azure/workflows/azure-deploy.yml` → `.github/workflows/`, and
@@ -117,11 +112,11 @@ directory; copy from there.
    no-ops until `AZURE_WEBAPP_NAME` is set). The TS CLI-library stack has no
    hosting layer. Skip if the user declines.
 
-8. **Ensure labels.** Run `scripts/ensure-labels.sh` (idempotent). Creates
+7. **Ensure labels.** Run `scripts/ensure-labels.sh` (idempotent). Creates
    `check-in-progress`, `check-pass`, `check-fail`, `question`, `no-automation`,
    `dependencies`, `security`, `needs-rebase`.
 
-9. **Verify & summarize.** Run `make check` and `make test` locally and report
+8. **Verify & summarize.** Run `make check` and `make test` locally and report
    results. Summarize what was created/changed and list manual follow-ups: add
    the repo secrets above (incl. Azure OIDC if hosting was added), and
    (recommended) enable branch protection requiring the CI checks.
@@ -132,9 +127,6 @@ directory; copy from there.
   plugin and hardcodes the marketplace `cssherry-wp/claude-starter`.
 - `[autofix]` coordination: triage commits are `[autofix]`-prefixed and signed
   `<!-- claude-autofix -->`; `code-review.yml` skips them.
-- The two hook types differ: `pre-commit` is a git hook (git fires it);
-  `post_commit_doc.sh` is a Claude Code Stop hook (the harness fires it). See
-  each template's README.
 
 ## Common mistakes
 
