@@ -271,6 +271,7 @@ git commit -m "feat(planner): shared errors + priority-emoji helper"
 - Produces:
   - Dataclasses: `GoogleCfg(credentials_path, token_path, planner_address, gdoc_id)`; `OneNoteCfg(files: list[str], converter_command: str)`; `VaultCfg(path, vault_name, templates_dir, projects_dir, daily_output_dir, weekly_output_dir, todo_files: list[str], git_commit: bool)`; `ObsidianCfg(mode, host, port, cert_path, api_key_env)`; `LlmCfg(backend, command, flags: list[str], model, endpoint)`; `Config(google, onenote, vault, obsidian, llm)`.
   - `load_config(path: str) -> Config` — parses YAML, applies defaults, validates required keys, raises `ConfigError` with an actionable message.
+  - `extract_doc_id(value: str) -> str` — accepts either a full Google Docs URL (`https://docs.google.com/document/d/<ID>/edit`) or a bare ID and returns the ID; applied to `google.gdoc_id` so the user can paste the link.
 
 - [ ] **Step 1: Write the fixture**
 
@@ -353,6 +354,21 @@ def test_invalid_mode_raises(tmp_path: Path) -> None:
     bad.write_text(text)
     with pytest.raises(ConfigError, match="obsidian.mode"):
         load_config(str(bad))
+
+
+def test_gdoc_id_accepts_full_url(tmp_path: Path) -> None:
+    url = "https://docs.google.com/document/d/1AbCdEf-gh_IJK/edit?usp=sharing"
+    text = FIXTURE.read_text().replace(
+        "gdoc_id: 1AbCdEfGhIjKlMnOpQrStUvWxYz", f"gdoc_id: {url}")
+    cfg_file = tmp_path / "c.yaml"
+    cfg_file.write_text(text)
+    cfg = load_config(str(cfg_file))
+    assert cfg.google.gdoc_id == "1AbCdEf-gh_IJK"
+
+
+def test_gdoc_id_accepts_bare_id() -> None:
+    cfg = load_config(str(FIXTURE))
+    assert cfg.google.gdoc_id == "1AbCdEfGhIjKlMnOpQrStUvWxYz"
 ```
 
 - [ ] **Step 3: Run test to verify it fails**
@@ -368,13 +384,16 @@ Expected: FAIL (`ModuleNotFoundError: planner.config`).
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 from planner.errors import ConfigError
+
+_DOC_ID_RE = re.compile(r"/document/d/([A-Za-z0-9_-]+)")
 
 
 @dataclass
@@ -440,6 +459,12 @@ def _require(data: dict[str, Any], section: str, key: str) -> Any:
     return data[key]
 
 
+def extract_doc_id(value: str) -> str:
+    """Return the doc ID from a Google Docs URL, or the value unchanged if already an ID."""
+    match = _DOC_ID_RE.search(value)
+    return match.group(1) if match else value.strip()
+
+
 def load_config(path: str) -> Config:
     """Parse config.yaml, apply defaults, and validate. Raises ConfigError."""
     p = Path(os.path.expanduser(path))
@@ -453,7 +478,7 @@ def load_config(path: str) -> Config:
         credentials_path=_expand(_require(g, "google", "credentials_path")),
         token_path=_expand(_require(g, "google", "token_path")),
         planner_address=_require(g, "google", "planner_address"),
-        gdoc_id=_require(g, "google", "gdoc_id"),
+        gdoc_id=extract_doc_id(_require(g, "google", "gdoc_id")),
     )
     onenote = OneNoteCfg(
         files=[_expand(f) for f in o.get("files", [])],
@@ -493,7 +518,7 @@ def load_config(path: str) -> Config:
 - [ ] **Step 5: Run test to verify it passes**
 
 Run: `uv run pytest tests/test_config.py -v`
-Expected: `4 passed`.
+Expected: `6 passed`.
 
 - [ ] **Step 6: Commit**
 
@@ -2441,7 +2466,7 @@ git commit -m "feat(planner): daily + weekly entry points with resilient gather"
 
 - [ ] **Step 1: Write `templates/config.example.yaml`**
 
-Copy the Task 3 fixture content and prefix it with comment lines documenting each key (one `#` comment per non-obvious field: `planner_address`, `gdoc_id`, `converter_command` `{input}/{output}`, `obsidian.cert_path`, `llm.backend`).
+Copy the Task 3 fixture content and prefix it with comment lines documenting each key (one `#` comment per non-obvious field: `planner_address`, `gdoc_id` — note it accepts either the full Google Docs URL or a bare ID, `converter_command` `{input}/{output}`, `obsidian.cert_path`, `llm.backend`).
 
 - [ ] **Step 2: Write `templates/Daily.md`** — paste the user's provided Templater daily template verbatim (the `<%* … %>` block with the `## Notes`, `## TODO`, `### Completed / Cancelled`, `### References` Dataview sections).
 
