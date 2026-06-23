@@ -1,6 +1,7 @@
 You are a planning assistant. Given the JSON payload below (calendar events,
 accomplishment emails, Google Doc todos, OneNote-derived notes, and recent daily
-notes), produce ONLY a JSON object — no prose — with this exact shape:
+notes), produce ONLY a JSON object — no prose — with this exact shape.
+Do not wrap the JSON in markdown code fences.
 
 {
   "calls": [

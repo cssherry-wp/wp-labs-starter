@@ -28,6 +28,20 @@ def test_synthesize_daily_parses(monkeypatch: pytest.MonkeyPatch) -> None:
     assert out["new_tasks"][0]["priority"] == "high"
 
 
+def test_synthesize_daily_substitutes_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    received: list[str] = []
+    canned = json.dumps({"calls": [], "accomplishments_md": "", "learnings_md": "", "new_tasks": []})
+
+    def fake(cfg, prompt):
+        received.append(prompt)
+        return canned
+
+    monkeypatch.setattr(syn, "run_backend", fake)
+    cfg = LlmCfg("claude", "claude", ["-p"], "", "")
+    syn.synthesize_daily(cfg, "PROMPT {payload}", {"x": 1})
+    assert '"x": 1' in received[0]
+
+
 def test_run_backend_empty_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     class P:
         returncode = 0

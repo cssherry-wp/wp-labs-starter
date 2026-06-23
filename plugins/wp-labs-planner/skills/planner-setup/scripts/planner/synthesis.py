@@ -13,7 +13,7 @@ def run_backend(cfg: LlmCfg, prompt: str) -> str:
     """Run the configured LLM backend on `prompt`; return its stdout text."""
     if cfg.backend == "local" and cfg.endpoint:
         return _run_http(cfg, prompt)
-    cmd = [cfg.command, *cfg.flags] if cfg.backend == "claude" else [cfg.command]
+    cmd = [cfg.command, *cfg.flags]
     try:
         proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=300)
     except (subprocess.SubprocessError, OSError) as exc:
