@@ -21,9 +21,14 @@ def check(config_path: str) -> dict[str, bool]:
     Returns:
         Dict mapping flag names to their boolean readiness state.
     """
-    flags = {"config_present": Path(os.path.expanduser(config_path)).is_file(),
-             "config_valid": False, "token_present": False, "obsidian_env_set": False,
-             "vault_reachable": False, "recent_daily_present": False}
+    flags = {
+        "config_present": Path(os.path.expanduser(config_path)).is_file(),
+        "config_valid": False,
+        "token_present": False,
+        "obsidian_env_set": False,
+        "vault_reachable": False,
+        "recent_daily_present": False,
+    }
     try:
         cfg = load_config(config_path)
     except ConfigError:
@@ -33,7 +38,7 @@ def check(config_path: str) -> dict[str, bool]:
     flags["obsidian_env_set"] = bool(os.environ.get(cfg.obsidian.api_key_env))
     daily_dir = Path(cfg.vault.path) / cfg.vault.daily_output_dir
     flags["vault_reachable"] = Path(cfg.vault.path).is_dir()
-    for delta in range(0, 3):
+    for delta in range(3):
         d = date.today() - timedelta(days=delta)
         if (daily_dir / f"{d.isoformat()}.md").is_file():
             flags["recent_daily_present"] = True
