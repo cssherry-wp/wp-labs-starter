@@ -123,8 +123,9 @@ directory; copy from there.
 
 ## Key facts
 
-- `claude-comment-triage.yml` depends on the `github-pr-review@claude-starter`
-  plugin and hardcodes the marketplace `cssherry-wp/claude-starter`.
+- `claude-comment-triage.yml` loads the `wp-labs-standards@wp-labs-starter`
+  plugin (which provides the `github-pr-review` skill) and hardcodes the
+  marketplace `cssherry-wp/wp-labs-starter`.
 - `[autofix]` coordination: triage commits are `[autofix]`-prefixed and signed
   `<!-- claude-autofix -->`; `code-review.yml` skips them.
 

@@ -60,9 +60,10 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # Load the public-marketplace plugin for inline-reply / thread-resolution recipes.
-          plugin_marketplaces: 'https://github.com/cssherry-wp/claude-starter.git'
-          plugins: 'github-pr-review@claude-starter'
+          # Load the wp-labs-standards plugin (provides the github-pr-review skill:
+          # inline-reply / thread-resolution recipes).
+          plugin_marketplaces: 'https://github.com/cssherry-wp/wp-labs-starter.git'
+          plugins: 'wp-labs-standards@wp-labs-starter'
           additional_permissions: |
             actions: read
           prompt: |
