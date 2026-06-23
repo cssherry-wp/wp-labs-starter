@@ -23,4 +23,4 @@ def test_fetch_todos_extracts_text() -> None:
         {"paragraph": {"elements": [{"textRun": {"content": "Review PR\n"}}]}},
     ]}}
     md = fetch_todos(FakeDocs(doc), "doc-1")
-    assert "Email Bob" in md and "Review PR" in md
+    assert md.splitlines() == ["Email Bob", "Review PR"]

@@ -23,7 +23,7 @@ def convert(one_path: str, converter_command: str) -> str:
         return f"⚠️ OneNote unavailable: {one_path}"
     with tempfile.TemporaryDirectory() as tmp:
         out_path = str(Path(tmp) / "out.md")
-        cmd = converter_command.replace("{input}", one_path).replace("{output}", out_path)
+        cmd = converter_command.replace("{input}", shlex.quote(one_path)).replace("{output}", shlex.quote(out_path))
         try:
             subprocess.run(shlex.split(cmd), capture_output=True, timeout=120, check=True)
             return Path(out_path).read_text(encoding="utf-8")
