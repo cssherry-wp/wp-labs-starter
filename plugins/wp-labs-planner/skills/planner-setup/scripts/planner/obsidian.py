@@ -46,37 +46,44 @@ class FilesystemVault:
         return self._root / filepath
 
     def list_dir(self, dirpath: str) -> list[str]:
+        """Return sorted entry names in dirpath, directories suffixed with '/'."""
         d = self._abs(dirpath)
         if not d.is_dir():
             raise VaultIOError(f"Not a directory: {dirpath}")
         return sorted(e.name + ("/" if e.is_dir() else "") for e in d.iterdir())
 
     def read(self, filepath: str) -> str:
+        """Return the UTF-8 text content of filepath, raising VaultIOError if absent."""
         p = self._abs(filepath)
         if not p.is_file():
             raise VaultIOError(f"File not found: {filepath}")
         return p.read_text(encoding="utf-8")
 
     def stat_mtime(self, filepath: str) -> float:
+        """Return the last-modified timestamp of filepath as a POSIX float."""
         p = self._abs(filepath)
         if not p.is_file():
             raise VaultIOError(f"File not found: {filepath}")
         return p.stat().st_mtime
 
     def write(self, filepath: str, content: str) -> None:
+        """Write content to filepath, creating parent directories as needed."""
         p = self._abs(filepath)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content, encoding="utf-8")
 
     def append(self, filepath: str, content: str) -> None:
+        """Append content to filepath, creating it if it does not exist."""
         existing = self.read(filepath) if self.exists(filepath) else ""
         self.write(filepath, existing + ("\n" if existing and not existing.endswith("\n") else "") + content)
 
     def patch_heading(self, filepath: str, heading: str, content: str,
                       operation: str = "append") -> None:
+        """Insert content under the named heading using append or prepend."""
         self.write(filepath, _insert_under_heading(self.read(filepath), heading, content, operation))
 
     def exists(self, filepath: str) -> bool:
+        """Return True if filepath exists as a regular file."""
         return self._abs(filepath).is_file()
 
 
