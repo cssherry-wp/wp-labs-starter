@@ -30,7 +30,7 @@
     {
       "name": "wp-labs-planner",
       "source": "./plugins/wp-labs-planner",
-      "description": "Daily & weekly Obsidian planner that aggregates Gmail (+planner alias), a Google Doc, OneNote, and vault state into Obsidian notes. Bundles the mcp-obsidian server for vault I/O. Spec stage — tooling forthcoming.",
+      "description": "Daily & weekly Obsidian planner: aggregates Gmail (+planner alias), a Google Doc, OneNote, and vault state into Obsidian notes via the Local REST API MCP. Includes the planner-setup skill.",
       "category": "productivity",
       "version": "0.0.1"
     }
