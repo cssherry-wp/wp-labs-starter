@@ -1,0 +1,28 @@
+from __future__ import annotations
+
+from datetime import date
+from pathlib import Path
+
+import planner.daily as daily_mod
+from planner.config import load_config
+from planner.obsidian import FilesystemVault
+
+FIXTURE = Path(__file__).parent / "fixtures" / "config_valid.yaml"
+
+
+def test_run_daily_end_to_end(tmp_path: Path, monkeypatch) -> None:
+    (tmp_path / "zz-Sherry_Daily").mkdir()
+    (tmp_path / "zz-Sherry_Daily" / "2026-06-23.md").write_text("## Notes\n\n## TODO\n")
+    cfg = load_config(str(FIXTURE))
+    cfg.vault.path = str(tmp_path)
+    cfg.obsidian.mode = "filesystem"
+    cfg.vault.git_commit = False
+
+    monkeypatch.setattr(daily_mod, "make_vault", lambda c: FilesystemVault(str(tmp_path)))
+    monkeypatch.setattr(daily_mod, "_gather_daily", lambda vault, cfg, today: {"x": 1})
+    monkeypatch.setattr(daily_mod, "synthesize_daily",
+                        lambda cfg, tmpl, payload: {"calls": [], "accomplishments_md": "- a",
+                                                    "learnings_md": "", "new_tasks": []})
+    path = daily_mod.run_daily(cfg, date(2026, 6, 23))
+    assert path.endswith("2026-06-23.md")
+    assert "### ✅ This Week So Far" in (tmp_path / "zz-Sherry_Daily" / "2026-06-23.md").read_text()
