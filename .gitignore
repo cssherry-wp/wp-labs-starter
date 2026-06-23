@@ -1,1 +1,48 @@
+# OS
 .DS_Store
+**/.DS_Store
+Icon?
+
+# Editor / local Claude Code config
+.claude/settings.local.json
+
+# Node / JS / TS
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Build output (Vite / React / TS / bundlers)
+dist/
+build/
+out/
+.next/
+.astro/
+.vite/
+.turbo/
+*.tsbuildinfo
+.eslintcache
+
+# Test / coverage / e2e
+coverage/
+playwright-report/
+test-results/
+.playwright/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Python (tooling/scripts)
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Docker
+docker-compose.override.yml
+*.local.env

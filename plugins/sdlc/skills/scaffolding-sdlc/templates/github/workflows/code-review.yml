@@ -1,0 +1,83 @@
+name: Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+jobs:
+  code-review:
+    # Skip when the PR opts out of all Claude automation.
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-automation') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # write is required so the review can post its comment via `gh pr comment`
+      pull-requests: write
+      issues: read
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Detect autofix commit
+        id: detect
+        run: |
+          SUBJECT="$(git log -1 --pretty=%s)"
+          if printf '%s' "$SUBJECT" | grep -q '^\[autofix\]'; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run code review
+        if: steps.detect.outputs.skip == 'false'
+        id: code-review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
+          plugins: 'code-review@claude-code-plugins'
+          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+
+  security-review:
+    # Skip when the PR opts out of all Claude automation.
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-automation') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # write is required so the security review can comment its findings on the PR
+      pull-requests: write
+      issues: read
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          # full history so the review can diff the PR against its base
+          fetch-depth: 0
+
+      - name: Detect autofix commit
+        id: detect
+        run: |
+          SUBJECT="$(git log -1 --pretty=%s)"
+          if printf '%s' "$SUBJECT" | grep -q '^\[autofix\]'; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run security review
+        if: steps.detect.outputs.skip == 'false'
+        id: security-review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            /security-review
+            Review only the changes in this pull request against its base branch.
+            Post the findings as a comment on PR #${{ github.event.pull_request.number }}
+            in ${{ github.repository }} using `gh pr comment`. If there are no findings,
+            say so briefly in the comment.
+          claude_args: '--allowed-tools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*)"'

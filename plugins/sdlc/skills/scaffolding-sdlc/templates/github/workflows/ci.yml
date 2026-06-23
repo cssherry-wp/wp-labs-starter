@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+
+jobs:
+  # Root-level Node/TypeScript project (package-lock.json at repo root).
+  node:
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@v5
+      - id: detect
+        run: |
+          if [ -f package-lock.json ]; then echo "present=true" >> "$GITHUB_OUTPUT";
+          else echo "present=false" >> "$GITHUB_OUTPUT"; echo "::notice::No root package-lock.json; skipping root Node jobs."; fi
+      - if: steps.detect.outputs.present == 'true'
+        uses: actions/setup-node@v5
+        with: { node-version: 20, cache: npm }
+      - if: steps.detect.outputs.present == 'true'
+        run: npm ci
+      - if: steps.detect.outputs.present == 'true'
+        run: make lint
+      - if: steps.detect.outputs.present == 'true'
+        run: make typecheck
+      - if: steps.detect.outputs.present == 'true'
+        run: make test
+
+  # Nested frontend/ npm project (fullstack: Django at root, React in frontend/).
+  frontend:
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    defaults: { run: { working-directory: frontend } }
+    steps:
+      - uses: actions/checkout@v5
+      - id: detect
+        working-directory: .
+        run: |
+          if [ -f frontend/package.json ] && [ ! -f package-lock.json ]; then echo "present=true" >> "$GITHUB_OUTPUT";
+          else echo "present=false" >> "$GITHUB_OUTPUT"; echo "::notice::No nested frontend/ project; skipping."; fi
+      - if: steps.detect.outputs.present == 'true'
+        uses: actions/setup-node@v5
+        with: { node-version: 20, cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - if: steps.detect.outputs.present == 'true'
+        run: npm ci
+      - if: steps.detect.outputs.present == 'true'
+        run: npm run lint
+      - if: steps.detect.outputs.present == 'true'
+        run: npm run typecheck
+      - if: steps.detect.outputs.present == 'true'
+        run: npm test
+
+  python:
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@v5
+      - id: detect
+        run: |
+          if [ -f pyproject.toml ]; then echo "present=true" >> "$GITHUB_OUTPUT";
+          else echo "present=false" >> "$GITHUB_OUTPUT"; echo "::notice::No pyproject.toml; skipping Python jobs."; fi
+      - if: steps.detect.outputs.present == 'true'
+        uses: astral-sh/setup-uv@v5
+      - if: steps.detect.outputs.present == 'true'
+        run: make check-python
+      - if: steps.detect.outputs.present == 'true'
+        run: make typecheck-python
+      - if: steps.detect.outputs.present == 'true'
+        run: make test-python
+
+  e2e:
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 20 }
+      - name: Run Playwright e2e where configured
+        run: |
+          if [ -f frontend/playwright.config.ts ]; then DIR=frontend;
+          elif [ -f playwright.config.ts ]; then DIR=.;
+          else echo "::notice::No Playwright config; skipping e2e."; exit 0; fi
+          cd "$DIR"
+          npm ci
+          npx playwright install --with-deps
+          npx playwright test
