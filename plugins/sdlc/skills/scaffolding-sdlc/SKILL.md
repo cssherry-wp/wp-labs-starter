@@ -10,11 +10,13 @@ description: Use when starting a new repo or adding SDLC automation to an existi
 Interactively bootstrap standardized SDLC automation into a repo: a runnable
 starter app (for a greenfield repo), a local task runner (Makefile), a git
 pre-commit hook, a Claude commit-doc Stop hook, GitHub Actions PR gates (lint,
-typecheck, unit, Playwright e2e, security), Dependabot, PR-status labels, and
-four Claude PR-automation workflows.
+typecheck, unit, Playwright e2e, security), Dependabot, PR-status labels, four
+Claude PR-automation workflows, and an optional hosting layer (Docker +
+docker-compose + Azure Bicep deploy) for web-app stacks.
 
 **Core principle:** local == CI (both call the same Makefile targets), and never
-clobber existing files — detect, diff, ask, merge.
+clobber existing files — detect, diff, ask, merge. On an existing repo, audit
+the full inventory and add only the missing pieces.
 
 ## When to use
 
@@ -41,17 +43,28 @@ clobber existing files — detect, diff, ask, merge.
 Run these steps in order. The template root is this skill's `templates/`
 directory; copy from there.
 
-1. **Detect & report.** Run `scripts/detect-stack.sh` in the target repo. Also
-   inspect existing `.github/`, `Makefile`, hooks, and labels (`gh label list`),
-   and note the repo's conventions: package manager (pip vs uv), config-file
-   style (standalone `ruff.toml`/`pytest.ini` vs `[tool.*]`), project
-   subdirectory (manifests under `app/`, `app/frontend/`, etc.), and existing
-   frontend linter. Report what exists vs. what is missing. **Never overwrite
-   existing files silently** — for any file that already exists, show the diff
-   and ask before changing it. **Adapt, don't impose:** where the repo already
-   has a convention, conform to it (e.g. add `pip-audit` for a pip repo, wire CI
-   `working-directory` to the project subdir, call the repo's existing `make`
-   targets) instead of forcing the template's defaults.
+1. **Detect & audit.** Run `scripts/detect-stack.sh` in the target repo and note
+   its conventions: package manager (pip vs uv), config-file style (standalone
+   `ruff.toml`/`pytest.ini` vs `[tool.*]`), project subdirectory (manifests under
+   `app/`, `app/frontend/`, etc.), and existing frontend linter.
+
+   Then produce a **scaffold inventory** — go through EVERY component this skill
+   can add and mark each present / partial / missing:
+   - dev-loop: `Makefile`, tool configs, `.gitignore`, manifest
+   - starter app (greenfield only)
+   - `git-hooks/pre-commit`; the `post_commit_doc.sh` Stop hook in `.claude/settings.json`
+   - each workflow: `ci.yml`, `security.yml`, `code-review.yml`, `claude.yml`,
+     `claude-comment-triage.yml`, `pr-status-labels.yml`, `pr-rebase.yml`
+   - `dependabot.yml`; the managed labels; hosting (`Dockerfile`,
+     `docker-compose.yml`, `infra/` Bicep, `azure-deploy.yml`)
+
+   Present the inventory to the user. **On an existing repo, add only the
+   missing pieces** and **explicitly ask about each gap** before adding it —
+   don't assume. **Never overwrite existing files silently:** for anything that
+   already exists, show the diff and ask. **Adapt, don't impose:** where the repo
+   already has a convention, conform to it (e.g. add `pip-audit` for a pip repo,
+   wire CI `working-directory` to the project subdir, call the repo's existing
+   `make` targets) instead of forcing the template's defaults.
 
 2. **Choose stack & scanners.** Present the detected stack and the menu —
    **TypeScript**, **Python**, or **Fullstack (Python + React)** — with brief
@@ -95,14 +108,23 @@ directory; copy from there.
    force-pushes with lease; remind the user to add the GitHub App (preferred) or
    `REBASE_TOKEN` PAT secrets so rebased pushes re-trigger CI (see Prerequisites).
 
-7. **Ensure labels.** Run `scripts/ensure-labels.sh` (idempotent). Creates
+7. **Hosting (web-app stacks).** For Python/Fullstack, offer the hosting layer:
+   copy `templates/<stack>/hosting/` (`Dockerfile`, `.dockerignore`,
+   `docker-compose.yml`) to the repo root, `templates/azure/infra/` → `infra/`,
+   `templates/azure/workflows/azure-deploy.yml` → `.github/workflows/`, and
+   `templates/azure/HOSTING.md`. Local: `docker compose up --build`. Deploy needs
+   the Azure OIDC secrets + repo variables in `HOSTING.md` (the deploy job
+   no-ops until `AZURE_WEBAPP_NAME` is set). The TS CLI-library stack has no
+   hosting layer. Skip if the user declines.
+
+8. **Ensure labels.** Run `scripts/ensure-labels.sh` (idempotent). Creates
    `check-in-progress`, `check-pass`, `check-fail`, `question`, `no-automation`,
    `dependencies`, `security`, `needs-rebase`.
 
-8. **Verify & summarize.** Run `make check` and `make test` locally and report
+9. **Verify & summarize.** Run `make check` and `make test` locally and report
    results. Summarize what was created/changed and list manual follow-ups: add
-   the repo secrets above, and (recommended) enable branch protection requiring
-   the CI checks.
+   the repo secrets above (incl. Azure OIDC if hosting was added), and
+   (recommended) enable branch protection requiring the CI checks.
 
 ## Key facts
 
