@@ -1,13 +1,13 @@
 {
-  "name": "superpowers-team",
+  "name": "wp-labs-superpowers",
   "description": "Team fork of superpowers (TDD, debugging, brainstorming, plans) with the team docs-path convention baked in. Enable instead of stock superpowers — never both.",
   "version": "6.0.3-team.1",
   "author": {
     "name": "Sherry Zhou",
     "email": "szhou@wp-labs.ai"
   },
-  "homepage": "https://github.com/cssherry-wp/claude-starter",
-  "repository": "https://github.com/cssherry-wp/claude-starter",
+  "homepage": "https://github.com/cssherry-wp/wp-labs-starter",
+  "repository": "https://github.com/cssherry-wp/wp-labs-starter",
   "license": "MIT",
   "keywords": [
     "skills",

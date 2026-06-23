@@ -1,4 +1,4 @@
-# superpowers-team — fork notes
+# wp-labs-superpowers — fork notes
 
 This is a vendored fork of [superpowers](https://github.com/obra/superpowers), trimmed to the
 plugin essentials and customized with the team docs-path convention.

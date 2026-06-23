@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Refresh the vendored superpowers-team fork from the superpowers snapshot that
+# Refresh the vendored wp-labs-superpowers fork from the superpowers snapshot that
 # anthropics/claude-plugins-official currently pins (a specific, vetted
 # obra/superpowers commit) — i.e. track Anthropic's curated release, not
 # upstream HEAD.
 #
 # Detects a new upstream release by comparing the upstream plugin.json `version`
 # against our fork's base version (the part before the `-team.N` suffix). If they
-# differ, it rebuilds plugins/superpowers-team from upstream and re-applies the
+# differ, it rebuilds plugins/wp-labs-superpowers from upstream and re-applies the
 # team docs-path convention. It does NOT commit — the CI workflow (or you) commits
 # and opens the PR.
 #
@@ -19,7 +19,7 @@ set -euo pipefail
 
 MARKETPLACE_REPO="https://github.com/anthropics/claude-plugins-official.git"
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-FORK_DIR="$ROOT/plugins/superpowers-team"
+FORK_DIR="$ROOT/plugins/wp-labs-superpowers"
 MODE="${1:-refresh}"
 
 emit() { [ -n "${GITHUB_OUTPUT:-}" ] && echo "$1" >>"$GITHUB_OUTPUT" || true; }
@@ -101,13 +101,13 @@ node - "$FORK_DIR/.claude-plugin/plugin.json" "$new_version" <<'NODE'
 const fs = require("fs");
 const [, , file, version] = process.argv;
 const manifest = {
-  name: "superpowers-team",
+  name: "wp-labs-superpowers",
   description:
     "Team fork of superpowers (TDD, debugging, brainstorming, plans) with the team docs-path convention baked in. Enable instead of stock superpowers — never both.",
   version,
   author: { name: "Sherry Zhou", email: "szhou@wp-labs.ai" },
-  homepage: "https://github.com/cssherry-wp/claude-starter",
-  repository: "https://github.com/cssherry-wp/claude-starter",
+  homepage: "https://github.com/cssherry-wp/wp-labs-starter",
+  repository: "https://github.com/cssherry-wp/wp-labs-starter",
   license: "MIT",
   keywords: ["skills", "tdd", "debugging", "collaboration", "best-practices", "workflows", "fork"],
 };
@@ -115,7 +115,7 @@ fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + "\n");
 NODE
 
 cat >"$FORK_DIR/FORK.md" <<EOF
-# superpowers-team — fork notes
+# wp-labs-superpowers — fork notes
 
 This is a vendored fork of [superpowers](https://github.com/obra/superpowers), trimmed to the
 plugin essentials and customized with the team docs-path convention.
@@ -149,4 +149,4 @@ Run \`scripts/refresh-superpowers-fork.sh\` (or let the weekly
 plugin essentials, re-applies the path convention, bumps the version, and updates this file.
 EOF
 
-echo "Rebuilt superpowers-team at version $new_version (upstream sha $upstream_sha)"
+echo "Rebuilt wp-labs-superpowers at version $new_version (upstream sha $upstream_sha)"

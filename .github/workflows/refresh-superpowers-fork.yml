@@ -43,7 +43,7 @@ jobs:
             echo "No file changes after rebuild; nothing to do."
             exit 0
           fi
-          git commit -m "Refresh superpowers-team to upstream ${VERSION}" -m "Automated rebuild of the vendored superpowers fork from obra/superpowers@${SHA}, with the team docs-path convention re-applied. Review the diff before merging."
+          git commit -m "Refresh wp-labs-superpowers to upstream ${VERSION}" -m "Automated rebuild of the vendored superpowers fork from obra/superpowers@${SHA}, with the team docs-path convention re-applied. Review the diff before merging."
           git push -f origin "$branch"
           if [ -n "$(gh pr list --head "$branch" --state open --json number --jq '.[].number')" ]; then
             echo "PR already open for $branch (updated by force-push)."
@@ -51,8 +51,8 @@ jobs:
             gh pr create \
               --base main \
               --head "$branch" \
-              --title "Refresh superpowers-team to upstream ${VERSION}" \
-              --body "Automated refresh of the \`superpowers-team\` fork to upstream **${VERSION}** (obra/superpowers@\`${SHA}\`).
+              --title "Refresh wp-labs-superpowers to upstream ${VERSION}" \
+              --body "Automated refresh of the \`wp-labs-superpowers\` fork to upstream **${VERSION}** (obra/superpowers@\`${SHA}\`).
 
           Rebuilt by \`scripts/refresh-superpowers-fork.sh\`: re-copied plugin essentials and re-applied the team docs-path convention (\`docs/01-specs\` / \`docs/02-plans\`, HHmm naming).
 
