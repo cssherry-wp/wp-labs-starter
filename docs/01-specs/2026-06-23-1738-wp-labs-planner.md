@@ -103,6 +103,7 @@ plugins/wp-labs-planner/
           gdoc.py                  # todos from the Google Doc
           onenote.py               # .one -> markdown via pluggable converter
           vault.py                 # projects, open tasks, state files, recent notes (mtime + git)
+        obsidian.py                # integration layer: MCP/Local REST API | obsidian:// URI (§5.2)
         synthesis.py               # prompt assembly + pluggable LLM backend (claude -p | local model)
         render_daily.py            # expand Obsidian Daily template (obsidian:// URI) + injected sections
         render_weekly.py           # weekly note (Dataview + static snapshot) + project ## Status updates
@@ -140,6 +141,25 @@ missing:
 The check is idempotent and safe to re-run; "is it running?" = items 1–7 satisfied and
 a recent daily note present.
 
+### 5.2 Obsidian integration layer
+
+A thin `obsidian.py` abstracts how the tool talks to the vault, with two modes:
+
+- **Preferred — Obsidian MCP / Local REST API.** When the Obsidian Local REST API
+  plugin (and, for `claude -p` synthesis, an Obsidian MCP server) is available, the tool
+  expands the Daily template and reads/writes notes through that API. This is robust for
+  scheduled runs and avoids stealing window focus. *No Obsidian MCP is connected in this
+  environment yet, so enabling it is a setup step (install the Local REST API plugin,
+  configure the endpoint/token, optionally register the MCP server).*
+- **Fallback — `obsidian://` URI + direct filesystem.** Expand the template via
+  `obsidian://open?vault=<vault>&file=zz-Templates%2FDaily` and read/write note files on
+  disk. Works without extra plugins but requires Obsidian running and focused for
+  template expansion.
+
+`config.yaml` selects the mode (`obsidian.mode: mcp | uri`); collectors and renderers
+call `obsidian.py` and stay agnostic to which is active. Choosing the default mode and
+confirming MCP availability for unattended runs is a planning item (§12).
+
 ## 6. Behavior
 
 ### Daily (`python -m planner.daily`)
@@ -155,17 +175,17 @@ a recent daily note present.
 4. OneNote: convert each configured `.one` file → Markdown.
 5. Synthesis (`prompts/daily_synthesis.md`): produce the injected sections and assign a
    priority emoji to each new task.
-6. Render: `render_daily.py` **expands the real Obsidian Daily template** rather than
-   porting Templater in Python — it triggers Obsidian via the URI
-   `obsidian://open?vault=<vault>&file=zz-Templates%2FDaily` (vault name from config,
-   e.g. `szhou`) so Templater resolves the tag, nav links, and Dataview blocks natively.
+6. Render: `render_daily.py` **expands the real Obsidian Daily template** (via the
+   integration layer §5.2 — MCP/Local REST API preferred, `obsidian://open?vault=
+   <vault>&file=zz-Templates%2FDaily` as fallback) so Templater resolves the tag, nav
+   links, and Dataview blocks natively, rather than porting Templater in Python.
    It then injects content under `## Notes`:
    - **One `###` header per timed calendar event**, with a bullet underneath giving the
      event time and the `#project/<Name>` hashtag of the associated project (synthesis
      maps each event to a project via attendees/`#<company>/<first_last>` member tags or
-     content). Untimed/all-day items are excluded.
-   - `### Relevant Previous Summaries` — pulled from the recently-touched daily/weekly
-     notes (§step 1), surfacing prior summaries relevant to today.
+     content). Untimed/all-day items are excluded. Directly beneath each event, a nested
+     `#### Relevant previous summary for <event>` subsection surfaces the prior summary
+     (from the recently-touched daily/weekly notes, §step 1) most relevant to that event.
    - `### ✅ This Week So Far` — synthesized accomplishments.
    - `### 📓 Learnings & Follow-ups` — from the converted OneNote notes.
    - new **tasks** from the Google Doc and OneNote follow-ups, as checkboxes with
@@ -174,10 +194,6 @@ a recent daily note present.
    The user's rolling personal todos and follow-ups already live in the vault as tasks,
    so the template's `## TODO` Dataview surfaces them urgent-first automatically; the
    script only adds *new* items. Output file: `<daily_dir>/YYYY-MM-DD.md`.
-
-   *Dependency:* template expansion requires Obsidian running with Templater (and the
-   URI handler) available; the exact expansion mechanism and its unattended-run
-   implications are a planning item (§12).
 
 ### Weekly (`python -m planner.weekly`) — run on the Friday before the week
 1. Enumerate `00-InProgress/<Name>/00-<Name>.md`; gather the week's sources and all
@@ -208,6 +224,7 @@ a recent daily note present.
 - `vault`: vault path, `vault_name` (for the `obsidian://` URI, e.g. `szhou`),
   `templates_dir`, `projects_dir` (`00-InProgress`), `daily_output_dir`,
   `weekly_output_dir`, optional rolling todo/follow-up file paths
+- `obsidian`: `mode` (`mcp` | `uri`); for `mcp`, the Local REST API endpoint + token
 - `llm`: `backend` (`claude` | `local`); for `claude`, the command (default `claude`)
   and flags; for `local`, the model name + endpoint/command (e.g. Ollama model + host)
 
@@ -237,7 +254,8 @@ task files. External APIs and the LLM backend (`claude -p` / local model) are mo
 Coverage includes the happy path, a failing/empty source per collector, recent-note
 selection (mtime + git-history fallback), daily render correctness (resolved tags, nav
 links, verbatim Dataview blocks via template expansion, per-event `###` headers with
-time + `#project/<Name>`, relevant-previous-summaries section, priority emojis), and weekly
+time + `#project/<Name>` plus a nested `#### Relevant previous summary` per event,
+priority emojis), and weekly
 correctness (static grouped-todo ordering, dated `## Status` and `## Timeline`
 insertion, backup).
 
@@ -248,7 +266,9 @@ Cloud OAuth client (Gmail + Docs scopes) → OneNote converter install → **LLM
 setup** (default `claude -p`; or a local model — installing Ollama, pulling a model,
 pointing `llm.backend: local` at it for fully offline runs) → `config.yaml` → vault
 paths and template install → running each script manually → optional macOS `launchd`
-schedule (daily + Friday weekly).
+schedule (daily + Friday weekly). The **Obsidian integration** step covers both modes:
+installing the Local REST API plugin (+ optional MCP server) for `mode: mcp`, or
+relying on the `obsidian://` URI for `mode: uri`.
 
 ## 12. Open items for planning
 
@@ -259,6 +279,8 @@ schedule (daily + Friday weekly).
 - Recommended local model + runtime (e.g. Ollama model choice) and the prompt/output
   contract that keeps synthesis results consistent across the `claude` and `local`
   backends.
-- Exact Obsidian Daily-template expansion mechanism via the `obsidian://` URI (plain
-  `open` vs Advanced URI / Templater trigger) and how it works for unattended/scheduled
-  runs that need Obsidian running.
+- Default Obsidian integration mode (§5.2): whether to ship `mcp` (Local REST API +
+  Obsidian MCP server, which must first be installed/connected) or the `obsidian://` URI
+  fallback, and how each behaves for unattended/scheduled runs that need Obsidian
+  running. Includes the exact template-expansion trigger (plain `open` vs Advanced URI /
+  Templater / REST API call).
