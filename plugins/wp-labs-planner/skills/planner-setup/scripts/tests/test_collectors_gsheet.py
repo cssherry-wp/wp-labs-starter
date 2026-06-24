@@ -65,6 +65,14 @@ def test_completed_line_without_completed_returns_none() -> None:
     assert parse_completed_line("- Some note (Waiting: 1/1/2026, 1:00:00 AM)") is None
 
 
+def test_completed_line_blank_returns_none() -> None:
+    assert parse_completed_line("   ") is None
+
+
+def test_open_line_annotation_only_returns_none() -> None:
+    assert parse_open_line("- (Waiting: 1/1/2026, 1:00:00 AM)") is None
+
+
 def test_normalize_strips_status_dashes_and_signifiers() -> None:
     a = normalize_text("- - Ask for talent review (Waiting: 11/22/2025, 8:26:55 AM)")
     b = normalize_text("- [ ] Ask for talent review ⏫ 📅 2026-06-28 #status/on-notice")

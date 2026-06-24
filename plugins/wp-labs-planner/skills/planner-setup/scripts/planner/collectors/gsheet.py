@@ -45,7 +45,7 @@ def _parse_dt(raw: str) -> datetime | None:
 
 
 def _annotations(text: str) -> list[tuple[str, datetime | None]]:
-    """Return (status word, parsed datetime) for each trailing (Word: date) annotation."""
+    """Return (status word, parsed datetime) for each (Word: date) annotation in text."""
     return [(m.group(1).strip(), _parse_dt(m.group(2))) for m in _ANNOT_RE.finditer(text)]
 
 
