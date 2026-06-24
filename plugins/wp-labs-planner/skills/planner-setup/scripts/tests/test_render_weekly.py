@@ -116,9 +116,25 @@ def test_render_weekly_prefers_vault_template(tmp_path: Path) -> None:
 
 def test_load_default_weekly_template_has_expected_headings() -> None:
     template = load_default_weekly_template()
-    assert "{{week}}" in template
-    assert "## Snapshot (frozen)" in template and "## Project statuses" in template
-    assert "#weekly-planner" in template  # ties into sheet-provenance tagging
+    for heading in [
+        "## Highlights",
+        "## Open tasks by project",
+        "## Open tasks (current)",
+        "## In progress this week",
+        "## Learnings & Follow-ups",
+        "## References",
+        "## Completed this week",
+        "## Cancelled this week",
+    ]:
+        assert heading in template
+    # week-range tokens are present for the live date-scoped queries
+    assert "{{week_start}}" in template and "{{week_end}}" in template
+    # removed sections are gone
+    assert "## Snapshot (frozen)" not in template
+    assert "## From the weekly planner" not in template
+    # Completed/Cancelled sit at the bottom
+    assert template.index("## References") < template.index("## Completed this week")
+    assert template.index("## Completed this week") < template.index("## Cancelled this week")
 
 
 def test_update_project_section_creates_and_prepends() -> None:
