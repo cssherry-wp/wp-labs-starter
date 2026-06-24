@@ -153,6 +153,53 @@ def apply_open_items(vault: Any, daily_dir: str, items: list[OpenItem], today: d
         vault.patch_heading(today_path, _OPEN_HEADING, "\n".join(new_lines), operation="append")
 
 
+def _llm_task_line(text: str, priority: str) -> str:
+    """Build a '- [ ]' task line for an LLM-synthesized task.
+
+    Args:
+        text: Task text, already stripped.
+        priority: Priority level string passed to priority_emoji.
+
+    Returns:
+        Formatted task line with trailing emoji if priority is known.
+    """
+    return f"- [ ] {text} {priority_emoji(priority)}".rstrip()
+
+
+def apply_llm_tasks(vault: Any, daily_dir: str, new_tasks: list[dict],
+                    today: date, index: dict[str, TaskRef],
+                    claimed_keys: set[str]) -> None:
+    """Append LLM-synthesized tasks to today's '## Open Items', deduped against vault+sheet.
+
+    Skips tasks already in *index* (vault) or *claimed_keys* (Sheet open items).
+    Deduplicates identical tasks within a single batch. Does not mutate index or
+    claimed_keys. Makes no patch call when all tasks are filtered out.
+
+    Args:
+        vault: Vault object with exists(), write(), and patch_heading() methods.
+        daily_dir: Directory path for daily notes (e.g. "daily").
+        new_tasks: List of task dicts with "text" and "priority" keys from LLM synthesis.
+        today: Today's date.
+        index: Existing vault task index keyed by normalized text.
+        claimed_keys: Normalized keys already claimed by Sheet open items.
+    """
+    today_path = f"{daily_dir}/{today.isoformat()}.md"
+    seen: set[str] = set()
+    new_lines: list[str] = []
+    for task in new_tasks:
+        text = task.get("text", "").strip()
+        if not text:
+            continue
+        key = normalize_text(text)
+        if key in index or key in claimed_keys or key in seen:
+            continue
+        seen.add(key)
+        new_lines.append(_llm_task_line(text, task.get("priority", "")))
+    if new_lines:
+        _ensure_note(vault, today_path)
+        vault.patch_heading(today_path, _OPEN_HEADING, "\n".join(new_lines), operation="append")
+
+
 def _duration_suffix(item: CompletedItem) -> str:
     """Return a duration suffix for a completed item, or empty string if unknown.
 

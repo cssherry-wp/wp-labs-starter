@@ -6,6 +6,7 @@ from planner.collectors.gsheet import CompletedItem, OpenItem
 from planner.render_tasks import (
     TaskRef,
     apply_completed_items,
+    apply_llm_tasks,
     apply_open_items,
     existing_task_index,
     open_task_line,
@@ -155,4 +156,55 @@ def test_backfill_skips_already_documented() -> None:
     items = [CompletedItem(text="Done it", completed_at=_dt(2026, 1, 5, 14, 1, 52), started_at=None)]
     index = existing_task_index_stub("done it", "daily/2026-01-05.md", "- [x] Done it ✅ 2026-01-05")
     apply_completed_items(vault, "daily", items, index=index)
+    assert vault.patches == []
+
+
+# --- apply_llm_tasks tests ---
+
+def test_apply_llm_tasks_skips_task_in_index() -> None:
+    vault = RecordingVault()
+    index = existing_task_index_stub("follow up", "daily/2026-06-23.md", "- [ ] Follow up")
+    tasks = [{"text": "Follow up", "priority": "high"}]
+    apply_llm_tasks(vault, "daily", tasks, date(2026, 6, 24), index, claimed_keys=set())
+    assert vault.patches == []
+
+
+def test_apply_llm_tasks_skips_task_in_claimed_keys() -> None:
+    vault = RecordingVault()
+    tasks = [{"text": "Sheet task", "priority": "medium"}]
+    apply_llm_tasks(vault, "daily", tasks, date(2026, 6, 24), index={},
+                    claimed_keys={"sheet task"})
+    assert vault.patches == []
+
+
+def test_apply_llm_tasks_dedups_identical_within_batch() -> None:
+    vault = RecordingVault()
+    tasks = [
+        {"text": "Write tests", "priority": "high"},
+        {"text": "Write tests", "priority": "low"},
+    ]
+    apply_llm_tasks(vault, "daily", tasks, date(2026, 6, 24), index={}, claimed_keys=set())
+    assert len(vault.patches) == 1
+    assert "Write tests" in vault.patches[0][2]
+
+
+def test_apply_llm_tasks_renders_survivor_with_priority_emoji() -> None:
+    vault = RecordingVault()
+    tasks = [{"text": "Deploy service", "priority": "high"}]
+    apply_llm_tasks(vault, "daily", tasks, date(2026, 6, 24), index={}, claimed_keys=set())
+    assert vault.patches == [("daily/2026-06-24.md", "Open Items", "- [ ] Deploy service ⏫")]
+
+
+def test_apply_llm_tasks_no_patch_when_all_duplicates() -> None:
+    vault = RecordingVault()
+    index = existing_task_index_stub("existing task", "daily/2026-06-20.md", "- [ ] Existing task")
+    tasks = [{"text": "Existing task", "priority": "medium"}]
+    apply_llm_tasks(vault, "daily", tasks, date(2026, 6, 24), index=index, claimed_keys=set())
+    assert vault.patches == []
+
+
+def test_apply_llm_tasks_no_patch_for_empty_text() -> None:
+    vault = RecordingVault()
+    tasks = [{"text": "", "priority": "high"}, {"text": "  ", "priority": "low"}]
+    apply_llm_tasks(vault, "daily", tasks, date(2026, 6, 24), index={}, claimed_keys=set())
     assert vault.patches == []

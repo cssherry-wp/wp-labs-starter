@@ -6,9 +6,34 @@ from pathlib import Path
 import planner.daily as daily_mod
 import planner.weekly as weekly_mod
 from planner.config import load_config
+from planner.errors import VaultIOError
 from planner.obsidian import FilesystemVault
 
 FIXTURE = Path(__file__).parent / "fixtures" / "config_valid.yaml"
+
+
+def test_run_daily_apply_failure_does_not_abort(tmp_path: Path, monkeypatch) -> None:
+    """run_daily reaches the commit check even when an apply call raises VaultIOError."""
+    (tmp_path / "zz-Sherry_Daily").mkdir()
+    (tmp_path / "zz-Sherry_Daily" / "2026-06-23.md").write_text("## Notes\n\n## TODO\n")
+    cfg = load_config(str(FIXTURE))
+    cfg.vault.path = str(tmp_path)
+    cfg.obsidian.mode = "filesystem"
+    cfg.vault.git_commit = False
+
+    def bad_apply_open(*_args, **_kwargs) -> None:
+        raise VaultIOError("no Open Items heading")
+
+    monkeypatch.setattr(daily_mod, "make_vault", lambda c: FilesystemVault(str(tmp_path)))
+    monkeypatch.setattr(daily_mod, "_gather_daily", lambda vault, cfg, today: {"x": 1})
+    monkeypatch.setattr(daily_mod, "synthesize_daily",
+                        lambda cfg, tmpl, payload: {"calls": [], "accomplishments_md": "",
+                                                    "learnings_md": "", "new_tasks": []})
+    import planner.render_tasks as rt
+    monkeypatch.setattr(rt, "apply_open_items", bad_apply_open)
+    # Must not raise; must return a path
+    result = daily_mod.run_daily(cfg, date(2026, 6, 23))
+    assert result.endswith("2026-06-23.md")
 
 
 def test_run_daily_end_to_end(tmp_path: Path, monkeypatch) -> None:

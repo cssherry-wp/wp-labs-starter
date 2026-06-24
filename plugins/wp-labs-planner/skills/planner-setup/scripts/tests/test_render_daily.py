@@ -10,7 +10,7 @@ from planner.render_daily import build_notes_block, render_daily
 FIXTURE = Path(__file__).parent / "fixtures" / "config_valid.yaml"
 
 
-def test_build_notes_block_has_event_and_tasks() -> None:
+def test_build_notes_block_has_event_sections_but_not_tasks() -> None:
     synthesis = {
         "calls": [{"title": "Sync", "time": "15:00", "project": "#project/VIP",
                    "previous_summary": "last sync agreed on scope"}],
@@ -24,7 +24,8 @@ def test_build_notes_block_has_event_and_tasks() -> None:
     assert "#### Relevant previous summary for Sync" in block
     assert "### 📓 Learnings & Follow-ups" in block
     assert "### ✅ This Week So Far" in block
-    assert "- [ ] follow up ⏫" in block
+    # new_tasks are no longer rendered under Notes — they route to ## Open Items via apply_llm_tasks
+    assert "- [ ] follow up" not in block
 
 
 def test_render_daily_injects(tmp_path: Path) -> None:

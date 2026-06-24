@@ -31,6 +31,19 @@ def _safe(label: str, fn) -> object:  # type: ignore[no-untyped-def]
         return f"⚠️ {label} unavailable"
 
 
+def _safe_apply(label: str, fn) -> None:  # type: ignore[no-untyped-def]
+    """Call fn(); log a warning and continue if it raises — never abort the run.
+
+    Args:
+        label: Human-readable name for the apply step (used in the warning message).
+        fn: Zero-argument callable to invoke.
+    """
+    try:
+        fn()
+    except Exception as exc:  # noqa: BLE001 — resilience: degrade, never abort
+        log.warning("daily apply '%s' failed: %s", label, exc)
+
+
 def _gather_daily(vault, cfg: Config, today: date) -> dict:  # type: ignore[no-untyped-def]
     week_start = date.fromordinal(today.toordinal() - today.weekday())
     creds_holder: dict = {}
@@ -79,10 +92,13 @@ def run_daily(cfg: Config, today: date) -> str:
     path = render_daily(vault, cfg, synthesis, today)
     sheet = payload.get("sheet", {"open": [], "completed": []})
     index = render_tasks.existing_task_index(vault)
-    render_tasks.apply_open_items(vault, cfg.vault.daily_output_dir,
-                                  sheet["open"], today, index)
-    render_tasks.apply_completed_items(vault, cfg.vault.daily_output_dir,
-                                       sheet["completed"], index)
+    _safe_apply("open items", lambda: render_tasks.apply_open_items(
+        vault, cfg.vault.daily_output_dir, sheet["open"], today, index))
+    sheet_keys = {render_tasks.normalize_text(o.text) for o in sheet["open"]}
+    _safe_apply("llm tasks", lambda: render_tasks.apply_llm_tasks(
+        vault, cfg.vault.daily_output_dir, synthesis.get("new_tasks", []), today, index, sheet_keys))
+    _safe_apply("completed items", lambda: render_tasks.apply_completed_items(
+        vault, cfg.vault.daily_output_dir, sheet["completed"], index))
     if cfg.vault.git_commit and is_git_repo(cfg.vault.path):
         commit_files(cfg.vault.path, [str(Path(cfg.vault.path) / path)],
                      f"planner: daily {today.isoformat()}")

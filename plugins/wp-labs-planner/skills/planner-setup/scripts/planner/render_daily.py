@@ -4,7 +4,6 @@ from __future__ import annotations
 from datetime import date
 
 from planner.config import Config
-from planner.errors import priority_emoji
 from planner.obsidian import Vault
 
 
@@ -30,9 +29,6 @@ def build_notes_block(synthesis: dict) -> str:
     if learn:
         parts.append("### 📓 Learnings & Follow-ups")
         parts.append(learn)
-    for task in synthesis.get("new_tasks", []):
-        emoji = priority_emoji(task.get("priority", ""))
-        parts.append(f"- [ ] {task.get('text', '').strip()} {emoji}".rstrip())
     return "\n".join(parts)
 
 
