@@ -15,6 +15,8 @@ log = logging.getLogger(__name__)
 _STATUS_PRIORITY = {"on notice": "high", "waiting": "low"}
 # Obsidian Tasks checkbox markers for non-todo statuses.
 _STATUS_MARKER = {"in progress": "/", "cancelled": "-"}
+# Provenance tag stamped on tasks sourced from the weekly-planner Google Sheet.
+_SHEET_TAG = "#weekly-planner"
 _TASK_DQL = (
     'TABLE WITHOUT ID t.text AS text, file.path AS path, t.completed AS completed, '
     't.status AS status FROM -"zz-Templates" FLATTEN file.tasks AS t'
@@ -48,6 +50,11 @@ def open_task_line(item: OpenItem, end: date) -> str:
     if item.carry_over_weeks:
         parts.append(f"(carried {item.carry_over_weeks}w)")
     return " ".join(parts)
+
+
+def _without_sheet_tag(line: str) -> str:
+    """Return *line* with the sheet provenance tag removed, for change comparison."""
+    return line.replace(f" {_SHEET_TAG}", "")
 
 
 @dataclass
@@ -169,7 +176,7 @@ def _supersede_changed(vault: Any, ref: TaskRef, desired: str, key: str, today: 
     for i, line in enumerate(lines):
         if "[" not in line or normalize_text(line) != key:
             continue
-        if not _is_live(_checkbox_marker(line)) or line == desired:
+        if not _is_live(_checkbox_marker(line)) or _without_sheet_tag(line) == desired:
             return False
         lines[i] = _cancel_line(line, today)
         tail = "\n" if body.endswith("\n") else ""
@@ -197,7 +204,7 @@ def apply_open_items(vault: Any, daily_dir: str, items: list[OpenItem], today: d
         desired = open_task_line(item, end)
         ref = index.get(key)
         if ref is None or _supersede_changed(vault, ref, desired, key, today):
-            new_lines.append(desired)
+            new_lines.append(f"{desired} {_SHEET_TAG}")
     if new_lines:
         _ensure_heading(vault, today_path, _OPEN_HEADING)
         vault.patch_heading(today_path, _OPEN_HEADING, "\n".join(new_lines), operation="append")
@@ -285,5 +292,5 @@ def apply_completed_items(vault: Any, daily_dir: str, items: list[CompletedItem]
         day = item.completed_at.date()
         path = f"{daily_dir}/{day.isoformat()}.md"
         _ensure_heading(vault, path, "TODO")
-        line = f"- [x] {item.text} ✅ {day.isoformat()}{_duration_suffix(item)}"
+        line = f"- [x] {item.text} ✅ {day.isoformat()}{_duration_suffix(item)} {_SHEET_TAG}"
         vault.patch_heading(path, "TODO", line, operation="append")

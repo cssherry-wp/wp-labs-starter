@@ -115,7 +115,7 @@ def test_apply_open_items_appends_new_under_open_items() -> None:
     vault = RecordingVault()
     items = [OpenItem(text="New thing", status="", carry_over_weeks=0, started_at=None)]
     apply_open_items(vault, "daily", items, date(2026, 6, 24), index={})
-    assert vault.patches == [("daily/2026-06-24.md", "Open Items", "- [ ] New thing")]
+    assert vault.patches == [("daily/2026-06-24.md", "Open Items", "- [ ] New thing #weekly-planner")]
     assert vault.exists("daily/2026-06-24.md")  # stub created
 
 
@@ -137,9 +137,10 @@ def test_apply_open_items_supersedes_changed_existing() -> None:
     apply_open_items(vault, "daily", items, date(2026, 6, 24), index=index)
     # old copy preserved as a cancelled tombstone (not deleted, not edited in place)
     assert "- [-] Give feedback 🔽 #status/waiting ❌ 2026-06-24" in vault.files["daily/2026-06-20.md"]
-    # updated copy resurfaced under today's Open Items
+    # updated copy resurfaced under today's Open Items, stamped with provenance tag
     assert vault.patches == [("daily/2026-06-24.md", "Open Items",
-                              "- [ ] Give feedback ⏫ 📅 2026-06-28 #status/on-notice (carried 1w)")]
+                              "- [ ] Give feedback ⏫ 📅 2026-06-28 #status/on-notice (carried 1w) "
+                              "#weekly-planner")]
 
 
 def test_apply_open_items_leaves_already_cancelled_copy() -> None:
@@ -153,6 +154,24 @@ def test_apply_open_items_leaves_already_cancelled_copy() -> None:
     assert vault.patches == []
     assert vault.files["daily/2026-06-20.md"] == \
         "## TODO\n- [-] Give feedback 🔽 #status/waiting ❌ 2026-06-19\n"
+
+
+def test_apply_open_items_does_not_rechurn_untagged_existing() -> None:
+    """A pre-existing untagged copy with identical signifiers is left as-is (no migration churn)."""
+    vault = RecordingVault({"daily/2026-06-20.md": "## TODO\n- [ ] New thing\n"})
+    items = [OpenItem(text="New thing", status="", carry_over_weeks=0, started_at=None)]
+    index = existing_task_index_stub("new thing", "daily/2026-06-20.md", "- [ ] New thing")
+    apply_open_items(vault, "daily", items, date(2026, 6, 24), index=index)
+    assert vault.patches == []
+    assert vault.files["daily/2026-06-20.md"] == "## TODO\n- [ ] New thing\n"
+
+
+def test_apply_llm_tasks_are_not_tagged_as_sheet_sourced() -> None:
+    """LLM-synthesized tasks do not get the #weekly-planner provenance tag."""
+    vault = RecordingVault()
+    apply_llm_tasks(vault, "daily", [{"text": "Deploy service", "priority": "high"}],
+                    date(2026, 6, 24), index={}, claimed_keys=set())
+    assert "#weekly-planner" not in vault.patches[0][2]
 
 
 def test_existing_task_index_prefers_live_over_cancelled() -> None:
@@ -171,7 +190,7 @@ def test_backfill_creates_completion_note_and_appends_done() -> None:
     items = [CompletedItem(text="Done it", completed_at=_dt(2026, 1, 5, 14, 1, 52), started_at=None)]
     apply_completed_items(vault, "daily", items, index={})
     assert vault.exists("daily/2026-01-05.md")
-    assert vault.patches == [("daily/2026-01-05.md", "TODO", "- [x] Done it ✅ 2026-01-05")]
+    assert vault.patches == [("daily/2026-01-05.md", "TODO", "- [x] Done it ✅ 2026-01-05 #weekly-planner")]
 
 
 def test_backfill_includes_duration_when_started_known() -> None:
@@ -180,7 +199,7 @@ def test_backfill_includes_duration_when_started_known() -> None:
                            completed_at=_dt(2026, 1, 9, 4, 41, 30),
                            started_at=_dt(2026, 1, 9, 4, 29, 26))]
     apply_completed_items(vault, "daily", items, index={})
-    assert vault.patches[0][2] == "- [x] Create feedback ✅ 2026-01-09 (12m)"
+    assert vault.patches[0][2] == "- [x] Create feedback ✅ 2026-01-09 (12m) #weekly-planner"
 
 
 def test_backfill_formats_hours_and_minutes_for_long_duration() -> None:
@@ -189,7 +208,7 @@ def test_backfill_formats_hours_and_minutes_for_long_duration() -> None:
                            completed_at=_dt(2026, 1, 9, 6, 0, 0),
                            started_at=_dt(2026, 1, 9, 4, 30, 0))]
     apply_completed_items(vault, "daily", items, index={})
-    assert vault.patches[0][2] == "- [x] Long task ✅ 2026-01-09 (1h 30m)"
+    assert vault.patches[0][2] == "- [x] Long task ✅ 2026-01-09 (1h 30m) #weekly-planner"
 
 
 def test_backfill_skips_already_documented() -> None:

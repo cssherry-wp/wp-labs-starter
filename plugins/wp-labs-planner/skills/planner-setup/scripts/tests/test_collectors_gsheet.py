@@ -87,6 +87,12 @@ def test_normalize_treats_cancelled_and_in_progress_as_same_task() -> None:
     assert base == cancelled == in_progress == "give feedback"
 
 
+def test_normalize_strips_arbitrary_tags() -> None:
+    """Provenance/project tags must not affect dedup identity."""
+    tagged = normalize_text("- [ ] Give feedback #weekly-planner #project/VIP")
+    assert tagged == normalize_text("- [ ] Give feedback") == "give feedback"
+
+
 class FakeSheets:
     def __init__(self, values: list[list[str]]) -> None:
         self._values = values

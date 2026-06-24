@@ -11,7 +11,8 @@ log = logging.getLogger(__name__)
 
 _LEADING_DASH_RE = re.compile(r"^(?:-\s*)+")
 _ANNOT_RE = re.compile(r"\(([A-Za-z][A-Za-z ]*?):\s*([^)]*)\)")
-_STATUS_TAG_RE = re.compile(r"#status/\S+")
+# Any hashtag (#status/…, #weekly-planner, #project/…) is metadata, not identity.
+_TAG_RE = re.compile(r"#[\w/-]+")
 _PRIORITY_RE = re.compile(r"[🔺⏫🔼🔽⏬]")
 _DATED_SIGNIFIER_RE = re.compile(r"[📅🛫⏳➕✅❌]\s*\d{4}-\d{2}-\d{2}")
 # Checkbox markers: todo ' ', done 'x'/'X', in-progress '/', cancelled '-'.
@@ -131,7 +132,7 @@ def normalize_text(text: str) -> str:
     """
     t = _CHECKBOX_RE.sub("", text)
     t = _ANNOT_RE.sub("", t)
-    t = _STATUS_TAG_RE.sub("", t)
+    t = _TAG_RE.sub("", t)
     t = _DATED_SIGNIFIER_RE.sub("", t)
     t = _PRIORITY_RE.sub("", t)
     _, t = _split_dashes(t.strip())
