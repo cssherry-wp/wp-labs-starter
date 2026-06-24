@@ -66,11 +66,10 @@ def import_page(page: OneNotePage, cfg: Config, summarize: Summarize) -> str:
         if page.date:
             set_mtime(note, page.date)
         return "created"
-    stored_date, _, _ = parse_note(note.read_text(encoding="utf-8"))
+    existing = note.read_text(encoding="utf-8")
+    stored_date, _, old_body = parse_note(existing)
     if page.date and stored_date and page.date <= stored_date:
         return "skipped"
-    existing = note.read_text(encoding="utf-8")
-    _, _, old_body = parse_note(existing)
     try:
         summary = summarize(old_body, page.body)
     except Exception as exc:  # noqa: BLE001 — versioning must still advance

@@ -46,3 +46,19 @@ def test_import_page_created_then_skipped_then_updated(tmp_path: Path) -> None:
     assert "## Changes - #2026/06/10 from #2026/05/26" in text
     assert "Added X" in text and "v2 body" in text
     assert dt.date.fromtimestamp(note.stat().st_mtime) == date(2026, 6, 10)
+
+
+def test_import_page_summary_failure_still_versions(tmp_path: Path) -> None:
+    cfg = cfg_for(tmp_path)
+    page = OneNotePage("UVEX (Hexarmor)", "Harlo testing", date(2026, 5, 26), "v1 body")
+    assert import_page(page, cfg, lambda old, new: "ok") == "created"
+
+    def boom(old: str, new: str) -> str:
+        raise RuntimeError("llm down")
+
+    newer = OneNotePage("UVEX (Hexarmor)", "Harlo testing", date(2026, 6, 10), "v2 body")
+    assert import_page(newer, cfg, boom) == "updated"
+    text = (tmp_path / "00-InProgress" / "Hexarmor" / "Harlo testing.md").read_text()
+    assert "_change summary unavailable_" in text
+    assert "## Changes - #2026/06/10 from #2026/05/26" in text
+    assert "v2 body" in text
