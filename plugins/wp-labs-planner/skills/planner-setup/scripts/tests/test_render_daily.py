@@ -42,6 +42,18 @@ def test_build_notes_block_renders_people_section() -> None:
     assert block.index("- 18:00") < block.index("#### People for Demo Hour")
 
 
+def test_build_notes_block_tags_time_line_with_project() -> None:
+    synthesis = {"calls": [{"title": "Sync", "time": "15:00", "project": "#project/VIP"}]}
+    block = build_notes_block(synthesis)
+    assert "- 15:00 #project/VIP" in block
+
+
+def test_build_notes_block_time_line_without_project() -> None:
+    synthesis = {"calls": [{"title": "Sync", "time": "15:00", "project": ""}]}
+    block = build_notes_block(synthesis)
+    assert "- 15:00" in block and "#project/" not in block
+
+
 def test_render_daily_injects(tmp_path: Path) -> None:
     daily = tmp_path / "zz-Sherry_Daily"
     daily.mkdir()

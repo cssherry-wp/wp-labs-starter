@@ -15,7 +15,7 @@ def build_notes_block(synthesis: dict) -> str:
         parts.append(f"### {title} {call.get('project', '')}".rstrip())
         time = call.get("time", "").strip()
         if time:
-            parts.append(f"- {time}")
+            parts.append(f"- {time} {call.get('project', '')}".rstrip())
         people = call.get("people") or []
         if people:
             parts.append(f"#### People for {title}")
