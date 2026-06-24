@@ -44,8 +44,10 @@ caught by the undocumented-completed check.
 - - - - - - - Ask for talent review (Waiting: 11/22/2025, 8:26:55 AM)
 - Fix budget currency conversion
 ```
-- Leading `-` tokens = **carry-over weeks** (each `-` = one week the item has been carried).
-- Optional trailing `(Waiting | On Notice | Started: <date>)` = current status.
+- Leading `-` tokens = **carry-over weeks** (each `-` = one week carried; **0 dashes = new this week**).
+- Optional trailing `(<Status>: <date>)` = current status. **Status may be multiple words**
+  (`On Notice`, plus `Waiting`, `Started`, `Completed`), so the annotation regex matches
+  `\(([A-Za-z][A-Za-z ]*):\s*<date>\)`.
 
 **`Notes` cell** — dated journal lines plus a `Completed:` sub-section:
 ```
@@ -76,8 +78,8 @@ returns:
 }
 ```
 `text` is the **normalized** task text — the stable identity used for dedup. Normalization strips:
-leading `-` tokens, **all trailing `(Word: <date>)` status/timestamp annotations** (open *and*
-completed lines), and any Tasks emoji/priority signifiers, then lowercases and collapses whitespace.
+leading `-` tokens, **all trailing `(<Status>: <date>)` annotations** (status may be multi-word,
+e.g. `On Notice`; open *and* completed lines), and any Tasks emoji/priority signifiers, then lowercases and collapses whitespace.
 So `--- Ask for talent review (Waiting: 11/22/2025, …)` and `- Ask for talent review (On Notice: …)
 (Completed: …)` both normalize to `ask for talent review` and are recognized as the same task.
 Two small pure helpers — `parse_open_line` and `parse_completed_line` — hold the regex grammar so
@@ -94,7 +96,7 @@ Open items render with Obsidian Tasks signifiers derived from status:
 | Waiting | `🔽` low | — (blocked on someone else) |
 | (no status) | (none / normal) | — |
 
-- **End of week** = the **Friday** of the current week (`week_start + 4`; weekly runs are Fridays).
+- **End of week** = the **Sunday** of the current week (`week_start + 6`, where `week_start` is Monday).
 - Carry-over age is surfaced as a trailing ` (carried Nw)` note on the line; it does not by itself
   change priority.
 - **Status** is carried on the rendered line as a tag (`#status/on-notice`, `#status/waiting`,
@@ -165,9 +167,13 @@ Unit tests with fixture cell-strings — no live Sheets/network:
   `- [x] … ✅` line under `## TODO`; open items land under `## Open Items` in today's note.
 - Priority mapping: On Notice → `⏫` + Friday due date + `#status/on-notice`.
 
-## Open questions / assumptions
+## Resolved decisions
 
-- Carry-over weeks: `dash_count` = weeks carried (1 dash = 1 week). Confirm the base (is a
-  brand-new item 1 dash or 0?).
-- Non-`On Notice` priority defaults (table in §2) are assumptions, open to adjustment.
-- "End of week" = Friday; change if you mean Sunday.
+- Carry-over weeks = `dash_count`; **0 dashes = new this week**, each `-` = one more week carried.
+- "End of week" = **Sunday** (`week_start + 6`).
+- Status may be **multi-word** (`On Notice`); annotation regex accounts for it.
+- Status carried as `#status/<status>` tag; confirmed acceptable.
+
+## Remaining assumptions (adjust any time)
+
+- Non-`On Notice` priority defaults (§2): `Waiting → 🔽`, `Started → 🛫 start`, no-status → normal.
