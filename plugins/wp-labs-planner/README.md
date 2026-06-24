@@ -1,6 +1,6 @@
 # wp-labs-planner Setup
 
-Daily & weekly Obsidian planner that aggregates Gmail (+planner alias), a Google Doc, OneNote, and vault state into Obsidian notes via the Local REST API MCP.
+Daily & weekly Obsidian planner that aggregates Gmail (+planner alias), a Google Sheet (`Overview` tab), OneNote, and vault state into Obsidian notes via the Local REST API MCP.
 
 ## Prerequisites
 
@@ -16,8 +16,8 @@ Daily & weekly Obsidian planner that aggregates Gmail (+planner alias), a Google
    ```
 
 2. **Create a Google Cloud OAuth desktop client:**
-   - Enable the **Gmail API** and **Google Docs API** in your Google Cloud project
-   - Enable Gmail and Google Docs (read-only) scopes
+   - Enable the **Gmail API** and **Google Sheets API** in your Google Cloud project
+   - Enable Gmail (`gmail.readonly`) and Google Sheets (`spreadsheets.readonly`) scopes
    - Download the JSON credentials
    - Save as `credentials.json` in the scripts directory
    - Run `python -m planner.daily` once to trigger the consent flow (writes `token.json`)
@@ -55,7 +55,7 @@ Daily & weekly Obsidian planner that aggregates Gmail (+planner alias), a Google
    - Copy `scripts/templates/config.example.yaml` to `config.yaml`
    - Fill in:
      - `planner_address`: Gmail alias (e.g., `planner@mydomain.com`)
-     - `gdoc_id`: Google Doc ID for todos
+     - `gdoc_id`: Google Sheet URL or spreadsheet ID for the Overview tab todos
      - `vault.path`: path to Obsidian vault
      - `vault.templates_dir`: where to find/copy templates
      - `obsidian.api_key` / `obsidian.cert_path` (or use env var)

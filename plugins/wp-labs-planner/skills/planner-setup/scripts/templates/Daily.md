@@ -14,6 +14,9 @@ tags:
 ## Notes
 
 
+## Open Items
+
+
 ## TODO
 
 ```dataview

@@ -7,7 +7,8 @@ import os
 from datetime import date, datetime
 from pathlib import Path
 
-from planner.collectors import gdoc, gmail, onenote
+from planner import render_tasks
+from planner.collectors import gmail, gsheet, onenote
 from planner.collectors.vault import recent_notes
 from planner.config import Config, load_config
 from planner.gitcommit import commit_files, is_git_repo
@@ -37,8 +38,16 @@ def _gather_daily(vault, cfg: Config, today: date) -> dict:  # type: ignore[no-u
     def services() -> tuple:  # lazy: only authenticate if a Google collector runs
         if "g" not in creds_holder:
             creds = gmail.get_credentials(cfg.google, gmail.GMAIL_SCOPES)
-            creds_holder["g"] = (gmail.build_gmail(creds), gmail.build_docs(creds))
+            creds_holder["g"] = (gmail.build_gmail(creds), gmail.build_sheets(creds))
         return creds_holder["g"]
+
+    def sheet_todos() -> dict:
+        try:
+            return gsheet.fetch_todos(services()[1], cfg.google.gdoc_id,
+                                      cfg.google.overview_tab, cfg.google.weeks_back)
+        except Exception as exc:  # noqa: BLE001 — degrade, never abort
+            log.warning("daily collector 'gsheet' failed: %s", exc)
+            return {"open": [], "completed": []}
 
     repo = cfg.vault.path if is_git_repo(cfg.vault.path) else None
     return {
@@ -46,7 +55,7 @@ def _gather_daily(vault, cfg: Config, today: date) -> dict:  # type: ignore[no-u
             services()[0], cfg.google.planner_address, week_start)),
         "calls": _safe("calls", lambda: [e.__dict__ for e in gmail.fetch_calls(
             services()[0], cfg.google.planner_address)]),
-        "todos": _safe("gdoc", lambda: gdoc.fetch_todos(services()[1], cfg.google.gdoc_id)),
+        "sheet": sheet_todos(),
         "onenote": _safe("onenote", lambda: "\n\n".join(
             onenote.convert(p, cfg.onenote.converter_command) for p in cfg.onenote.files)),
         "recent_notes": _safe("recent", lambda: [n.__dict__ for n in recent_notes(
@@ -68,6 +77,12 @@ def run_daily(cfg: Config, today: date) -> str:
     payload = _gather_daily(vault, cfg, today)
     synthesis = synthesize_daily(cfg.llm, _load_prompt("daily_synthesis.md"), payload)
     path = render_daily(vault, cfg, synthesis, today)
+    sheet = payload.get("sheet", {"open": [], "completed": []})
+    index = render_tasks.existing_task_index(vault)
+    render_tasks.apply_open_items(vault, cfg.vault.daily_output_dir,
+                                  sheet["open"], today, index)
+    render_tasks.apply_completed_items(vault, cfg.vault.daily_output_dir,
+                                       sheet["completed"], index)
     if cfg.vault.git_commit and is_git_repo(cfg.vault.path):
         commit_files(cfg.vault.path, [str(Path(cfg.vault.path) / path)],
                      f"planner: daily {today.isoformat()}")
