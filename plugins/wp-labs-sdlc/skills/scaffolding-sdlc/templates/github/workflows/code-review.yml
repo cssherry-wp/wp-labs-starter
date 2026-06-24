@@ -101,13 +101,18 @@ jobs:
           path: cr
 
       - name: Apply autofix patch and push
+        # head.ref is attacker-controlled (PR author names the branch) and git allows
+        # shell metacharacters in ref names. Pass it via env so the shell — not Actions
+        # templating — expands it, as a single quoted argv to git push (no injection).
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           if [ -s cr/autofix.patch ]; then
             if git apply --index cr/autofix.patch; then
               git -c user.name='change-review[bot]' \
                   -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
                   commit --no-verify -m "[autofix] change-review high-confidence fixes"
-              git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+              git push origin "HEAD:$HEAD_REF"
             else
               echo "::notice::autofix patch did not apply cleanly; skipping."
             fi
