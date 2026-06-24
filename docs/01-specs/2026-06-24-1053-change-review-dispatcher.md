@@ -179,3 +179,23 @@ One-line "where this sits in the flow" cross-references added to `github-pr-revi
 
 - Exact `/code-review` diff target (see caveat) — drives whether the materialization step is needed.
 - The marketplace git URL string for `claude-code-action` (read from remote at build time).
+
+## Revision 2026-06-24: split CI workflow (security)
+
+Two automated security reviews flagged the single `change-review` CI job (Component B) as a
+CRITICAL prompt-injection→RCE risk: it ran the agent on untrusted PR content while holding
+`contents: write` and pushing commits. Revised design (user-approved):
+
+- **Two jobs.** `review` runs the agent with `permissions: contents: read` (no push, no
+  comment) and writes an autofix patch + a findings file to an artifact. `apply` runs **no
+  agent and no PR code** — it deterministically `git apply`s the patch, commits `--no-verify`,
+  pushes, and posts the findings comment. The write-capable token lives only in `apply`.
+- **Same-repo gate.** The agent runs only when `head.repo.full_name == github.repository`
+  (fork PRs get no secrets and are reviewed by a human).
+- **Marketplace pinned** to a commit SHA for supply-chain safety (best-effort given the
+  action's input support; documented caveat).
+- **Residual risks (bounded, not eliminated):** the model token still lives in the agent
+  job (exfiltration possible if injected, limited to same-repo actors), and a malicious patch
+  could still be committed to the *attacker-controlled PR branch* — caught by branch
+  protection + required human review on the merge target. Consuming repos MUST branch-protect
+  main/release and must not auto-merge on `[autofix]`/bot authorship.

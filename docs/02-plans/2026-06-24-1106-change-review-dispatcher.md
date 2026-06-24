@@ -614,3 +614,21 @@ git commit -m "ci: run change-review (one job, security folded in)"
 **Placeholder scan:** No TBD/TODO; every code/YAML/markdown step contains full content. Deferred items (`/code-review` diff target) are documented as a caveat in the skill, not left as a plan gap.
 
 **Type consistency:** Skill name `change-review` and invocation `/wp-labs-standards:change-review` are consistent across Tasks 1, 4, 5. Confidence threshold (≥80 for `--fix`) is stated once (section 5) and referenced consistently. Map filename `review-skills-map.md` matches across Tasks 2 and 3.
+
+---
+
+## Revision: Task 4 superseded by a split-job design (security)
+
+After Task 4 was committed (one job), two automated security reviews flagged a CRITICAL
+prompt-injection→RCE risk (agent on untrusted PR content + `contents: write` + push in one
+job). User approved splitting. The authoritative replacement spec lives in
+`.superpowers/sdd/task-4b-brief.md` and was implemented over the one-job version:
+
+- `review` job: runs the agent with `contents: read`, denylists `git push`/`commit`/`gh pr
+  comment`, same-repo gated; emits `autofix.patch` + `change-review-findings.md` as an artifact.
+- `apply` job: no agent, `contents: write`; `git apply` + `--no-verify` commit + push + `gh
+  pr comment`; gated on `needs.review.outputs.skip == 'false'`.
+- Marketplace pinned to SHA `d444e09a...`.
+
+Task 6 (translation_sdlc_demo) copies this split template, not the one-job version. Consuming
+repos must branch-protect the merge target — see the spec revision note.
