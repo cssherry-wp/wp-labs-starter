@@ -66,13 +66,28 @@ jobs:
         run: |
           OUT="$RUNNER_TEMP/cr"
           mkdir -p "$OUT"
+          echo "## change-review — PR #${{ github.event.pull_request.number }}" >> "$GITHUB_STEP_SUMMARY"
+          # The skill is instructed to ALWAYS write the findings file (even "no findings"),
+          # so a MISSING file means the agent did not complete — do not disguise that as a
+          # clean "no findings" result the way a silent fallback would.
           if [ -f change-review-findings.md ]; then
+            BYTES=$(wc -c < change-review-findings.md | tr -d ' ')
             mv change-review-findings.md "$OUT/change-review-findings.md"
+            echo "- findings file: present (${BYTES} bytes)" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "No findings reported." > "$OUT/change-review-findings.md"
+            echo "::warning::change-review-findings.md was not produced — the agent may not have completed; check the 'Run change-review' step log."
+            echo "⚠️ change-review did not produce a findings file — the agent may not have completed. Check the workflow run log." > "$OUT/change-review-findings.md"
+            echo "- findings file: **MISSING** (agent may not have completed)" >> "$GITHUB_STEP_SUMMARY"
           fi
           git add -A
           git diff --cached > "$OUT/autofix.patch" || true
+          CHANGED=$(git diff --cached --name-only | wc -l | tr -d ' ')
+          echo "- autofix patch: ${CHANGED} file(s) changed" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$CHANGED" -gt 0 ]; then
+            echo "::group::autofix patch (diffstat)"
+            git diff --cached --stat
+            echo "::endgroup::"
+          fi
 
       - name: Upload review artifact
         if: steps.detect.outputs.skip == 'false'
@@ -120,11 +135,15 @@ jobs:
                   -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
                   commit --no-verify -m "[autofix] change-review high-confidence fixes"
               git push origin "HEAD:$HEAD_REF"
+              echo "::notice::applied autofix and pushed to $HEAD_REF"
+              echo "- autofix: applied and pushed to \`$HEAD_REF\`" >> "$GITHUB_STEP_SUMMARY"
             else
-              echo "::notice::autofix patch did not apply cleanly; skipping."
+              echo "::warning::autofix patch did not apply cleanly; skipping."
+              echo "- autofix: patch did NOT apply cleanly — skipped" >> "$GITHUB_STEP_SUMMARY"
             fi
           else
-            echo "No autofix patch to apply."
+            echo "::notice::no autofix patch to apply."
+            echo "- autofix: no patch to apply" >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Post findings comment
@@ -135,4 +154,9 @@ jobs:
             gh pr comment "${{ github.event.pull_request.number }}" \
               --repo "${{ github.repository }}" \
               --body-file cr/change-review-findings.md
+            echo "::notice::posted findings comment to PR #${{ github.event.pull_request.number }}"
+            echo "- findings comment: posted" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::no findings file to post."
+            echo "- findings comment: NOT posted (empty/missing file)" >> "$GITHUB_STEP_SUMMARY"
           fi
