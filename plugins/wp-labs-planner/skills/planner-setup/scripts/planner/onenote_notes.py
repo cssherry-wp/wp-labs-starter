@@ -79,15 +79,16 @@ def parse_note(text: str) -> tuple[date | None, str, str]:
         changes_blocks is the text between frontmatter and ## Notes.
         body is the text after ## Notes.
     """
+    parts = re.split(r"(?m)^---\s*$", text, maxsplit=2)
+    frontmatter, after_fm = (parts[1], parts[2]) if len(parts) >= 3 else ("", text)
     stored: date | None = None
-    m = _DATE_TAG.search(text.split("---", 2)[1] if text.count("---") >= 2 else text)
+    m = _DATE_TAG.search(frontmatter)
     if m:
         y, mo, d = (int(x) for x in m.group(1).split("/"))
         stored = date(y, mo, d)
-    after_fm = text.split("---", 2)[2] if text.count("---") >= 2 else text
-    if _BODY_HEADING in after_fm:
-        head, body = after_fm.split(_BODY_HEADING, 1)
-        return stored, head.strip(), body.strip()
+    body_parts = re.split(r"(?m)^## Notes\s*$", after_fm, maxsplit=1)
+    if len(body_parts) >= 2:
+        return stored, body_parts[0].strip(), body_parts[1].strip()
     return stored, "", after_fm.strip()
 
 

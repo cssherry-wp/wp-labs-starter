@@ -60,3 +60,17 @@ def test_versioned_note_prepends_changes_and_replaces_body() -> None:
     v3 = versioned_note(v2, page_v3, "VIP", "Dropped Y")
     assert v3.index("#2026/06/20") < v3.index("#2026/06/10")
     assert "## Changes - #2026/06/10 from #2026/05/26" in v3
+
+
+def test_parse_note_preserves_body_with_horizontal_rule() -> None:
+    page = OneNotePage("VIP", "T", date(2026, 5, 26), "intro\n\n---\n\nafter rule")
+    d, changes, body = parse_note(render_note(page, "VIP"))
+    assert "intro" in body and "after rule" in body   # body not truncated at the rule
+
+
+def test_versioned_note_no_old_date_uses_bare_changes_header() -> None:
+    existing = "---\ntags:\n- project/VIP\n---\n## Notes\nold\n"   # no date tag
+    page = OneNotePage("VIP", "T", date(2026, 6, 10), "new")
+    out = versioned_note(existing, page, "VIP", "changed")
+    assert "## Changes - #2026/06/10" in out
+    assert "## Changes - #2026/06/10 from" not in out   # no 'from' clause when no old date
