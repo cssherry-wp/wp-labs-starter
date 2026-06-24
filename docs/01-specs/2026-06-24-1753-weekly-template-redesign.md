@@ -117,6 +117,31 @@ daily note.
 - Update `test_load_default_weekly_template_has_expected_headings` for the new headings (it
   currently asserts `## Snapshot (frozen)` and `#weekly-planner`, both removed).
 
+## Folded-in additions
+
+Two small, related changes ride along with this redesign (a third — per-person context in
+project notes and `People.md` — is deferred to its own spec, as it is a new LLM subsystem):
+
+### A. Tag the daily event time line with the project hash
+
+`render_daily.build_notes_block` already renders the event header as `### <title> #project/<Name>`.
+Also append the event's `#project/<Name>` to its time bullet, so the dated line carries the tag:
+`- <time> #project/<Name>` (omit the trailing tag when the project is blank). This makes the
+dated event line addressable by `#project/` Dataview/Tasks queries.
+
+### B. Configurable `notes_dir` scanned by the weekly run
+
+Add an optional `notes_dir` field to `VaultCfg` (default `""` = disabled). When set, the weekly
+run also looks at markdown under `notes_dir`, in addition to `projects_dir`:
+
+- `collectors.vault.open_tasks` scans `notes_dir` markdown for `- [ ]` tasks (so the live/frozen
+  open-task views and the synthesis payload include them).
+- `weekly._gather_weekly` adds `notes_dir` file contents to the payload (`payload["notes"]`) so
+  the LLM can draw highlights/learnings from them.
+
+A new public collector `notes_under(vault, cfg) -> list[RecentNote]` returns the `notes_dir`
+markdown (empty list when unset); both call sites use it.
+
 ## Caveats / assumptions
 
 - **Cancelled date:** depends on the Obsidian Tasks plugin exposing the ❌ date to Dataview;
@@ -128,3 +153,7 @@ daily note.
 - `#weekly-planner` tag still stamps Sheet-sourced tasks for dedup; it simply no longer has its
   own surfaced section.
 - Live query results cannot be verified in unit tests — only the generated query text.
+- `notes_dir` content is read twice per weekly run (once by `open_tasks` for task scanning,
+  once by `notes_under` for payload content). Acceptable for an infrequent batch job.
+- The daily time-line tag is only added when the event has a time bullet; time-less events keep
+  the project hash on the header only.

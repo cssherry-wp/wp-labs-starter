@@ -642,6 +642,278 @@ git commit -m "feat(planner): synthesize highlights/learnings from week dailies"
 
 ---
 
+### Task 8: Tag the daily event time line with the project hash
+
+**Files:**
+- Modify: `planner/render_daily.py` (`build_notes_block`, the time bullet ~line 16-18)
+- Test: `tests/test_render_daily.py`
+
+**Interfaces:**
+- Produces: event time bullets rendered as `- <time> #project/<Name>` (trailing tag omitted when project blank). Header rendering is unchanged.
+
+- [ ] **Step 1: Write the failing test**
+
+Add to `tests/test_render_daily.py`:
+
+```python
+def test_build_notes_block_tags_time_line_with_project() -> None:
+    synthesis = {"calls": [{"title": "Sync", "time": "15:00", "project": "#project/VIP"}]}
+    block = build_notes_block(synthesis)
+    assert "- 15:00 #project/VIP" in block
+
+
+def test_build_notes_block_time_line_without_project() -> None:
+    synthesis = {"calls": [{"title": "Sync", "time": "15:00", "project": ""}]}
+    block = build_notes_block(synthesis)
+    assert "- 15:00" in block and "#project/" not in block
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `uv run pytest tests/test_render_daily.py -k time_line -v`
+Expected: FAIL — current time bullet is `- 15:00` with no project tag.
+
+- [ ] **Step 3: Implement the change**
+
+In `planner/render_daily.py`, in `build_notes_block`, replace the time bullet block:
+
+```python
+        time = call.get("time", "").strip()
+        if time:
+            parts.append(f"- {time} {call.get('project', '')}".rstrip())
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `uv run pytest tests/test_render_daily.py -v`
+Expected: PASS — including the existing `test_build_notes_block_renders_people_section` (it
+asserts `block.index("- 18:00") < block.index("#### People...")`; `- 18:00` is still a
+substring of `- 18:00 #project/VIP`).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add planner/render_daily.py tests/test_render_daily.py
+git commit -m "feat(planner): tag daily event time line with project hash"
+```
+
+---
+
+### Task 9: Add `notes_dir` config + scan it in `open_tasks`
+
+**Files:**
+- Modify: `planner/config.py` (`VaultCfg` field + `load_config`)
+- Modify: `planner/collectors/vault.py` (`notes_under`; refactor `open_tasks`)
+- Test: `tests/test_config.py`, `tests/test_collectors_vault.py`
+
+**Interfaces:**
+- Produces: `VaultCfg.notes_dir: str` (default `""`).
+- Produces: `notes_under(vault: Vault, cfg: Config) -> list[RecentNote]` — markdown under `notes_dir` (empty when unset).
+- Produces: `open_tasks(vault, cfg)` now returns `- [ ]` tasks from project notes **and** `notes_dir` markdown.
+
+- [ ] **Step 1: Write the failing tests**
+
+Add to `tests/test_config.py`:
+
+```python
+def test_notes_dir_defaults_to_empty() -> None:
+    cfg = load_config(str(FIXTURE))
+    assert cfg.vault.notes_dir == ""
+```
+
+(Use the same `FIXTURE` constant the file already defines.)
+
+Add to `tests/test_collectors_vault.py`:
+
+```python
+def test_open_tasks_scans_notes_dir(tmp_path: Path) -> None:
+    cfg = load_config(str(FIXTURE))
+    cfg.vault.path = str(tmp_path)
+    cfg.vault.projects_dir = "00-InProgress"
+    cfg.vault.notes_dir = "Notes"
+    (tmp_path / "Notes").mkdir()
+    (tmp_path / "Notes" / "ideas.md").write_text("## Backlog\n- [ ] note task\n")
+    vault = FilesystemVault(str(tmp_path))
+
+    texts = [t.text for t in open_tasks(vault, cfg)]
+    assert "note task" in texts
+```
+
+(Mirror the existing imports in `tests/test_collectors_vault.py`; add `open_tasks` and
+`FilesystemVault`/`load_config`/`Path` if not already imported.)
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `uv run pytest tests/test_config.py::test_notes_dir_defaults_to_empty tests/test_collectors_vault.py::test_open_tasks_scans_notes_dir -v`
+Expected: FAIL — `VaultCfg` has no `notes_dir`; `open_tasks` ignores it.
+
+- [ ] **Step 3: Implement config field**
+
+In `planner/config.py`, add to `VaultCfg` (as the last field, with a default):
+
+```python
+    git_commit: bool
+    notes_dir: str = ""
+```
+
+In `load_config`, where `VaultCfg(...)` is constructed, add:
+
+```python
+        notes_dir=v.get("notes_dir", ""),
+```
+
+- [ ] **Step 4: Implement the collector + refactor**
+
+In `planner/collectors/vault.py`, add after `recent_notes`:
+
+```python
+def notes_under(vault: Vault, cfg: Config) -> list[RecentNote]:
+    """Return a RecentNote for each markdown file under notes_dir (empty if unset)."""
+    if not cfg.vault.notes_dir:
+        return []
+    return [
+        RecentNote(path=p, mtime=vault.stat_mtime(p), content=vault.read(p))
+        for p in _iter_markdown(vault, cfg, cfg.vault.notes_dir)
+    ]
+```
+
+Refactor `open_tasks` to scan project notes plus `notes_under`, extracting the per-document
+scan into a helper:
+
+```python
+def _scan_open_tasks(path: str, content: str) -> list[OpenTask]:
+    """Return unchecked `- [ ]` tasks in one document, tagged with their `## heading`."""
+    tasks: list[OpenTask] = []
+    heading = ""
+    in_code_fence = False
+    for line in content.splitlines():
+        if line.lstrip().startswith("```"):
+            in_code_fence = not in_code_fence
+            continue
+        if in_code_fence:
+            continue
+        if line.startswith("## "):
+            heading = line[3:].strip()
+        elif line.lstrip().startswith("- [ ]"):
+            tasks.append(OpenTask(text=line.strip()[5:].strip(), source_path=path, heading=heading))
+    return tasks
+
+
+def open_tasks(vault: Vault, cfg: Config) -> list[OpenTask]:
+    """Scan project notes and notes_dir for unchecked `- [ ]` tasks, excluding templates.
+
+    Args:
+        vault: The vault to read from.
+        cfg: Configuration containing projects_dir and (optional) notes_dir.
+
+    Returns:
+        List of OpenTask objects found across project notes and notes_dir.
+    """
+    sources: list[tuple[str, str]] = [(p.path, p.content) for p in list_projects(vault, cfg)]
+    sources += [(n.path, n.content) for n in notes_under(vault, cfg)]
+    tasks: list[OpenTask] = []
+    for path, content in sources:
+        tasks.extend(_scan_open_tasks(path, content))
+    return tasks
+```
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run: `uv run pytest tests/test_config.py tests/test_collectors_vault.py -v`
+Expected: PASS (new tests plus the existing `open_tasks`/config tests).
+Then `uv run ruff check . && uv run mypy planner` — Expected: clean.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add planner/config.py planner/collectors/vault.py tests/test_config.py tests/test_collectors_vault.py
+git commit -m "feat(planner): scan configurable notes_dir for open tasks"
+```
+
+---
+
+### Task 10: Include `notes_dir` content in the weekly payload
+
+**Files:**
+- Modify: `planner/weekly.py` (`_gather_weekly` payload; import `notes_under`)
+- Modify: `templates/prompts/weekly_synthesis.md` (mention `payload.notes`)
+- Test: `tests/test_weekly.py`
+
+**Interfaces:**
+- Consumes: `collectors.vault.notes_under` (Task 9).
+- Produces: `payload["notes"] = [{"name", "content"}]` for `notes_dir` markdown.
+
+- [ ] **Step 1: Write the failing test**
+
+Add to `tests/test_weekly.py`:
+
+```python
+def test_gather_weekly_includes_notes_dir(tmp_path: Path) -> None:
+    cfg = load_config(str(FIXTURE))
+    cfg.vault.path = str(tmp_path)
+    cfg.obsidian.mode = "filesystem"
+    cfg.vault.notes_dir = "Notes"
+    (tmp_path / "Notes").mkdir()
+    (tmp_path / "Notes" / "research.md").write_text("# research\nfindings\n")
+    vault = FilesystemVault(str(tmp_path))
+
+    payload, _ = _gather_weekly(vault, cfg, date(2026, 6, 24))
+
+    names = [n["name"] for n in payload["notes"]]
+    assert "research" in names
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `uv run pytest tests/test_weekly.py::test_gather_weekly_includes_notes_dir -v`
+Expected: FAIL — payload has no `"notes"` key.
+
+- [ ] **Step 3: Implement the payload addition**
+
+In `planner/weekly.py`, extend the import:
+
+```python
+from planner.collectors.vault import list_projects, notes_under, open_tasks, recent_notes
+```
+
+In `_gather_weekly`, add the notes gather and payload entry:
+
+```python
+    notes: list = _safe("notes", lambda: notes_under(vault, cfg)) or []  # type: ignore[assignment]
+```
+
+and add to the `payload` dict:
+
+```python
+        "notes": [{"name": Path(n.path).stem, "content": n.content} for n in notes],  # type: ignore[attr-defined]
+```
+
+- [ ] **Step 4: Update the synthesis prompt**
+
+In `templates/prompts/weekly_synthesis.md`, change the opening parenthetical and the
+highlights/learnings instruction to mention the notes folder:
+
+- Opening line: `(projects with their notes, open tasks across the vault, this week's daily
+  notes, and notes-folder entries)`.
+- Instruction: `Draw "highlights" and "learnings" from payload.dailies and payload.notes; set
+  each learning's "source" to the note name it came from.`
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run: `uv run pytest tests/test_weekly.py -v`
+Expected: PASS.
+Then full suite + lint + types: `uv run pytest && uv run ruff check . && uv run mypy planner`
+Expected: all PASS / clean.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add planner/weekly.py templates/prompts/weekly_synthesis.md tests/test_weekly.py
+git commit -m "feat(planner): feed notes_dir content into weekly synthesis"
+```
+
+---
+
 ## Self-Review
 
 **Spec coverage:**
@@ -655,7 +927,11 @@ git commit -m "feat(planner): synthesize highlights/learnings from week dailies"
 - Removed Snapshot / From the weekly planner / standalone Project statuses → Tasks 5, 6. ✓
 - Week-range token injection (`{{week_start}}`/`{{week_end}}`, Mon–Sun) → Tasks 1, 5. ✓
 - Synthesis payload gains week dailies → Task 7. ✓
+- Daily event time line tagged with `#project/<Name>` → Task 8. ✓
+- Configurable `notes_dir` scanned for open tasks → Task 9. ✓
+- `notes_dir` content fed into weekly synthesis payload → Task 10. ✓
+- Per-person context in project notes / `People.md` → **deferred to its own spec** (new LLM subsystem). ✓
 
 **Placeholder scan:** No TBD/TODO; every code step shows full code and exact commands. ✓
 
-**Type consistency:** `_highlights_block`/`_open_tasks_block`/`_learnings_block` take `dict` → `str`; `week_start(date) -> date`; `_gather_weekly(vault, cfg, gen_day)` matches the `run_weekly` call site; injection heading strings (`Highlights`, `Open tasks by project`, `Learnings & Follow-ups`) match the template headings in Task 6. ✓
+**Type consistency:** `_highlights_block`/`_open_tasks_block`/`_learnings_block` take `dict` → `str`; `week_start(date) -> date`; `_gather_weekly(vault, cfg, gen_day)` matches the `run_weekly` call site; injection heading strings (`Highlights`, `Open tasks by project`, `Learnings & Follow-ups`) match the template headings in Task 6; `notes_under(vault, cfg) -> list[RecentNote]` is consumed by both `open_tasks` (Task 9) and `_gather_weekly` (Task 10); `VaultCfg.notes_dir` added with a default so positional construction elsewhere is unaffected. ✓
