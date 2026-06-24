@@ -24,7 +24,7 @@ jobs:
       skip: ${{ steps.detect.outputs.skip }}
     steps:
       - name: Checkout PR head
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.ref }}
@@ -41,7 +41,7 @@ jobs:
 
       - name: Run change-review (read-only — produces findings + patch, never pushes)
         if: steps.detect.outputs.skip == 'false'
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@80b31826338489861333dc17217865dfe8085cdc # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # Marketplace pinned for supply-chain safety. If the action does not honor
@@ -72,7 +72,7 @@ jobs:
 
       - name: Upload review artifact
         if: steps.detect.outputs.skip == 'false'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: change-review-${{ github.event.pull_request.number }}
           path: ${{ runner.temp }}/cr/
@@ -89,13 +89,13 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout PR head
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Download review artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: change-review-${{ github.event.pull_request.number }}
           path: cr
