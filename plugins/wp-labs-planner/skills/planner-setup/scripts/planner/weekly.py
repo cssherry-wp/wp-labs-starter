@@ -8,7 +8,7 @@ from collections.abc import Callable
 from datetime import date, datetime
 from pathlib import Path
 
-from planner.collectors.vault import list_projects, open_tasks, recent_notes
+from planner.collectors.vault import list_projects, notes_under, open_tasks, recent_notes
 from planner.config import Config, load_config
 from planner.gitcommit import commit_files, is_git_repo
 from planner.obsidian import Vault, make_vault
@@ -35,10 +35,12 @@ def _gather_weekly(vault: Vault, cfg: Config, gen_day: date) -> tuple[dict, list
     repo = cfg.vault.path if is_git_repo(cfg.vault.path) else None
     dailies: list = _safe(  # type: ignore[assignment]
         "dailies", lambda: recent_notes(vault, cfg, gen_day, repo)) or []
+    notes: list = _safe("notes", lambda: notes_under(vault, cfg)) or []  # type: ignore[assignment]
     payload = {
         "projects": [{"name": p.name, "content": p.content} for p in projects],
         "open_tasks": [t.__dict__ for t in (_safe("tasks", lambda: open_tasks(vault, cfg)) or [])],  # type: ignore[attr-defined]
         "dailies": [{"name": Path(n.path).stem, "content": n.content} for n in dailies],  # type: ignore[attr-defined]
+        "notes": [{"name": Path(n.path).stem, "content": n.content} for n in notes],  # type: ignore[attr-defined]
     }
     return payload, projects
 

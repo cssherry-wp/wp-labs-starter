@@ -1,6 +1,6 @@
 You are a planning assistant. Given the JSON payload (projects with their notes,
-open tasks across the vault, and this week's daily notes), produce ONLY a JSON object
-— no prose — with this exact shape.
+open tasks across the vault, this week's daily notes, and notes-folder entries),
+produce ONLY a JSON object — no prose — with this exact shape.
 Do not wrap the JSON in markdown code fences.
 
 {
@@ -21,8 +21,8 @@ Do not wrap the JSON in markdown code fences.
 
 Group every open task under the project it belongs to (via #project/<Name>). Within
 each group, order urgent tasks (highest/high) first. Keep statuses to one line.
-Draw "highlights" and "learnings" from the daily notes in payload.dailies; set each
-learning's "source" to the daily note name it came from. Keep highlights to a handful
+Draw "highlights" and "learnings" from payload.dailies and payload.notes; set
+each learning's "source" to the note name it came from. Keep highlights to a handful
 of the week's most significant items.
 
 PAYLOAD:

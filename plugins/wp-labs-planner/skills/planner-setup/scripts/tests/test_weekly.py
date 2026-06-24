@@ -24,3 +24,18 @@ def test_gather_weekly_includes_week_dailies(tmp_path: Path) -> None:
     names = [d["name"] for d in payload["dailies"]]
     assert "2026-06-23" in names
     assert any("Learned X" in d["content"] for d in payload["dailies"])
+
+
+def test_gather_weekly_includes_notes_dir(tmp_path: Path) -> None:
+    cfg = load_config(str(FIXTURE))
+    cfg.vault.path = str(tmp_path)
+    cfg.obsidian.mode = "filesystem"
+    cfg.vault.notes_dir = "Notes"
+    (tmp_path / "Notes").mkdir()
+    (tmp_path / "Notes" / "research.md").write_text("# research\nfindings\n")
+    vault = FilesystemVault(str(tmp_path))
+
+    payload, _ = _gather_weekly(vault, cfg, date(2026, 6, 24))
+
+    names = [n["name"] for n in payload["notes"]]
+    assert "research" in names
