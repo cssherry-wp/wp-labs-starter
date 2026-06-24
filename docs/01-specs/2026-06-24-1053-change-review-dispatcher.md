@@ -169,9 +169,10 @@ One-line "where this sits in the flow" cross-references added to `github-pr-revi
 - `--fix` only modifies high-confidence findings; `--comment` posts all findings with scores; default
   is read-only.
 - PR-by-number reviews run the deep passes via a throwaway worktree without disturbing the workspace.
-- `code-review.yml` (template + `translation_sdlc_demo`) runs a single `change-review --fix --comment`
-  job at effort `high`; the `security-review` job is gone; the third-party plugin is no longer
-  referenced.
+- `code-review.yml` (template + `translation_sdlc_demo`) runs `change-review` at effort `high` via
+  the split design (read-only `review` job → patch + findings artifact → privileged `apply` job);
+  the `security-review` job is gone and the third-party plugin is no longer referenced. (See the
+  "split CI workflow" revision note below — supersedes the original one-job intent above.)
 - `review-skills-map.md` exists and is linked from the README; the four adjacent skills carry
   cross-references.
 

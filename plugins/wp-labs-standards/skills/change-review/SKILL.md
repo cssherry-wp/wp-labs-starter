@@ -156,11 +156,14 @@ applied; everything else is reported as a suggestion.
 ## 6. Apply / comment (only when flagged)
 
 - **`--fix`**: apply the high-confidence fixes — run linters/formatters with `--fix`/`--write` on
-  new files, edit stale docs, and run `/code-review --fix` for correctness. Stage them; in CI they
-  are committed as an `[autofix]` commit (the workflow handles the commit). Report what was fixed vs
-  left as a suggestion.
+  new files, edit stale docs, and run `/code-review --fix` for correctness. Locally, stage them so
+  the user can review and commit. **In CI's split workflow the agent is read-only: apply fixes to
+  the working tree only and do NOT commit, push, or comment — a separate privileged job stages the
+  edits into an `[autofix]` commit and pushes it.** Report what was fixed vs left as a suggestion.
 - **`--comment`**: post the report's findings as PR comments (use `github-pr-review` plumbing or
-  `gh pr comment`), each with its confidence score. Un-fixable and lower-confidence items go here.
+  `gh pr comment`), each with its confidence score; un-fixable and lower-confidence items go here.
+  **In CI the agent instead writes all findings (with scores) to `change-review-findings.md`, and
+  the separate privileged job posts that file as the PR comment.**
 
 ## 7. Output format
 

@@ -605,7 +605,7 @@ git commit -m "ci: run change-review (one job, security folded in)"
 - Goal 2 (fold deep correctness + security; remove CI security job) → Task 1 (hand-offs) + Task 4 (job removed). ✓
 - Goal 3 (`--fix`/`--comment` across all steps) → Task 1 sections 0, 5, 6. ✓
 - Goal 4 (absorb git-history, prior-PR, inline-comment, confidence) → Task 1 sections 2, 3, 5. ✓
-- Goal 5 (CI runs change-review, one job) → Task 4. ✓
+- Goal 5 (CI runs change-review) → Task 4, revised to the two-job split (see revision note). ✓
 - Goal 6 (review-skills map + collision callout) → Task 2. ✓
 - Goal 7 (apply across repos) → Task 6 (`translation_sdlc_demo`); template is source of truth (Task 4). ✓
 - Cross-links (Component C) → Task 3. ✓
