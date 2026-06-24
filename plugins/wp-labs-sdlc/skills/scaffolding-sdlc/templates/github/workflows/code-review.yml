@@ -54,12 +54,14 @@ jobs:
           plugin_marketplaces: 'https://github.com/cssherry-wp/wp-labs-starter.git'
           plugins: 'wp-labs-standards@wp-labs-starter'
           prompt: |
-            /wp-labs-standards:change-review --fix --effort high
+            /wp-labs-standards:change-review --fix --comment --effort high
             Review the changes in this pull request against its base branch.
             Apply ONLY high-confidence, mechanically-fixable findings to the working tree.
-            Do NOT commit, push, or post any PR comment. Write every finding (each with
-            its confidence score), including ones you did not fix, to the file
-            change-review-findings.md in the repository root.
+            Do NOT commit, push, or post any PR comment. Write ALL findings to
+            change-review-findings.json in the repository root, following the CI findings
+            JSON schema in the change-review skill: line-anchored findings (path+line inside
+            the diff) go in findings[] with status "fixed" or "unfixed"; everything else goes
+            in unanchored[]. Always write the file, even if there are no findings.
           # Write is required so the agent can CREATE change-review-findings.md (a new file);
           # Edit only modifies existing files. The job token is read-only, so Write only touches
           # the ephemeral working tree — no repo-write power. (Bash, already allowed, could create
@@ -75,14 +77,14 @@ jobs:
           # The skill is instructed to ALWAYS write the findings file (even "no findings"),
           # so a MISSING file means the agent did not complete — do not disguise that as a
           # clean "no findings" result the way a silent fallback would.
-          if [ -f change-review-findings.md ]; then
-            BYTES=$(wc -c < change-review-findings.md | tr -d ' ')
-            mv change-review-findings.md "$OUT/change-review-findings.md"
-            echo "- findings file: present (${BYTES} bytes)" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f change-review-findings.json ] && jq empty change-review-findings.json 2>/dev/null; then
+            COUNT=$(jq '(.findings | length) + (.unanchored | length)' change-review-findings.json)
+            mv change-review-findings.json "$OUT/change-review-findings.json"
+            echo "- findings file: present (${COUNT} finding(s))" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "::warning::change-review-findings.md was not produced — the agent may not have completed; check the 'Run change-review' step log."
-            echo "⚠️ change-review did not produce a findings file — the agent may not have completed. Check the workflow run log." > "$OUT/change-review-findings.md"
-            echo "- findings file: **MISSING** (agent may not have completed)" >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::change-review-findings.json missing or invalid — the agent may not have completed; check the 'Run change-review' step log."
+            printf '{"reviewed":"","summary":"⚠️ change-review did not produce a valid findings file — the agent may not have completed. Check the workflow run log.","findings":[],"unanchored":[]}' > "$OUT/change-review-findings.json"
+            echo "- findings file: **MISSING/INVALID** (agent may not have completed)" >> "$GITHUB_STEP_SUMMARY"
           fi
           git add -A
           git diff --cached > "$OUT/autofix.patch" || true
@@ -127,6 +129,61 @@ jobs:
           name: change-review-${{ github.event.pull_request.number }}
           path: cr
 
+      - name: Post inline review and resolve fixed threads
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MARKER: '<!-- claude-autofix -->'
+          COMMIT_ID: ${{ github.event.pull_request.head.sha }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          FINDINGS="cr/change-review-findings.json"
+          if [ ! -s "$FINDINGS" ]; then
+            echo "::warning::no findings file to post."
+            echo "- review: NOT posted (empty/missing findings file)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # Build the reviews-API payload deterministically (no agent). The .jq helper is
+          # scaffolded next to this workflow, so it is present after checkout.
+          jq -f .github/workflows/build-review-payload.jq \
+             --arg commit_id "$COMMIT_ID" --arg marker "$MARKER" \
+             "$FINDINGS" > payload.json
+
+          # One review = one pull_request_review event (skipped by triage via the marker
+          # in the body). The reviews API is all-or-nothing: if any inline line is outside
+          # the diff it 422s, so fall back to a body-only review.
+          if gh api -X POST "repos/$REPO/pulls/$PR/reviews" --input payload.json >/dev/null 2>posterr; then
+            echo "::notice::posted inline review to PR #$PR"
+            echo "- review: posted with $(jq '.comments | length' payload.json) inline comment(s)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::inline review rejected ($(cat posterr | head -1)); retrying body-only."
+            jq '.comments = []' payload.json > payload-body.json
+            gh api -X POST "repos/$REPO/pulls/$PR/reviews" --input payload-body.json >/dev/null
+            echo "- review: posted body-only (inline comments rejected — likely a line outside the diff)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          # Resolve threads whose seed comment carries the marker (the auto-fixed findings).
+          OWNER="${REPO%/*}"; NAME="${REPO#*/}"
+          gh api graphql -f query="
+          query {
+            repository(owner: \"$OWNER\", name: \"$NAME\") {
+              pullRequest(number: $PR) {
+                reviewThreads(first: 100) {
+                  nodes { id isResolved comments(first: 1) { nodes { body } } }
+                }
+              }
+            }
+          }" | jq -r --arg m "$MARKER" \
+            '.data.repository.pullRequest.reviewThreads.nodes[]
+             | select(.isResolved | not)
+             | select(.comments.nodes[0].body | contains($m)) | .id' \
+          | while read -r tid; do
+              [ -n "$tid" ] || continue
+              gh api graphql -f query="mutation { resolveReviewThread(input: { threadId: \"$tid\" }) { thread { isResolved } } }" >/dev/null
+              echo "- resolved auto-fixed thread $tid" >> "$GITHUB_STEP_SUMMARY"
+            done
+
       - name: Apply autofix patch and push
         # head.ref is attacker-controlled (PR author names the branch) and git allows
         # shell metacharacters in ref names. Pass it via env so the shell — not Actions
@@ -149,19 +206,4 @@ jobs:
           else
             echo "::notice::no autofix patch to apply."
             echo "- autofix: no patch to apply" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Post findings comment
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ -s cr/change-review-findings.md ]; then
-            gh pr comment "${{ github.event.pull_request.number }}" \
-              --repo "${{ github.repository }}" \
-              --body-file cr/change-review-findings.md
-            echo "::notice::posted findings comment to PR #${{ github.event.pull_request.number }}"
-            echo "- findings comment: posted" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "::warning::no findings file to post."
-            echo "- findings comment: NOT posted (empty/missing file)" >> "$GITHUB_STEP_SUMMARY"
           fi
