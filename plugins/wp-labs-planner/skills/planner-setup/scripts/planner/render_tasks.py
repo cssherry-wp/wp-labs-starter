@@ -87,3 +87,67 @@ def existing_task_index(vault: Any) -> dict[str, TaskRef]:
             completed=bool(_row_value(row, "completed")),
         )
     return index
+
+
+_OPEN_HEADING = "Open Items"
+_STUB = "## Notes\n\n## Open Items\n\n## TODO\n"
+
+
+def _ensure_note(vault: Any, path: str) -> None:
+    """Create a note with the stub content if it does not exist.
+
+    Args:
+        vault: Vault object with exists() and write() methods.
+        path: Path to the note file.
+    """
+    if not vault.exists(path):
+        vault.write(path, _STUB)
+
+
+def _reconcile(vault: Any, ref: TaskRef, item: OpenItem, end: date) -> None:
+    """Rewrite the matched task line's signifiers in place, preserving checkbox state.
+
+    Args:
+        vault: Vault object with read() and write() methods.
+        ref: Reference to the existing task.
+        item: The open item to reconcile with.
+        end: The Sunday end date of the week.
+    """
+    body = vault.read(ref.path)
+    lines = body.splitlines()
+    key = normalize_text(item.text)
+    desired = open_task_line(item, end)
+    for i, line in enumerate(lines):
+        if "[" not in line or normalize_text(line) != key:
+            continue
+        rebuilt = ("- [x]" + desired[len("- [ ]"):]) if "[x]" in line.lower() else desired
+        if rebuilt != line:
+            lines[i] = rebuilt
+            tail = "\n" if body.endswith("\n") else ""
+            vault.write(ref.path, "\n".join(lines) + tail)
+        return
+
+
+def apply_open_items(vault: Any, daily_dir: str, items: list[OpenItem], today: date,
+                     index: dict[str, TaskRef]) -> None:
+    """Append new open items under today's '## Open Items'; reconcile existing matches.
+
+    Args:
+        vault: Vault object with exists(), write(), read(), and patch_heading() methods.
+        daily_dir: Directory path for daily notes (e.g. "daily").
+        items: List of open items to apply.
+        today: Today's date.
+        index: Dictionary mapping normalized task text to TaskRef for deduplication.
+    """
+    end = week_end(today)
+    today_path = f"{daily_dir}/{today.isoformat()}.md"
+    new_lines: list[str] = []
+    for item in items:
+        ref = index.get(normalize_text(item.text))
+        if ref is None:
+            new_lines.append(open_task_line(item, end))
+        else:
+            _reconcile(vault, ref, item, end)
+    if new_lines:
+        _ensure_note(vault, today_path)
+        vault.patch_heading(today_path, _OPEN_HEADING, "\n".join(new_lines), operation="append")

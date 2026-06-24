@@ -5,6 +5,7 @@ from datetime import date, datetime
 from planner.collectors.gsheet import OpenItem
 from planner.render_tasks import (
     TaskRef,
+    apply_open_items,
     existing_task_index,
     open_task_line,
     status_slug,
@@ -70,3 +71,53 @@ def test_existing_task_index_empty_without_search() -> None:
 
 def test_existing_task_index_empty_on_query_failure() -> None:
     assert existing_task_index(FakeSearchVault([], fail=True)) == {}
+
+
+class RecordingVault:
+    def __init__(self, files: dict[str, str] | None = None) -> None:
+        self.files = files or {}
+        self.patches: list[tuple[str, str, str]] = []
+
+    def exists(self, path: str) -> bool:
+        return path in self.files
+
+    def write(self, path: str, content: str) -> None:
+        self.files[path] = content
+
+    def read(self, path: str) -> str:
+        return self.files[path]
+
+    def patch_heading(self, path: str, heading: str, content: str, operation: str = "append") -> None:
+        self.patches.append((path, heading, content))
+
+
+def existing_task_index_stub(key: str, path: str, text: str) -> dict[str, TaskRef]:
+    return {key: TaskRef(path=path, text=text, completed=False)}
+
+
+def test_apply_open_items_appends_new_under_open_items() -> None:
+    vault = RecordingVault()
+    items = [OpenItem(text="New thing", status="", carry_over_weeks=0, started_at=None)]
+    apply_open_items(vault, "daily", items, date(2026, 6, 24), index={})
+    assert vault.patches == [("daily/2026-06-24.md", "Open Items", "- [ ] New thing")]
+    assert vault.exists("daily/2026-06-24.md")  # stub created
+
+
+def test_apply_open_items_skips_unchanged_existing() -> None:
+    vault = RecordingVault({"daily/2026-06-20.md": "## TODO\n- [ ] New thing\n"})
+    items = [OpenItem(text="New thing", status="", carry_over_weeks=0, started_at=None)]
+    index = existing_task_index_stub("new thing", "daily/2026-06-20.md", "- [ ] New thing")
+    apply_open_items(vault, "daily", items, date(2026, 6, 24), index=index)
+    assert vault.patches == []  # nothing new appended
+    assert vault.files["daily/2026-06-20.md"] == "## TODO\n- [ ] New thing\n"  # untouched
+
+
+def test_apply_open_items_reconciles_stale_priority() -> None:
+    vault = RecordingVault({"daily/2026-06-20.md": "## TODO\n- [ ] Give feedback 🔽 #status/waiting\n"})
+    items = [OpenItem(text="Give feedback", status="On Notice", carry_over_weeks=1, started_at=None)]
+    index = existing_task_index_stub("give feedback", "daily/2026-06-20.md",
+                                     "- [ ] Give feedback 🔽 #status/waiting")
+    apply_open_items(vault, "daily", items, date(2026, 6, 24), index=index)
+    assert vault.patches == []  # already exists → not re-appended
+    assert "⏫ 📅 2026-06-28 #status/on-notice" in vault.files["daily/2026-06-20.md"]
+    assert "🔽 #status/waiting" not in vault.files["daily/2026-06-20.md"]
