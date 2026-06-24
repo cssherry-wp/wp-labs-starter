@@ -5,6 +5,7 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -134,3 +135,62 @@ def normalize_text(text: str) -> str:
     t = _PRIORITY_RE.sub("", t)
     _, t = _split_dashes(t.strip())
     return " ".join(t.split()).lower()
+
+
+def _completed_section(notes: str) -> list[str]:
+    """Return lines after a 'Completed:' marker inside the Notes cell."""
+    out: list[str] = []
+    capturing = False
+    for line in notes.splitlines():
+        if line.strip().lower().rstrip(":") == "completed":
+            capturing = True
+            continue
+        if capturing:
+            out.append(line)
+    return out
+
+
+def _column(header: list[str], name: str) -> int:
+    lowered = [h.strip().lower() for h in header]
+    return lowered.index(name) if name in lowered else -1
+
+
+def _cell(row: list[str], idx: int) -> str:
+    return row[idx] if 0 <= idx < len(row) else ""
+
+
+def fetch_todos(sheets_service: Any, sheet_id: str, tab: str = "Overview",
+                weeks_back: int = 4) -> dict[str, list]:
+    """Read the Overview tab and parse recent rows into open/completed todos.
+
+    Args:
+        sheets_service: Google Sheets v4 API client.
+        sheet_id: Spreadsheet ID.
+        tab: Worksheet/tab name to read.
+        weeks_back: Number of prior week-rows to include alongside the current row.
+
+    Returns:
+        Dict with "open" (list[OpenItem]) and "completed" (list[CompletedItem]).
+    """
+    resp = sheets_service.spreadsheets().values().get(
+        spreadsheetId=sheet_id, range=tab).execute()
+    rows = resp.get("values", [])
+    if not rows:
+        return {"open": [], "completed": []}
+    header, body = rows[0], rows[1:]
+    rem_i, notes_i = _column(header, "remaining items"), _column(header, "notes")
+    populated = [r for r in body if any(c.strip() for c in r)]
+    open_items: list[OpenItem] = []
+    completed: list[CompletedItem] = []
+    for row in populated[-(weeks_back + 1):]:
+        for line in _cell(row, rem_i).splitlines():
+            item = parse_open_line(line)
+            if item:
+                open_items.append(item)
+            elif line.strip():
+                log.warning("unparsed open line: %r", line)
+        for line in _completed_section(_cell(row, notes_i)):
+            done = parse_completed_line(line)
+            if done:
+                completed.append(done)
+    return {"open": open_items, "completed": completed}

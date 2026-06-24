@@ -77,3 +77,61 @@ def test_normalize_strips_status_dashes_and_signifiers() -> None:
     a = normalize_text("- - Ask for talent review (Waiting: 11/22/2025, 8:26:55 AM)")
     b = normalize_text("- [ ] Ask for talent review ⏫ 📅 2026-06-28 #status/on-notice")
     assert a == b == "ask for talent review"
+
+
+class FakeSheets:
+    def __init__(self, values: list[list[str]]) -> None:
+        self._values = values
+        self.requested_range: str | None = None
+
+    def spreadsheets(self):
+        return self
+
+    def values(self):
+        return self
+
+    def get(self, spreadsheetId: str, range: str):  # noqa: N803, A002
+        self.requested_range = range
+        return self
+
+    def execute(self) -> dict:
+        return {"values": self._values}
+
+
+def _rows() -> list[list[str]]:
+    header = ["Week", "% Completed", "# Completed", "Average Time (hrs)",
+              "Remaining items", "Notes"]
+    week1 = ["1", "20%", "6", "5.1",
+             "- - Old task (Waiting: 11/22/2025, 8:26:55 AM)\n- New task",
+             "Notes:\n2026/01/05: hi\nCompleted:\n- Done it (Completed: 1/5/2026, 2:01:52 PM)"]
+    return [header, week1]
+
+
+def test_fetch_todos_parses_open_and_completed() -> None:
+    from planner.collectors.gsheet import fetch_todos
+    result = fetch_todos(FakeSheets(_rows()), "sheet-1", "Overview", 4)
+    assert [o.text for o in result["open"]] == ["Old task", "New task"]
+    assert [c.text for c in result["completed"]] == ["Done it"]
+
+
+def test_fetch_todos_locates_columns_by_header_when_reordered() -> None:
+    from planner.collectors.gsheet import fetch_todos
+    rows = [["Notes", "Week", "Remaining items"],
+            ["Completed:\n- D (Completed: 1/5/2026, 2:01:52 PM)", "1", "- Task A"]]
+    result = fetch_todos(FakeSheets(rows), "s", "Overview", 4)
+    assert [o.text for o in result["open"]] == ["Task A"]
+    assert [c.text for c in result["completed"]] == ["D"]
+
+
+def test_fetch_todos_windows_last_n_plus_one_rows() -> None:
+    from planner.collectors.gsheet import fetch_todos
+    header = ["Week", "Remaining items", "Notes"]
+    data = [[str(i), f"- task{i}", ""] for i in range(1, 11)]
+    result = fetch_todos(FakeSheets([header, *data]), "s", "Overview", 2)
+    # weeks_back=2 → last 3 rows: task8, task9, task10
+    assert [o.text for o in result["open"]] == ["task8", "task9", "task10"]
+
+
+def test_fetch_todos_empty_sheet() -> None:
+    from planner.collectors.gsheet import fetch_todos
+    assert fetch_todos(FakeSheets([]), "s") == {"open": [], "completed": []}
