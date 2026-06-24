@@ -14,12 +14,21 @@ from planner.render_tasks import (
     open_task_line,
     status_slug,
     week_end,
+    week_start,
 )
 
 
 def test_week_end_is_sunday() -> None:
     # 2026-06-24 is a Wednesday; that week's Sunday is 2026-06-28
     assert week_end(date(2026, 6, 24)) == date(2026, 6, 28)
+
+
+def test_week_start_returns_monday() -> None:
+    # 2026-06-24 is a Wednesday.
+    assert week_start(date(2026, 6, 24)) == date(2026, 6, 22)
+    assert week_end(date(2026, 6, 24)) == date(2026, 6, 28)
+    # Monday maps to itself.
+    assert week_start(date(2026, 6, 22)) == date(2026, 6, 22)
 
 
 def test_status_slug_kebabs_multiword() -> None:

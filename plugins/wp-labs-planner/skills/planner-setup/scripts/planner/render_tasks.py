@@ -23,6 +23,11 @@ _TASK_DQL = (
 )
 
 
+def week_start(today: date) -> date:
+    """Return the Monday of today's week (Monday-started week)."""
+    return today - timedelta(days=today.weekday())
+
+
 def week_end(today: date) -> date:
     """Return the Sunday of today's week (Monday-started week)."""
     return today + timedelta(days=6 - today.weekday())
