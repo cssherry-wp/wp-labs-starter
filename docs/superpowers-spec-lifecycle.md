@@ -42,23 +42,28 @@ you:
    committed).
 2. **Issue.** If the spec came from an existing GitHub issue, the spec is appended
    to it as a comment. Otherwise you're asked `Create a GitHub tracking issue for
-   this spec? (Y/n)` and, on yes, `gh issue create` opens one. The resulting URL is
-   recorded in the spec as a `Tracking issue:` line.
+   this spec? (Y/n)` and, on yes, `gh issue create` opens one. The issue (and, if it
+   was a comment, the comment URL) is recorded in the spec.
 3. **Plan.** The implementation plan is written to the top-level repo's
    `.superpowers/02-plans/YYYY-MM-DD-HHmm-<name-of-plan>.md`, then posted as a
    comment on that tracking issue (`gh issue comment`).
-4. **Feature docs.** When you finish the branch, you write a task-oriented guide
+4. **Sync on change.** Specs and plans are living documents — whenever one is revised
+   after it was synced (spec review loop, plan fixes, …), its GitHub counterpart is
+   updated **in place** (`gh issue edit` for the issue body, or a `PATCH` to the
+   recorded comment) so the issue never goes stale. New comments aren't piled on.
+5. **Feature docs.** When you finish the branch, you write a task-oriented guide
    (like this one) into `docs/` describing how to use and adapt the feature.
 
 All `gh` steps degrade gracefully — if the GitHub CLI is missing or
 unauthenticated, the step is skipped with a note and never blocks your work.
 
 The spec and plan folders keep themselves out of git the same way superpowers'
-`sdd/` scratch does: when a folder is first created, a self-ignoring `.gitignore`
-(containing just `*`) is dropped into it, so every file there — including the
-`.gitignore` itself — is ignored, and the host repo's root `.gitignore` is never
-touched. Specs and plans are therefore local working copies; the **GitHub tracking
-issue is their durable record**. Always use the **top-level repository's**
+`sdd/` scratch does: a self-ignoring `.gitignore` (containing just `*`) lives in each
+folder, so every file there — including the `.gitignore` itself — is ignored, and the
+host repo's root `.gitignore` is never touched. The skills **ensure** that guard
+exists every time they write a spec or plan (adding it if the folder is new *or*
+already exists without one). Specs and plans are therefore local working copies; the
+**GitHub tracking issue is their durable record**. Always use the **top-level repository's**
 `.superpowers/` — when you're in a git worktree, resolve it to the main working tree
 (`git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel`) so all
 worktrees share one location and the docs outlive any single worktree. Only the
