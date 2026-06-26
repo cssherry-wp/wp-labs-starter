@@ -184,15 +184,33 @@ def test_fetch_calls_parses_planner_email_body() -> None:
     assert [e.title for e in events] == ["Demo Hour"]
 
 
-def test_fetch_calls_skips_reply_and_uses_real_planner_email() -> None:
-    """A newer 'Re:' reply (a test/forward) must not shadow the real planner email."""
+def test_fetch_calls_uses_latest_planner_email_even_when_reply() -> None:
+    """The newest planner email wins even when delivered as a reply/forward.
+
+    Replies/forwards are no longer skipped: when the calendar arrives as a 'Re:'
+    or 'Fwd:' thread, that latest copy is the source of truth, not an older one.
+    """
     reply = "Tomorrow's Calendar\nTime\n1:00 PM ET\nReply Event\nSherry Zhou\nAll-day events\n"
-    real = "Tomorrow's Calendar\nTime\n4:00 PM ET\nReal Event\nSherry Zhou\nAll-day events\n"
-    listing = {"messages": [{"id": "reply"}, {"id": "real"}]}  # newest-first
+    older = "Tomorrow's Calendar\nTime\n4:00 PM ET\nOlder Event\nSherry Zhou\nAll-day events\n"
+    listing = {"messages": [{"id": "reply"}, {"id": "older"}]}  # newest-first
     messages = {"reply": _plain_message(reply, "Re: Daily planner"),
-                "real": _plain_message(real, "Daily planner")}
+                "older": _plain_message(older, "Daily planner")}
     events = fetch_calls(FakeService(listing, messages), "s+planner@x.com", date(2026, 6, 24))
-    assert [e.title for e in events] == ["Real Event"]
+    assert [e.title for e in events] == ["Reply Event"]
+
+
+def test_fetch_accomplishments_includes_replies_and_forwards() -> None:
+    """Reply/forward notes to the alias stay in the digest; they are not filtered out."""
+    listing = {"messages": [{"id": "r"}, {"id": "f"}]}
+    messages = {
+        "r": {"snippet": "reply note",
+              "payload": {"headers": [{"name": "Subject", "value": "Re: standup"}]}},
+        "f": {"snippet": "fwd note",
+              "payload": {"headers": [{"name": "Subject", "value": "Fwd: spec"}]}},
+    }
+    md = fetch_accomplishments(FakeService(listing, messages), "s+planner@x.com", date(2026, 6, 22))
+    assert "reply note" in md and "fwd note" in md
+    assert "[Re: standup]" in md and "[Fwd: spec]" in md
 
 
 def test_gmail_scopes_use_spreadsheets() -> None:

@@ -244,17 +244,14 @@ def _message_text(msg: dict[str, Any]) -> str:
     return _strip_html("\n".join(_decode_part(p) for p in html))
 
 
-def _is_reply_or_forward(subject: str) -> bool:
-    """True for reply/forward subjects (e.g. 'Re: …', 'Fwd: …') — not the original."""
-    return subject.strip().lower().startswith(("re:", "fwd:", "fw:"))
-
-
 def fetch_calls(service: Any, planner_address: str, event_date: date) -> list[CalendarEvent]:
-    """Return timed events from the most recent original planner email.
+    """Return timed events from the most recent planner email.
 
-    Scans recent emails to the planner alias (newest first), skipping replies and
-    forwards (e.g. test '"Re: Daily planner"' threads), and parses the first
-    original message containing a 'Tomorrow's Calendar' section.
+    Scans recent emails to the planner alias (newest first) and parses the first
+    message containing a 'Tomorrow's Calendar' section. Replies and forwards
+    (e.g. a 'Re: Daily planner' thread) are included, so when the latest copy of
+    the calendar arrives as a reply/forward it is used as the source of truth
+    rather than an older original.
 
     Args:
         service: Authenticated Gmail API client.
@@ -266,8 +263,6 @@ def fetch_calls(service: Any, planner_address: str, event_date: date) -> list[Ca
     """
     for msg_id in _list_message_ids(service, f"to:{planner_address}"):
         msg = service.users().messages().get(userId="me", id=msg_id, format="full").execute()
-        if _is_reply_or_forward(_header(msg, "Subject")):
-            continue
         events = parse_tomorrow_calendar(_message_text(msg), event_date)
         if events:
             return events
