@@ -105,8 +105,8 @@ plugin is enabled.
 
 ### Docs convention
 
-Specs go to `docs/01-specs/YYYY-MM-DD-HHmm-<name>.md`; plans to
-`docs/02-plans/YYYY-MM-DD-HHmm-<name>.md`.
+Specs go to `.superpowers/01-specs/YYYY-MM-DD-HHmm-<name>.md`; plans to
+`.superpowers/02-plans/YYYY-MM-DD-HHmm-<name>.md`.
 
 ## Maintaining
 

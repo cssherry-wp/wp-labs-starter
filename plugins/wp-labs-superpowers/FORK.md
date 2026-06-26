@@ -13,11 +13,14 @@ plugin essentials and customized with the team docs-path convention.
 ## What diverges from upstream
 
 1. **Docs-path convention** applied to the skill text:
-   - `docs/superpowers/specs/...` → `docs/01-specs/YYYY-MM-DD-HHmm-<name-of-spec>.md`
-   - `docs/superpowers/plans/...` → `docs/02-plans/YYYY-MM-DD-HHmm-<name-of-plan>.md`
+   - `docs/superpowers/specs/...` → `.superpowers/01-specs/YYYY-MM-DD-HHmm-<name-of-spec>.md`
+   - `docs/superpowers/plans/...` → `.superpowers/02-plans/YYYY-MM-DD-HHmm-<name-of-plan>.md`
 2. **Slimmed to plugin essentials** — kept `.claude-plugin/`, `skills/`, `hooks/`, `LICENSE`,
    `README.md`; removed upstream dev/CI/test files, the upstream project's own `docs/`, and
    other-harness directories.
+3. **Team workflow overlays** — spec→issue (brainstorming), plan→comment (writing-plans), and
+   feature-docs (finishing-a-development-branch) are appended from `team-overlays/` after each
+   rebuild.
 
 ## Why a fork (vs the overlay)
 
