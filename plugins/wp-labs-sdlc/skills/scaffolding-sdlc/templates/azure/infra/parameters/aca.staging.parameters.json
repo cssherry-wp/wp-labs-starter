@@ -4,7 +4,6 @@
   "parameters": {
     "appName": { "value": "myapp" },
     "environment": { "value": "staging" },
-    "imageName": { "value": "myapp:staging" },
     "minReplicas": { "value": 1 },
     "maxReplicas": { "value": 3 },
     "cpu": { "value": "0.5" },

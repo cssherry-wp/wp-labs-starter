@@ -13,8 +13,8 @@ param environment string = 'prod'
 @description('Azure region for all resources.')
 param location string = resourceGroup().location
 
-@description('Container image (repository:tag) to deploy from the registry.')
-param imageName string
+@description('Container image (repository:tag) to deploy from the registry. Defaults to <appName>:<environment>; CD overrides the tag per build.')
+param imageName string = '${appName}:${environment}'
 
 @description('PostgreSQL administrator username.')
 param pgAdminUser string = 'psqladmin'
@@ -70,6 +70,10 @@ module containerenv 'modules/containerenv.bicep' = {
   }
 }
 
+// Built once here so the Postgres DSN format lives in a single place; both the app
+// and the migration Job receive it as an opaque secret.
+var databaseUrl = 'postgresql://${pgAdminUser}:${pgAdminPassword}@${postgres.outputs.fqdn}:5432/${postgres.outputs.databaseName}'
+
 module containerapp 'modules/containerapp.bicep' = {
   name: 'containerapp'
   params: {
@@ -79,10 +83,7 @@ module containerapp 'modules/containerapp.bicep' = {
     environmentDefaultDomain: containerenv.outputs.defaultDomain
     acrLoginServer: acr.outputs.loginServer
     imageName: imageName
-    postgresHost: postgres.outputs.fqdn
-    postgresDb: postgres.outputs.databaseName
-    postgresUser: pgAdminUser
-    postgresPassword: pgAdminPassword
+    databaseUrl: databaseUrl
     minReplicas: minReplicas
     maxReplicas: maxReplicas
     cpu: cpu
@@ -98,10 +99,7 @@ module migrationJob 'modules/migration-job.bicep' = {
     environmentId: containerenv.outputs.environmentId
     acrLoginServer: acr.outputs.loginServer
     imageName: imageName
-    postgresHost: postgres.outputs.fqdn
-    postgresDb: postgres.outputs.databaseName
-    postgresUser: pgAdminUser
-    postgresPassword: pgAdminPassword
+    databaseUrl: databaseUrl
   }
 }
 
@@ -114,6 +112,8 @@ resource acrResource 'Microsoft.ContainerRegistry/registries@2023-07-01' existin
 
 var acrPullRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 
+// Two explicit assignments (not a for-loop): the principal IDs are module outputs,
+// which Bicep cannot use to size a resource loop (BCP178).
 resource appAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(acrResource.id, '${appName}-${environment}', 'app', 'AcrPull')
   scope: acrResource

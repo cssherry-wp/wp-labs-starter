@@ -16,18 +16,9 @@ param acrLoginServer string
 @description('Container image (repository:tag) within the registry.')
 param imageName string
 
-@description('Postgres FQDN.')
-param postgresHost string
-
-@description('Postgres database name.')
-param postgresDb string
-
-@description('Postgres user.')
-param postgresUser string
-
 @secure()
-@description('Postgres password.')
-param postgresPassword string
+@description('Full Postgres connection string (DATABASE_URL), built by the caller.')
+param databaseUrl string
 
 @description('Minimum replicas. 0 enables scale-to-zero; default 1 keeps the app always-warm.')
 @minValue(0)
@@ -45,9 +36,6 @@ param memory string = '1.0Gi'
 
 @description('Container listening port.')
 param targetPort int = 8000
-
-// DATABASE_URL is built at deploy time and stored as a secret (never a plain env value).
-var databaseUrl = 'postgresql://${postgresUser}:${postgresPassword}@${postgresHost}:5432/${postgresDb}'
 
 resource app 'Microsoft.App/containerApps@2024-03-01' = {
   name: appName

@@ -15,8 +15,7 @@ jobs:
     permissions: { contents: read }
     steps:
       - uses: actions/checkout@v5
-      # ubuntu-latest ships the Azure CLI; ensure the bundled Bicep CLI is present.
-      - name: Ensure Bicep CLI
-        run: az bicep install
+      # ubuntu-latest ships the Azure CLI; `az bicep build` (run by make lint-infra)
+      # auto-installs the bundled Bicep CLI on first use, so no explicit install step.
       - name: Lint Bicep (local == CI)
         run: make lint-infra

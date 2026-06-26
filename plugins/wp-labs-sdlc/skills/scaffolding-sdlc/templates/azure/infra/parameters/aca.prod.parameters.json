@@ -4,7 +4,6 @@
   "parameters": {
     "appName": { "value": "myapp" },
     "environment": { "value": "prod" },
-    "imageName": { "value": "myapp:prod" },
     "minReplicas": { "value": 1 },
     "maxReplicas": { "value": 5 },
     "cpu": { "value": "1.0" },

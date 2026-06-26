@@ -13,18 +13,9 @@ param acrLoginServer string
 @description('Container image (repository:tag) within the registry.')
 param imageName string
 
-@description('Postgres FQDN.')
-param postgresHost string
-
-@description('Postgres database name.')
-param postgresDb string
-
-@description('Postgres user.')
-param postgresUser string
-
 @secure()
-@description('Postgres password.')
-param postgresPassword string
+@description('Full Postgres connection string (DATABASE_URL), built by the caller.')
+param databaseUrl string
 
 @description('manage.py command to run. Defaults to migrate; override to run any one-off management command (createsuperuser, loaddata, a contract migration, etc.).')
 param command string = 'migrate --noinput'
@@ -37,8 +28,6 @@ param memory string = '1.0Gi'
 
 @description('Max seconds a replica may run before timing out.')
 param replicaTimeout int = 1800
-
-var databaseUrl = 'postgresql://${postgresUser}:${postgresPassword}@${postgresHost}:5432/${postgresDb}'
 
 // A manual-trigger Job: provisioned once, invoked on demand via
 //   az containerapp job start --name <jobName> -g <rg>
