@@ -134,11 +134,12 @@ New workflow **`cd-preview.yml`** (copied only on the ACA path), gated on
 
 - **On labeled / synchronize (label present):**
   1. OIDC login; `az acr build` a PR-tagged image (`:pr-<number>`).
-  2. Deploy/update a uniquely-named container app **`<app>-pr-<number>`** with **`minReplicas=0`**
-     (default scaled-to-zero) in the ACA environment.
-  3. Run the migration Job against the preview (see DB note in Risks).
-  4. Edit the PR **description** to insert/update a marked block with the preview URL
-     (idempotent — a `<!-- preview-env -->` marker so re-runs replace, not append).
+  2. Deploy/update a uniquely-named container app **`<app>-pr-<number>`** with
+     **`minReplicas=0`, `maxReplicas=1`** in the ACA environment. The single replica
+     **self-migrates on cold start** (`RUN_MIGRATIONS_ON_START=true`) — no Job needed, no race.
+     Database per the resolved strategy in Risks (`PREVIEW_DATABASE_URL`, else SQLite + seeded admin).
+  3. Edit the PR **description** to insert/update a marked block with the preview URL
+     (idempotent — `<!-- preview-env:start -->`/`:end` markers so re-runs replace, not append).
 - **On PR `closed` (merged or not):** `az containerapp delete` the `<app>-pr-<number>` app and any
   preview-only resources, and Add strikethrough to all lines between the marker block.
 
@@ -161,10 +162,12 @@ If the label is removed mid-PR, treat it like `closed` for that app (delete + un
   disk). Noted in HOSTING.md.
 - `az bicep` must be available locally for `make lint-infra` (`az bicep install`); ubuntu CI runners
   have `az` preinstalled.
-- **Preview-env database strategy (needs-decision):** §8's preview app needs a database. Options:
-  a per-PR ephemeral Postgres (cleanest isolation, more provisioning/teardown), a per-PR schema on a
-  shared dev server, or simply pointing at a shared dev DB (simplest, but PRs can collide / mutate
-  shared data). Resolve during planning; default lean is a per-PR ephemeral DB dropped on close.
+- **Preview-env database strategy (resolved):** the preview uses `PREVIEW_DATABASE_URL` if set
+  (e.g. a shared dev Postgres); **otherwise it falls back to ephemeral in-container SQLite and seeds
+  a Django admin** from `PREVIEW_ADMIN_USERNAME`/`PREVIEW_ADMIN_EMAIL` (repo vars) +
+  `PREVIEW_ADMIN_PASSWORD` (repo secret), via a `CREATE_SUPERUSER_ON_START` entrypoint toggle. SQLite
+  and the seeded user are recreated on each cold start — acceptable for a throwaway preview. A per-PR
+  managed Postgres remains a future option if previews need persistence across cold starts.
 - **Preview-env leak risk:** if the `closed` teardown run fails, a `<app>-pr-<number>` app lingers.
   Scale-to-zero keeps idle cost ~$0, but a periodic sweep (or a max-age check) may be warranted —
   note for planning.

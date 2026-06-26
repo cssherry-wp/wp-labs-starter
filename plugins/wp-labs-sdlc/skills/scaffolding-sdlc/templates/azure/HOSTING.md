@@ -133,8 +133,17 @@ Add the **`automation-deploy-test`** label to a PR and `cd-preview.yml` deploys 
 throwaway `…-pr-<n>` Container App (min 0 / max 1 replica → ~$0 idle), links it in
 the PR description, and tears it down — striking the link through — when the PR
 closes or the label is removed. Preview apps migrate themselves on cold start
-(single replica, so no race). Set a `PREVIEW_DATABASE_URL` secret to point previews
-at a database (per-PR database strategy is still being finalized).
+(single replica, so no race).
+
+**Database:**
+- Set a repo **secret** `PREVIEW_DATABASE_URL` to point previews at a real database
+  (e.g. a shared dev Postgres).
+- **If it is not set**, the preview falls back to **ephemeral in-container SQLite**
+  and seeds a Django admin so the preview is immediately usable. Configure the admin
+  via repo **variables** `PREVIEW_ADMIN_USERNAME` (default `admin`) /
+  `PREVIEW_ADMIN_EMAIL` and the repo **secret** `PREVIEW_ADMIN_PASSWORD`
+  (default `changeme` — set it). The SQLite DB and seeded user are recreated on each
+  cold start, which is fine for a throwaway preview.
 
 ## Notes
 
