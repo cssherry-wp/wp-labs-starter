@@ -46,6 +46,3 @@ __pycache__/
 # Docker
 docker-compose.override.yml
 *.local.env
-
-# Note: the .superpowers/ working space is git-ignored by its own committed
-# .superpowers/.gitignore (works on every branch and fresh clone).

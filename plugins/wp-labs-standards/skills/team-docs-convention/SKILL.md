@@ -19,12 +19,18 @@ Rules:
   write to the **main working tree's** `.superpowers/`, not the worktree's — resolve it with
   `git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel`. This way every
   worktree shares one durable location and the docs survive the worktree being removed.
-- Create `.superpowers/01-specs/` or `.superpowers/02-plans/` if it doesn't exist.
-- **`.superpowers/` is git-ignored working space — do NOT commit specs or plans.** A committed
-  `.superpowers/.gitignore` (`*` + `!.gitignore`) keeps the whole tree out of git on every branch
-  and fresh clone. The GitHub tracking issue (see the lifecycle below) is their durable record.
-  This overrides any "commit the design document / plan to git" step in the brainstorming or
-  writing-plans skills.
+- **When you create `.superpowers/01-specs/` or `.superpowers/02-plans/`, drop a self-ignoring
+  `.gitignore` into it** so its contents never reach git — the same pattern superpowers uses for
+  its `sdd/` scratch:
+  ```bash
+  mkdir -p <repo-top-level>/.superpowers/01-specs && printf '*\n' > <repo-top-level>/.superpowers/01-specs/.gitignore
+  mkdir -p <repo-top-level>/.superpowers/02-plans && printf '*\n' > <repo-top-level>/.superpowers/02-plans/.gitignore
+  ```
+  The `*` ignores everything in the folder, including the `.gitignore` itself, so nothing is
+  tracked and the host repo's root `.gitignore` is left untouched.
+- **Specs and plans are git-ignored working copies — do NOT commit them.** The GitHub tracking
+  issue (see the lifecycle below) is their durable record. This overrides any "commit the design
+  document / plan to git" step in the brainstorming or writing-plans skills.
 
 If you are following the superpowers brainstorming or writing-plans skills, substitute these
 paths wherever they reference `docs/superpowers/specs/` or `docs/superpowers/plans/`.

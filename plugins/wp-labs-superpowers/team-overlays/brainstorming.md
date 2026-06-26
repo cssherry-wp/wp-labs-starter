@@ -18,12 +18,13 @@ writing-plans, link the spec to GitHub issue tracking:
 
 Write the spec to the **top-level** repository's `.superpowers/01-specs/` — the main working tree,
 not a worktree (resolve via `git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel`)
-— so it persists across worktrees.
+— so it persists across worktrees. When you first create that folder, drop a self-ignoring
+`.gitignore` into it so the spec never reaches git:
+`mkdir -p <top-level>/.superpowers/01-specs && printf '*\n' > <top-level>/.superpowers/01-specs/.gitignore`.
 
-**`.superpowers/` is git-ignored working space — do NOT commit the spec file.** A committed
-`.superpowers/.gitignore` keeps the tree out of git; the GitHub issue created/updated above is the
-spec's durable record. This overrides any "commit the design document to git" step earlier in this
-skill.
+**Specs are git-ignored working copies — do NOT commit the spec file.** The GitHub issue
+created/updated above is its durable record. This overrides any "commit the design document to git"
+step earlier in this skill.
 
 If `gh` is missing or unauthenticated, report it and continue — never block the workflow on it.
 

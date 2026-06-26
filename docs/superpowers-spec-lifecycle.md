@@ -53,14 +53,16 @@ you:
 All `gh` steps degrade gracefully — if the GitHub CLI is missing or
 unauthenticated, the step is skipped with a note and never blocks your work.
 
-The entire `.superpowers/` tree is **git-ignored** by a committed
-`.superpowers/.gitignore` (`*` plus `!.gitignore`, so the guard itself travels with
-the repo on every branch and fresh clone). Specs and plans are local working copies;
-the **GitHub tracking issue is their durable record**. Always use the **top-level
-repository's** `.superpowers/` — when you're in a git worktree, resolve it to the
-main working tree (`git -C "$(git rev-parse --git-common-dir)/.." rev-parse
---show-toplevel`) so all worktrees share one location and the docs outlive any single
-worktree. Only the feature guide in `docs/` (step 4) is committed.
+The spec and plan folders keep themselves out of git the same way superpowers'
+`sdd/` scratch does: when a folder is first created, a self-ignoring `.gitignore`
+(containing just `*`) is dropped into it, so every file there — including the
+`.gitignore` itself — is ignored, and the host repo's root `.gitignore` is never
+touched. Specs and plans are therefore local working copies; the **GitHub tracking
+issue is their durable record**. Always use the **top-level repository's**
+`.superpowers/` — when you're in a git worktree, resolve it to the main working tree
+(`git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel`) so all
+worktrees share one location and the docs outlive any single worktree. Only the
+feature guide in `docs/` (step 4) is committed.
 
 ## When you might edit it
 
