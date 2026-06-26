@@ -13,8 +13,12 @@ writing-plans, link the spec to GitHub issue tracking:
    On yes (the default), create it with the spec as the body —
    `gh issue create --title "<spec slug>" --body-file <spec-path>`. On no, skip and note that no
    issue is linked.
-4. **Record the issue** in the spec file as a `Tracking issue: <url>` line, then commit the spec
-   update. writing-plans reads this line to post the plan as a comment.
+4. **Record the issue** in the spec file as a `Tracking issue: <url>` line. writing-plans reads
+   this line to post the plan as a comment.
+
+**`.superpowers/` is git-ignored working space — do NOT commit the spec file.** The GitHub issue
+created/updated above is the spec's durable record. This overrides any "commit the design document
+to git" step earlier in this skill.
 
 If `gh` is missing or unauthenticated, report it and continue — never block the workflow on it.
 

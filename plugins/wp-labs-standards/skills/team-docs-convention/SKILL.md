@@ -15,7 +15,10 @@ and `docs/superpowers/plans/`):
 Rules:
 - Use a 24-hour `HHmm` timestamp in the filename so multiple docs created the same day sort correctly.
 - `<name-of-spec>` / `<name-of-plan>` is a short kebab-case slug.
-- Create `.superpowers/01-specs/` or `.superpowers/02-plans/` if it doesn't exist; commit the doc to git.
+- Create `.superpowers/01-specs/` or `.superpowers/02-plans/` if it doesn't exist.
+- **`.superpowers/` is git-ignored working space — do NOT commit specs or plans.** The GitHub
+  tracking issue (see the lifecycle below) is their durable record. This overrides any "commit the
+  design document / plan to git" step in the brainstorming or writing-plans skills.
 
 If you are following the superpowers brainstorming or writing-plans skills, substitute these
 paths wherever they reference `docs/superpowers/specs/` or `docs/superpowers/plans/`.
@@ -28,7 +31,7 @@ These steps apply whether you use stock superpowers or the team fork:
    issue, append it as a comment (`gh issue comment <n> --body-file <spec>`). Otherwise ask
    `Create a GitHub tracking issue for this spec? (Y/n)` and on yes create it
    (`gh issue create --title "<slug>" --body-file <spec>`). Record `Tracking issue: <url>` in the
-   spec and commit.
+   spec file (a working copy — not committed). The issue is the spec's durable record.
 2. **Plan → comment** (after the plan is saved): read the spec's `Tracking issue:` line and post
    the plan as a comment (`gh issue comment <n> --body-file <plan>`). Skip if no issue is linked.
 3. **Implementation → docs** (after implementation completes): write a task-oriented

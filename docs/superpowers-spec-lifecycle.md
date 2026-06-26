@@ -51,8 +51,9 @@ you:
 
 All `gh` steps degrade gracefully — if the GitHub CLI is missing or
 unauthenticated, the step is skipped with a note and never blocks your work. The
-`.superpowers/01-specs/` and `.superpowers/02-plans/` folders are committed; the
-`.superpowers/sdd/` scratch directory is git-ignored.
+entire `.superpowers/` tree is **git-ignored** — specs and plans are local working
+copies, and the **GitHub tracking issue is their durable record**. Only the feature
+guide in `docs/` (step 4) is committed.
 
 ## When you might edit it
 
