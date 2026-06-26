@@ -164,7 +164,7 @@ This fork bakes the paths into the skill text. Enable **either** stock superpowe
 
 Run \`scripts/refresh-superpowers-fork.sh\` (or let the weekly
 \`.github/workflows/refresh-superpowers-fork.yml\` do it and open a PR). The script re-copies the
-plugin essentials, re-applies the path convention, bumps the version, and updates this file.
+plugin essentials, re-applies the path convention, re-appends the team workflow overlays, bumps the version, and updates this file.
 EOF
 
 echo "Rebuilt wp-labs-superpowers at version $new_version (upstream sha $upstream_sha)"
