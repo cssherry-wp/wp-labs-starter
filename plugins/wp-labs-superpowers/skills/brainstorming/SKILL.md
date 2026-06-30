@@ -26,7 +26,7 @@ You MUST create a task for each of these items and complete them in order:
 3. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
 4. **Propose 2-3 approaches** — with trade-offs and your recommendation
 5. **Present design** — in sections scaled to their complexity, get user approval after each section
-6. **Write design doc** — save to `docs/01-specs/YYYY-MM-DD-HHmm-<name-of-spec>.md` and commit
+6. **Write design doc** — save to `.superpowers/01-specs/YYYY-MM-DD-HHmm-<name-of-spec>.md` (git-ignored working copy; not committed)
 7. **Spec self-review** — quick inline check for placeholders, contradictions, ambiguity, scope (see below)
 8. **User reviews written spec** — ask user to review the spec file before proceeding
 9. **Transition to implementation** — invoke writing-plans skill to create implementation plan
@@ -103,10 +103,13 @@ digraph brainstorming {
 
 **Documentation:**
 
-- Write the validated design (spec) to `docs/01-specs/YYYY-MM-DD-HHmm-<name-of-spec>.md`
+- Write the validated design (spec) to the **repository ROOT's** `.superpowers/01-specs/YYYY-MM-DD-HHmm-<name-of-spec>.md`
+  (the main working tree, not the current dir or a worktree — see the "Team workflow" section at the
+  end of this skill for the exact path resolution and the self-ignoring `.gitignore` step)
   - (User preferences for spec location override this default)
 - Use elements-of-style:writing-clearly-and-concisely skill if available
-- Commit the design document to git
+- Do NOT commit the spec — `.superpowers/` is git-ignored working space; the GitHub tracking issue
+  (see the "Team workflow" section at the end of this skill) is the spec's durable record
 
 **Spec Self-Review:**
 After writing the spec document, look at it with fresh eyes:
@@ -121,7 +124,7 @@ Fix any issues inline. No need to re-review — just fix and move on.
 **User Review Gate:**
 After the spec review loop passes, ask the user to review the written spec before proceeding:
 
-> "Spec written and committed to `<path>`. Please review it and let me know if you want to make any changes before we start writing out the implementation plan."
+> "Spec written to `<path>` (git-ignored working copy). Please review it and let me know if you want to make any changes before we start writing out the implementation plan."
 
 Wait for the user's response. If they request changes, make them and re-run the spec review loop. Only proceed once the user approves.
 
@@ -157,3 +160,44 @@ A question about a UI topic is not automatically a visual question. "What does p
 
 If they agree to the companion, read the detailed guide before proceeding:
 `skills/brainstorming/visual-companion.md`
+
+<!-- wp-labs team overlay: BEGIN -->
+
+## Team workflow: sync the approved spec to a GitHub issue
+
+Write the spec to the **repository ROOT's** `.superpowers/01-specs/` — the main working tree, not
+the current directory or a worktree. Resolve the root explicitly and ensure the folder self-ignores
+(add the `.gitignore` if it is missing, even when the folder already exists):
+
+```bash
+repo_top=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
+mkdir -p "$repo_top/.superpowers/01-specs"
+[ -f "$repo_top/.superpowers/01-specs/.gitignore" ] || printf '*\n' > "$repo_top/.superpowers/01-specs/.gitignore"
+```
+
+After the user approves the written spec (the User Review Gate passes) and BEFORE invoking
+writing-plans, link the spec to GitHub issue tracking:
+
+1. **Identify the tracking issue.** The spec derives from an existing issue if the conversation
+   or the spec text references one (e.g. `#42` or a GitHub issue URL).
+2. **If an existing issue is identified:** append the spec to it as a comment —
+   `gh issue comment <number> --body-file <spec-path>`.
+3. **If none is identified:** ask the user `Create a GitHub tracking issue for this spec? (Y/n)`.
+   On yes (the default), create it with the spec as the body —
+   `gh issue create --title "<spec slug>" --body-file <spec-path>`. On no, skip and note that no
+   issue is linked.
+4. **Record the references** in the spec file: `Tracking issue: <issue-url>` (writing-plans reads
+   this to comment the plan) and, when you posted the spec as a comment, `Spec sync: <comment-url>`.
+
+**Keep it in sync.** If you later revise the spec (e.g. during the spec review loop), update its
+GitHub counterpart in place — do NOT post a duplicate:
+- spec created as the issue body → `gh issue edit <number> --body-file <spec-path>`;
+- spec posted as a comment → edit it via the recorded `Spec sync:` URL:
+  `gh api --method PATCH /repos/{owner}/{repo}/issues/comments/<comment-id> -F body=@<spec-path>`.
+
+**Specs are git-ignored working copies — do NOT commit the spec file.** The GitHub issue is its
+durable record. This overrides any "commit the design document to git" step earlier in this skill.
+
+If `gh` is missing or unauthenticated, report it and continue — never block the workflow on it.
+
+<!-- wp-labs team overlay: END -->

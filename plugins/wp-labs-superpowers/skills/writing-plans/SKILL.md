@@ -15,7 +15,9 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 **Context:** If working in an isolated worktree, it should have been created via the `superpowers:using-git-worktrees` skill at execution time.
 
-**Save plans to:** `docs/02-plans/YYYY-MM-DD-HHmm-<name-of-plan>.md`
+**Save plans to** the **repository ROOT's** `.superpowers/02-plans/YYYY-MM-DD-HHmm-<name-of-plan>.md`
+(the main working tree, not the current dir or a worktree — see the "Team workflow" section at the
+end of this skill for path resolution and the self-ignoring `.gitignore` step)
 - (User preferences for plan location override this default)
 
 ## Scope Check
@@ -157,7 +159,7 @@ If you find issues, fix them inline. No need to re-review — just fix and move 
 
 After saving the plan, offer execution choice:
 
-**"Plan complete and saved to `docs/02-plans/<filename>.md`. Two execution options:**
+**"Plan complete and saved to `.superpowers/02-plans/<filename>.md`. Two execution options:**
 
 **1. Subagent-Driven (recommended)** - I dispatch a fresh subagent per task, review between tasks, fast iteration
 
@@ -172,3 +174,36 @@ After saving the plan, offer execution choice:
 **If Inline Execution chosen:**
 - **REQUIRED SUB-SKILL:** Use superpowers:executing-plans
 - Batch execution with checkpoints for review
+
+<!-- wp-labs team overlay: BEGIN -->
+
+## Team workflow: post the plan to the tracking issue
+
+Write the plan to the **repository ROOT's** `.superpowers/02-plans/` — the main working tree, not
+the current directory or a worktree. Resolve the root explicitly and ensure the folder self-ignores
+(add the `.gitignore` if it is missing, even when the folder already exists):
+
+```bash
+repo_top=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
+mkdir -p "$repo_top/.superpowers/02-plans"
+[ -f "$repo_top/.superpowers/02-plans/.gitignore" ] || printf '*\n' > "$repo_top/.superpowers/02-plans/.gitignore"
+```
+
+The plan is a git-ignored working copy — do NOT commit it; the tracking issue is its durable record.
+
+After the plan file is saved and self-reviewed, post it to the spec's tracking issue:
+
+1. Read the `Tracking issue:` line from the spec this plan is based on.
+2. If a tracking issue is present, post the plan as a comment —
+   `gh issue comment <number> --body-file <plan-path>` — and record `Plan sync: <comment-url>` in
+   the plan file.
+3. If the spec has no tracking issue, skip with a one-line note.
+
+**Keep it in sync.** If you later revise the plan (e.g. during plan self-review or fixes), edit the
+same comment in place using the recorded `Plan sync:` URL — do NOT post a duplicate:
+`gh api --method PATCH /repos/{owner}/{repo}/issues/comments/<comment-id> -F body=@<plan-path>`
+(the `<comment-id>` is the trailing number in the comment URL).
+
+If `gh` is missing or unauthenticated, report it and continue.
+
+<!-- wp-labs team overlay: END -->

@@ -54,7 +54,7 @@ jobs:
               --title "Refresh wp-labs-superpowers to upstream ${VERSION}" \
               --body "Automated refresh of the \`wp-labs-superpowers\` fork to upstream **${VERSION}** (obra/superpowers@\`${SHA}\`).
 
-          Rebuilt by \`scripts/refresh-superpowers-fork.sh\`: re-copied plugin essentials and re-applied the team docs-path convention (\`docs/01-specs\` / \`docs/02-plans\`, HHmm naming).
+          Rebuilt by \`scripts/refresh-superpowers-fork.sh\`: re-copied plugin essentials and re-applied the team docs-path convention (\`.superpowers/01-specs\` / \`.superpowers/02-plans\`, HHmm naming).
 
           **Review before merging** — confirm the docs-path replacements still landed (upstream may have changed the surrounding wording) and that \`claude plugin validate\` passes."
           fi
