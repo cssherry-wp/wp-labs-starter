@@ -36,6 +36,8 @@ Then enable the recommended external plugins:
 /plugin install playwright@claude-plugins-official
 /plugin install typescript-lsp@claude-plugins-official
 /plugin install superpowers@claude-plugins-official
+/plugin marketplace add DietrichGebert/ponytail
+/plugin install ponytail@ponytail
 ```
 
 Browse or manage everything anytime with `/plugin`.
@@ -51,7 +53,7 @@ workspace-trust prompt).
 ### Default-enabled
 
 `wp-labs-standards`, `superpowers` (stock), `code-review`, `code-simplifier`,
-`security-guidance`, `context7`, `playwright`, `typescript-lsp`.
+`security-guidance`, `context7`, `playwright`, `typescript-lsp`, `ponytail`.
 
 `wp-labs-sdlc` is available but not default-enabled — install it when you need to scaffold or top up
 a repo's SDLC automation.
