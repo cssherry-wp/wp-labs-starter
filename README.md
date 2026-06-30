@@ -44,11 +44,14 @@ Browse or manage everything anytime with `/plugin`.
 
 ## Recommended setup
 
-The default set (wp-labs-standards + stock superpowers + the curated externals) is in
-[`team-settings.json`](team-settings.json). To adopt it for a project, merge that file's
-`extraKnownMarketplaces` and `enabledPlugins` into the project's `.claude/settings.json` and commit
-it — teammates get the marketplaces added and the plugins enabled automatically on clone (after the
-workspace-trust prompt).
+The default set (wp-labs-standards + stock superpowers + the curated externals, plus the ponytail
+statusline badge) lives in the `wp-labs-sdlc` plugin at
+[`plugins/wp-labs-sdlc/skills/scaffolding-sdlc/templates/claude/settings.json`](plugins/wp-labs-sdlc/skills/scaffolding-sdlc/templates/claude/settings.json)
+— the single source of truth. To adopt it for a project, either let `wp-labs-sdlc` scaffold it for
+you (it deep-merges this file into the repo's `.claude/settings.json`) or merge that file's
+`extraKnownMarketplaces`, `enabledPlugins`, and `statusLine` in by hand and commit it — teammates get
+the marketplaces added and the plugins enabled automatically on clone (after the workspace-trust
+prompt).
 
 ### Default-enabled
 
