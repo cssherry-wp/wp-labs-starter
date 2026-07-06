@@ -26,7 +26,7 @@ You MUST create a task for each of these items and complete them in order:
 3. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
 4. **Propose 2-3 approaches** — with trade-offs and your recommendation
 5. **Present design** — in sections scaled to their complexity, get user approval after each section
-6. **Write design doc** — save to `.superpowers/01-specs/YYYY-MM-DD-HHmm-<name-of-spec>.md` (git-ignored working copy; not committed)
+6. **Write design doc** — save to `.superpowers/01-specs/YYYY-MM-DD-HHmm-<name-of-spec>.md` and commit
 7. **Spec self-review** — quick inline check for placeholders, contradictions, ambiguity, scope (see below)
 8. **User reviews written spec** — ask user to review the spec file before proceeding
 9. **Transition to implementation** — invoke writing-plans skill to create implementation plan
@@ -103,13 +103,10 @@ digraph brainstorming {
 
 **Documentation:**
 
-- Write the validated design (spec) to the **repository ROOT's** `.superpowers/01-specs/YYYY-MM-DD-HHmm-<name-of-spec>.md`
-  (the main working tree, not the current dir or a worktree — see the "Team workflow" section at the
-  end of this skill for the exact path resolution and the self-ignoring `.gitignore` step)
+- Write the validated design (spec) to `.superpowers/01-specs/YYYY-MM-DD-HHmm-<name-of-spec>.md`
   - (User preferences for spec location override this default)
 - Use elements-of-style:writing-clearly-and-concisely skill if available
-- Do NOT commit the spec — `.superpowers/` is git-ignored working space; the GitHub tracking issue
-  (see the "Team workflow" section at the end of this skill) is the spec's durable record
+- Commit the design document to git
 
 **Spec Self-Review:**
 After writing the spec document, look at it with fresh eyes:
@@ -124,7 +121,7 @@ Fix any issues inline. No need to re-review — just fix and move on.
 **User Review Gate:**
 After the spec review loop passes, ask the user to review the written spec before proceeding:
 
-> "Spec written to `<path>` (git-ignored working copy). Please review it and let me know if you want to make any changes before we start writing out the implementation plan."
+> "Spec written and committed to `<path>`. Please review it and let me know if you want to make any changes before we start writing out the implementation plan."
 
 Wait for the user's response. If they request changes, make them and re-run the spec review loop. Only proceed once the user approves.
 
