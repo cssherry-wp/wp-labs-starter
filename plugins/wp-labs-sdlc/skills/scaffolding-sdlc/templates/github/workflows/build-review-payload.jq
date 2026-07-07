@@ -47,7 +47,7 @@ def unanchored_list:
   event: "COMMENT",
   comments: [ (.findings // [])[] | inline_comment ],
   body: (
-    ( [ (.summary // ""),
+    ( [ ((.report_markdown | select(. != "")) // .summary // ""),
         (if (fixed_list | length) > 0
          then "## Auto-fixed (\(fixed_list | length))\n" + (fixed_list | join("\n"))
          else "" end),

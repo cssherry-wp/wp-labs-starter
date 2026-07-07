@@ -3,7 +3,7 @@ name: change-review
 description: Review a changeset for a summary, surprises, architecture/security/structure risks, correctness bugs, test coverage, lint/style of new files, and doc freshness — dispatching deep correctness to /code-review and deep security to /security-review, with confidence-scored findings. Reviews the uncommitted working-tree diff by default, or a GitHub PR when given a PR number/URL. Trigger when the user asks to review their changes, review the diff, review a branch before pushing, or review a PR.
 user-invocable: true
 allowed-tools: Read, Bash, Grep, Glob, Agent, Skill, Edit, Write
-argument-hint: "[pr-number | pr-url] [--fix] [--comment] [--effort low|medium|high|max]"
+argument-hint: "[pr-number | pr-url] [--ci] [--fix] [--comment] [--effort low|medium|high|max]"
 ---
 
 # Change review
@@ -23,6 +23,10 @@ From `$ARGUMENTS`, separate the target from the flags:
   each **with its confidence score**.
 - `--effort low|medium|high|max` — forwarded to `/code-review` (and used to scale the security
   pass). Defaults to the reviewer's own default tier when omitted.
+- `--ci` — CI/machine mode: emit findings as `change-review-findings.json` (schema in §6)
+  instead of a prose report, and stay strictly read-only for side effects — apply any `--fix`
+  edits to the working tree only, and never commit, push, or comment (a separate privileged CI
+  job performs those). Without `--ci`, output is the normal prose report.
 - No flags → strictly read-only report.
 
 ## 1. Resolve the review target
@@ -158,20 +162,23 @@ applied; everything else is reported as a suggestion.
 
 - **`--fix`**: apply the high-confidence fixes — run linters/formatters with `--fix`/`--write` on
   new files, edit stale docs, and run `/code-review --fix` for correctness. Locally, stage them so
-  the user can review and commit. **In CI's split workflow the agent is read-only: apply fixes to
-  the working tree only and do NOT commit, push, or comment — a separate privileged job stages the
-  edits into an `[autofix]` commit and pushes it.** Report what was fixed vs left as a suggestion.
+  the user can review and commit. **With `--ci` the agent is read-only: apply fixes to the working tree only and do NOT commit,
+  push, or comment — a separate privileged job stages the edits into an `[autofix]` commit and
+  pushes it.** Report what was fixed vs left as a suggestion.
 - **`--comment`**: post the report's findings as PR comments (use `github-pr-review` plumbing or
   `gh pr comment`), each with its confidence score; un-fixable and lower-confidence items go here.
-  **In CI the agent instead writes all findings to `change-review-findings.json` (schema below);
-  the separate privileged job turns each line-anchored finding into an inline review comment and
-  posts the rest in the review body.**
+  **With `--ci` the agent instead writes all findings to `change-review-findings.json` (schema
+  below); the separate privileged job turns each line-anchored finding into an inline review
+  comment and posts the rest in the review body.**
 
 ### CI findings JSON (`change-review-findings.json`)
 
-When run from CI (read-only mode, `--fix --comment`), write findings as JSON, not prose.
-Decide anchoring yourself — you hold the diff:
+When `--ci` is passed (read-only mode), write findings as JSON, not prose — regardless of
+`--fix`/`--comment`. Decide anchoring yourself — you hold the diff:
 
+- `report_markdown` (top-level, always present): the **entire** prose report you would print in
+  CLI mode — every section plus the verdict. This preserves narrative and any content not tied to
+  a specific line; the CI job renders it at the top of the review comment.
 - A finding goes in `findings[]` **only if** its `path` + `line` fall inside the PR diff
   (an inline comment on a line outside the diff is rejected). Everything else (missing test,
   absent doc, whole-PR concern) goes in `unanchored[]`.
@@ -191,6 +198,7 @@ Decide anchoring yourself — you hold the diff:
 ```json
 {
   "meta": { "target": "PR #123: feat/foo → main", "files_changed": 12 },
+  "report_markdown": "## Change review — PR #123\n\n### 1. Summary\n…\n\n### Verdict\n…",
   "findings": [
     { "path": "src/foo.ts", "line": 42, "side": "RIGHT", "severity": "med", "confidence": 85,
       "status": "fixed",

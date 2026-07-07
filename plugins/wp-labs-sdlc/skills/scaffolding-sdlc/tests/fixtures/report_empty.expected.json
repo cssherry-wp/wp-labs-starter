@@ -1,0 +1,6 @@
+{
+  "commit_id": "deadbeef",
+  "event": "COMMENT",
+  "comments": [],
+  "body": "### Summary\nFalls back to summary when report_markdown is empty.\n\n<!-- claude-autofix -->"
+}

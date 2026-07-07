@@ -5,6 +5,7 @@ Which reviewer to reach for, and how they hand off.
 | Skill | Lane | Editable here |
 |---|---|---|
 | `change-review` | Broad checklist + dispatch to the deep passes; `--fix`/`--comment`/`--effort` | yes (this plugin) |
+| `codebase-audit` | Whole-repo audit across over-engineering + correctness + security; report-only, `file:line` findings | yes (this plugin) |
 | `/code-review` (built-in) | Deep correctness + reuse/simplification/efficiency on the working diff | no |
 | `/security-review` (built-in) | Deep vulnerability audit of branch changes | no |
 | `/review` (built-in) | Generic GitHub PR review | no |
@@ -32,3 +33,11 @@ Three different things sit near the name "code-review":
   (git-history context, prior-PR-comment continuity, inline-comment guidance, confidence scoring),
   so the team review flow and CI no longer use it. Disable it if the duplicate name causes confusion.
 - **`change-review`** (this plugin) — the broad dispatcher described above.
+
+## Whole-repo vs diff
+
+`change-review` reviews a **changeset** and dispatches the deep change-scoped passes
+(`/code-review`, `/security-review`). `codebase-audit` is its **whole-repo** sibling: it reviews
+the entire tree across three lenses (over-engineering, correctness, security) by fanning out
+agents that reuse those passes' lenses — it calls neither change-scoped command. Use
+`codebase-audit` to sweep existing code; use `change-review` before pushing a change.

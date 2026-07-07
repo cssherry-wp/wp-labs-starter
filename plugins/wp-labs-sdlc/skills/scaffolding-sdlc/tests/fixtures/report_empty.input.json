@@ -1,0 +1,7 @@
+{
+  "meta": { "target": "PR #9: feat/z → main" },
+  "report_markdown": "",
+  "summary": "### Summary\nFalls back to summary when report_markdown is empty.",
+  "findings": [],
+  "unanchored": []
+}

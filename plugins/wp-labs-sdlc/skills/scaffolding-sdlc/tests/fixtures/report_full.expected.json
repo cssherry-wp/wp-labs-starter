@@ -1,0 +1,8 @@
+{
+  "commit_id": "deadbeef",
+  "event": "COMMENT",
+  "comments": [
+    { "path": "src/w.ts", "line": 5, "side": "RIGHT", "body": "**Prefer const.**\n\n_(confidence 60)_" }
+  ],
+  "body": "## Change review — PR #9\n\n### 1. Summary\nAdds a widget.\n\n### Verdict\nSafe to merge.\n\n<!-- claude-autofix -->"
+}

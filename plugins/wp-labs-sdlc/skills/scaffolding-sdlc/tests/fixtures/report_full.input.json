@@ -1,0 +1,10 @@
+{
+  "meta": { "target": "PR #9: feat/z → main" },
+  "report_markdown": "## Change review — PR #9\n\n### 1. Summary\nAdds a widget.\n\n### Verdict\nSafe to merge.",
+  "summary": "### Summary\nAdds a widget.",
+  "findings": [
+    { "path": "src/w.ts", "line": 5, "status": "unfixed", "severity": "low", "confidence": 60,
+      "summary": "Prefer const." }
+  ],
+  "unanchored": []
+}
