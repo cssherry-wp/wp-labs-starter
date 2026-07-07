@@ -1,6 +1,6 @@
 ---
 name: codebase-audit
-description: Audit an entire repository (not a diff) across three lenses — over-engineering, correctness, and security — producing a confidence-scored report in change-review's format, with file:line on every finding so a later fix pass can act. Report-only: never edits or commits. Fans out one agent per module/slice and synthesizes. Trigger when the user asks to audit the whole codebase, review the entire repo, find bloat/bugs/vulns across all code, or otherwise review the tree rather than a diff/PR.
+description: Audit an entire repository (not a diff) across three lenses — over-engineering, correctness, and security — producing a confidence-scored report in change-review's format, with file:line on every finding so a later fix pass can act. Report-only — never edits or commits. Fans out one agent per module/slice and synthesizes. Trigger when the user asks to audit the whole codebase, review the entire repo, find bloat/bugs/vulns across all code, or otherwise review the tree rather than a diff/PR.
 user-invocable: true
 allowed-tools: Read, Bash, Grep, Glob, Agent, Skill
 argument-hint: "[path] [--effort low|medium|high|max]"
