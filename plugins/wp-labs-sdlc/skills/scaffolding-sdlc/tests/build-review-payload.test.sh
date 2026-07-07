@@ -25,4 +25,5 @@ run_case multiline
 run_case realistic
 run_case body_compat
 run_case report_full
+run_case report_empty
 exit "$fail"

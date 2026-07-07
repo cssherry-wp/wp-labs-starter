@@ -115,10 +115,8 @@ pass.
 
 ## Notes
 
-- See `../change-review/review-skills-map.md`: `codebase-audit` is the whole-repo sibling of
-  `change-review`. `change-review` reviews a diff and dispatches the deep change-scoped passes;
-  `codebase-audit` reviews the whole tree and reuses those passes' lenses via fan-out (it calls
-  neither).
+- Relationship to `change-review` and the deep passes: see
+  `../change-review/review-skills-map.md` (§ "Whole-repo vs diff").
 - Respect the repo's own stated rules (CLAUDE.md / AGENTS.md / CONTRIBUTING) over generic priors.
 - For large trees, fan out with the Agent tool; the final report must still follow the structure
   above.

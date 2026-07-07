@@ -83,6 +83,13 @@ jobs:
           # clean "no findings" result the way a silent fallback would.
           if [ -f change-review-findings.json ] && jq empty change-review-findings.json 2>/dev/null; then
             COUNT=$(jq '(.findings | length) + (.unanchored | length)' change-review-findings.json)
+            # report_markdown is the comment's lead prose and is documented as always-present;
+            # a missing/empty one means the agent skipped the narrative. Surface it (the payload
+            # still renders findings, falling back to summary) rather than posting silently.
+            if [ -z "$(jq -r '.report_markdown // "" | select(. != "")' change-review-findings.json)" ]; then
+              echo "::warning::change-review-findings.json has no report_markdown — the PR comment will lack the prose report; check the 'Run change-review' step log."
+              echo "- report_markdown: **MISSING/EMPTY** (comment will lack the prose report)" >> "$GITHUB_STEP_SUMMARY"
+            fi
             mv change-review-findings.json "$OUT/change-review-findings.json"
             echo "- findings file: present (${COUNT} finding(s))" >> "$GITHUB_STEP_SUMMARY"
           else
