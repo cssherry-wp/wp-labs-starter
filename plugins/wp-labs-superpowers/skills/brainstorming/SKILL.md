@@ -103,13 +103,10 @@ digraph brainstorming {
 
 **Documentation:**
 
-- Write the validated design (spec) to the **repository ROOT's** `.superpowers/01-specs/YYYY-MM-DD-HHmm-<name-of-spec>.md`
-  (the main working tree, not the current dir or a worktree — see the "Team workflow" section at the
-  end of this skill for the exact path resolution and the self-ignoring `.gitignore` step)
+- Write the validated design (spec) to `.superpowers/01-specs/YYYY-MM-DD-HHmm-<name-of-spec>.md`
   - (User preferences for spec location override this default)
 - Use elements-of-style:writing-clearly-and-concisely skill if available
-- Do NOT commit the spec — `.superpowers/` is git-ignored working space; the GitHub tracking issue
-  (see the "Team workflow" section at the end of this skill) is the spec's durable record
+- Do NOT commit the spec — `.superpowers/` is git-ignored working space; the GitHub tracking issue (see the "Team workflow" section at the end of this skill) is its durable record
 
 **Spec Self-Review:**
 After writing the spec document, look at it with fresh eyes:

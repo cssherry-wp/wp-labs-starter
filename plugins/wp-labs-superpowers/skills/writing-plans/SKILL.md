@@ -15,9 +15,7 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 **Context:** If working in an isolated worktree, it should have been created via the `superpowers:using-git-worktrees` skill at execution time.
 
-**Save plans to** the **repository ROOT's** `.superpowers/02-plans/YYYY-MM-DD-HHmm-<name-of-plan>.md`
-(the main working tree, not the current dir or a worktree — see the "Team workflow" section at the
-end of this skill for path resolution and the self-ignoring `.gitignore` step)
+**Save plans to:** `.superpowers/02-plans/YYYY-MM-DD-HHmm-<name-of-plan>.md`
 - (User preferences for plan location override this default)
 
 ## Scope Check

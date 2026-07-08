@@ -5,9 +5,9 @@ plugin essentials and customized with the team docs-path convention.
 
 ## Upstream base
 
-- Source: `obra/superpowers`
-- Version: **6.0.3**
-- Base commit: **`896224c4b1879920ab573417e68fd51d2ccc9072`**
+- Source: `obra/superpowers` (the commit pinned by `anthropics/claude-plugins-official`)
+- Version: **6.1.1**
+- Base commit: **`d884ae04edebef577e82ff7c4e143debd0bbec99`**
 - License: MIT (see `LICENSE`)
 
 ## What diverges from upstream
