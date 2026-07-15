@@ -1,25 +1,31 @@
 ---
 name: scaffolding-sdlc
-description: Use when starting a new repo or adding SDLC automation to an existing one — sets up lint, unit tests, Playwright e2e, security scanning, Dependabot, PR-status labels, pre-commit hooks, and Claude PR automation that run on every PR. Use when a repo lacks CI gates, has no pre-commit checks, or needs standardized GitHub Actions.
+description: Use when starting a new repo or adding SDLC automation to an existing one — sets up lint, unit tests, Playwright e2e, security scanning, Dependabot, PR-status labels, pre-commit hooks, and Claude PR automation that run on every PR. Pass --setup-claude to instead configure the global ~/.claude/ environment (settings, plugins, CLAUDE.md, rules) on a fresh machine or new Claude Code install.
 ---
 
 # Scaffolding SDLC
 
 ## Overview
 
-Interactively bootstrap standardized SDLC automation into a repo: a runnable
-starter app (for a greenfield repo), a local task runner (Makefile), a git
-pre-commit hook, GitHub Actions PR gates (lint,
-typecheck, unit, Playwright e2e, security), Dependabot, PR-status labels, four
-Claude PR-automation workflows, and an optional hosting layer (Docker +
-docker-compose + Azure Bicep deploy) for web-app stacks.
+Two modes:
 
-**Core principle:** local == CI (both call the same Makefile targets), and never
-clobber existing files — detect, diff, ask, merge. On an existing repo, audit
-the full inventory and add only the missing pieces.
+- **Repo mode** (default): interactively bootstrap standardized SDLC automation
+  into a repo — runnable starter app, Makefile, pre-commit hook, GitHub Actions
+  CI/security/Claude-PR-automation, Dependabot, PR-status labels, and optional
+  hosting (Docker + Azure Bicep).
+- **`--setup-claude`**: configure the global `~/.claude/` environment on a fresh
+  machine or new Claude Code install — settings.json with all recommended plugins
+  and marketplaces, CLAUDE.md, and glob-scoped rules/. Use this before the first
+  repo scaffold, or to onboard a new machine.
+
+**Core principle (repo mode):** local == CI (both call the same Makefile
+targets), and never clobber existing files — detect, diff, ask, merge. On an
+existing repo, audit the full inventory and add only the missing pieces.
 
 ## When to use
 
+- `--setup-claude`: fresh machine, new Claude Code install, or syncing global
+  Claude config to the team standard.
 - Starting a fresh repo that needs CI/quality gates.
 - An existing repo with no `.github/workflows/`, no pre-commit checks, or
   inconsistent tooling.
@@ -38,7 +44,51 @@ the full inventory and add only the missing pieces.
 - `gitleaks` installed locally for the pre-commit secret scan
   (`brew install gitleaks`).
 
-## Workflow
+## --setup-claude: Global Claude Setup
+
+When the user passes `--setup-claude` (or says "setup claude", "set up my claude
+environment", "configure claude globally"), run this workflow instead of the repo
+scaffold below.
+
+**What it configures** (all under `~/.claude/`, never inside any repo):
+
+1. **settings.json** — deep-merge `templates/claude/settings.json` into
+   `~/.claude/settings.json`. Team values win on conflict; existing personal keys
+   are preserved. Show the diff before applying; ask before overwriting.
+
+   ```bash
+   jq -s '.[0] * .[1]' ~/.claude/settings.json templates/claude/settings.json \
+     > /tmp/claude-settings.json && mv /tmp/claude-settings.json ~/.claude/settings.json
+   ```
+
+   This registers the wp-labs-starter, ponytail, and playwright-skill marketplaces
+   and enables all recommended plugins. Claude Code auto-installs any plugin in
+   `enabledPlugins` that is not yet cached on next launch — no manual `claude plugins
+   install` needed.
+
+2. **CLAUDE.md** — copy `templates/claude/CLAUDE.md` to `~/.claude/CLAUDE.md`. If
+   it already exists, show the diff and ask before overwriting.
+
+3. **rules/** — copy each file in `templates/claude/rules/` to `~/.claude/rules/`,
+   skipping files that are already identical. For any file that differs, show the
+   diff and ask.
+
+   Included rules: `coding-guidelines.md` (always-apply), `python.md`,
+   `js-ts.md`, `css.md`, `sql.md`, `context7.md`.
+
+**Standalone (no Claude needed):** the user can also run
+`scripts/setup-claude.sh` directly from a terminal — useful for bootstrapping a
+fresh machine before Claude Code is configured. It is interactive and follows the
+same detect/diff/ask/apply pattern.
+
+```bash
+bash plugins/wp-labs-sdlc/skills/scaffolding-sdlc/scripts/setup-claude.sh
+```
+
+After applying, tell the user to restart Claude Code so it picks up the new
+settings and triggers plugin auto-install.
+
+## Workflow (Repo Mode)
 
 Run these steps in order. The template root is this skill's `templates/`
 directory; copy from there.
