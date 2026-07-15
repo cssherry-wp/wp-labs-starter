@@ -61,8 +61,9 @@ directory; copy from there.
      force-push and deletion) — see "Set branch protection" below
    - `dependabot.yml`; the managed labels; hosting (`Dockerfile`,
      `docker-compose.yml`, `infra/` Bicep, `azure-deploy.yml`)
-   - Claude team settings (`.claude/settings.json`: the marketplaces,
-     default `enabledPlugins`, and the ponytail `statusLine` badge)
+   - Claude team settings (`.claude/settings.json`, `.claude/CLAUDE.md`,
+     `.claude/rules/`: marketplaces, plugins, Stop hook, prose style rules,
+     and glob-scoped coding guidelines)
 
    Present the inventory to the user. **On an existing repo, add only the
    missing pieces** and **explicitly ask about each gap** before adding it —
@@ -125,12 +126,14 @@ directory; copy from there.
    `check-in-progress`, `check-pass`, `check-fail`, `question`, `no-automation`,
    `dependencies`, `security`, `needs-rebase`.
 
-8. **Claude team settings.** Deep-merge `templates/claude/settings.json` — the
-   team default Claude config (marketplaces, default `enabledPlugins`, and the
-   ponytail `statusLine` badge) — into the target repo's `.claude/settings.json`
-   (team values win on conflict; the repo keeps every other key). This template
-   is the **single source of truth** for the team default set; the root README's
-   "Recommended setup" points here.
+8. **Claude team settings.** Three components — all live under `.claude/` and are
+   checked into the repo so every teammate gets the same baseline.
+
+   **a. settings.json** — deep-merge `templates/claude/settings.json` (marketplaces,
+   `enabledPlugins`, Stop hook, ponytail `statusLine`, `defaultMode: plan`,
+   `alwaysThinkingEnabled`, `includeCoAuthoredBy`, and the output-token env var)
+   into the target repo's `.claude/settings.json` (team values win on conflict;
+   the repo keeps every other key):
 
    ```bash
    tmpl=templates/claude/settings.json   # this skill's template
@@ -143,6 +146,23 @@ directory; copy from there.
    `statusLine` command assumes a bash-capable shell (`ls`/`sort`/`tail`) and that
    the user has ponytail installed; it self-resolves the newest install, so it
    survives plugin auto-updates.
+
+   **b. CLAUDE.md** — copy `templates/claude/CLAUDE.md` → `.claude/CLAUDE.md` if
+   not already present. If it exists, show the diff and offer to merge sections.
+   This sets the git commit policy, ambiguity-handling, and prose output-style
+   rules for the whole team (the "no filler, no trailing summaries, no AI slop"
+   rules that keep Claude's prose from sounding AI-generated). It complements
+   Ponytail, which governs code minimalism; CLAUDE.md governs communication style.
+
+   **c. rules/** — copy `templates/claude/rules/` → `.claude/rules/`, skipping any
+   file that already exists (show diff and ask for conflicts). These are
+   glob-scoped rules that Claude loads automatically for matching files:
+   - `coding-guidelines.md` (`alwaysApply: true`) — general AI coding conventions
+   - `python.md` (glob `*.py`) — Google-style docstrings, type annotations, ruff/mypy
+   - `js-ts.md` (glob `*.js,*.ts,*.tsx,*.jsx`) — no `any`, Biome conventions, React rules
+   - `css.md` (glob `*.css,*.scss,*.sass`) — Airbnb CSS + BEM
+   - `sql.md` (glob `*.sql`) — naming, FK constraints, parameterized queries
+   - `context7.md` — instructs Claude to fetch live library docs via `npx ctx7@latest`
 
 9. **Verify & summarize.** Run `make check` and `make test` locally and report
    results. Summarize what was created/changed and list manual follow-ups: add

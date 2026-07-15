@@ -1,22 +1,53 @@
 {
+  "env": {
+    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "100000"
+  },
+  "includeCoAuthoredBy": false,
+  "defaultMode": "plan",
+  "alwaysThinkingEnabled": true,
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "git status --porcelain 2>/dev/null | grep -v '^??' | grep -q . && echo '{\"systemMessage\": \"Warning: uncommitted tracked changes detected. Did Claude forget to commit?\"}' || true",
+            "statusMessage": "Checking for uncommitted changes..."
+          }
+        ]
+      }
+    ]
+  },
   "extraKnownMarketplaces": {
     "wp-labs-starter": {
       "source": { "source": "github", "repo": "cssherry-wp/wp-labs-starter" }
     },
     "ponytail": {
       "source": { "source": "github", "repo": "DietrichGebert/ponytail" }
+    },
+    "playwright-skill": {
+      "source": { "source": "github", "repo": "lackeyjb/playwright-skill" },
+      "autoUpdate": true
     }
   },
   "enabledPlugins": {
     "wp-labs-standards@wp-labs-starter": true,
+    "wp-labs-sdlc@wp-labs-starter": true,
+    "wp-labs-superpowers@wp-labs-starter": true,
     "ponytail@ponytail": true,
-    "superpowers@claude-plugins-official": true,
+    "playwright-skill@playwright-skill": true,
     "code-review@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true,
     "security-guidance@claude-plugins-official": true,
+    "explanatory-output-style@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "chrome-devtools-mcp@claude-plugins-official": true,
     "context7@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "ralph-loop@claude-plugins-official": true,
     "playwright@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true
+    "superpowers@claude-plugins-official": false
   },
   "statusLine": {
     "type": "command",
