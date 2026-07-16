@@ -35,7 +35,7 @@ The script is interactive: for each file it shows a diff against what's already 
 Optional flag:
 
 ```bash
-bash scripts/setup-claude.sh --claude-dir /path/to/custom/.claude
+bash plugins/wp-labs-sdlc/skills/scaffolding-sdlc/scripts/setup-claude.sh --claude-dir /path/to/custom/.claude
 ```
 
 ## What gets configured

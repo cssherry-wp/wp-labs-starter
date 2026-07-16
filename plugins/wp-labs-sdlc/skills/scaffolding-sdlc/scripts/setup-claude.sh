@@ -6,6 +6,11 @@
 # Usage: bash path/to/setup-claude.sh [--claude-dir DIR]
 set -euo pipefail
 
+if ! command -v jq &>/dev/null; then
+  echo "Error: jq is required. Install with: brew install jq" >&2
+  exit 1
+fi
+
 SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 TMPL="$SKILL_DIR/templates/claude"
 
@@ -28,7 +33,8 @@ ask() {
 
 # --- settings.json ---
 if [ -f "$CLAUDE_DIR/settings.json" ]; then
-  merged=$(jq -s '.[0] * .[1]' "$CLAUDE_DIR/settings.json" "$TMPL/settings.json")
+  # Merge objects recursively; concatenate hooks.Stop arrays so existing hooks are preserved.
+  merged=$(jq -s '.[0] * .[1] | .hooks.Stop = ((.[0].hooks.Stop // []) + (.[1].hooks.Stop // []))' "$CLAUDE_DIR/settings.json" "$TMPL/settings.json")
   if diff <(cat "$CLAUDE_DIR/settings.json") <(echo "$merged") > /dev/null 2>&1; then
     echo "settings.json: already up to date"
   else
@@ -66,6 +72,7 @@ else
 fi
 
 # --- rules/ ---
+shopt -s nullglob
 for src in "$TMPL/rules/"*; do
   name=$(basename "$src")
   dst="$CLAUDE_DIR/rules/$name"

@@ -53,12 +53,20 @@ scaffold below.
 **What it configures** (all under `~/.claude/`, never inside any repo):
 
 1. **settings.json** — deep-merge `templates/claude/settings.json` into
-   `~/.claude/settings.json`. Team values win on conflict; existing personal keys
-   are preserved. Show the diff before applying; ask before overwriting.
+   `~/.claude/settings.json`. Team values win on conflict for scalar and object
+   keys; existing personal keys not in the template are preserved. **Array values
+   (e.g. `hooks.Stop`) are concatenated** so existing hooks survive. Show the diff
+   before applying; ask before overwriting.
+
+   Note: `enabledPlugins` entries that the template sets to `false` (e.g.
+   `superpowers@claude-plugins-official`) will override a user's `true` — the
+   template prefers `wp-labs-superpowers@wp-labs-starter` instead. The diff step
+   makes this visible before it applies.
 
    ```bash
-   jq -s '.[0] * .[1]' ~/.claude/settings.json templates/claude/settings.json \
-     > /tmp/claude-settings.json && mv /tmp/claude-settings.json ~/.claude/settings.json
+   merged=$(jq -s '.[0] * .[1] | .hooks.Stop = ((.[0].hooks.Stop // []) + (.[1].hooks.Stop // []))' \
+     ~/.claude/settings.json templates/claude/settings.json)
+   echo "$merged" > ~/.claude/settings.json
    ```
 
    This registers the wp-labs-starter, ponytail, and playwright-skill marketplaces
