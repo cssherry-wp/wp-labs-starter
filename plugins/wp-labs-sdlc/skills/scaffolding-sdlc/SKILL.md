@@ -1,25 +1,31 @@
 ---
 name: scaffolding-sdlc
-description: Use when starting a new repo or adding SDLC automation to an existing one — sets up lint, unit tests, Playwright e2e, security scanning, Dependabot, PR-status labels, pre-commit hooks, and Claude PR automation that run on every PR. Use when a repo lacks CI gates, has no pre-commit checks, or needs standardized GitHub Actions.
+description: Use when starting a new repo or adding SDLC automation to an existing one — sets up lint, unit tests, Playwright e2e, security scanning, Dependabot, PR-status labels, pre-commit hooks, and Claude PR automation that run on every PR. Pass --setup-claude to instead configure the global ~/.claude/ environment (settings, plugins, CLAUDE.md, rules) on a fresh machine or new Claude Code install.
 ---
 
 # Scaffolding SDLC
 
 ## Overview
 
-Interactively bootstrap standardized SDLC automation into a repo: a runnable
-starter app (for a greenfield repo), a local task runner (Makefile), a git
-pre-commit hook, GitHub Actions PR gates (lint,
-typecheck, unit, Playwright e2e, security), Dependabot, PR-status labels, four
-Claude PR-automation workflows, and an optional hosting layer (Docker +
-docker-compose + Azure Bicep deploy) for web-app stacks.
+Two modes:
 
-**Core principle:** local == CI (both call the same Makefile targets), and never
-clobber existing files — detect, diff, ask, merge. On an existing repo, audit
-the full inventory and add only the missing pieces.
+- **Repo mode** (default): interactively bootstrap standardized SDLC automation
+  into a repo — runnable starter app, Makefile, pre-commit hook, GitHub Actions
+  CI/security/Claude-PR-automation, Dependabot, PR-status labels, and optional
+  hosting (Docker + Azure Bicep).
+- **`--setup-claude`**: configure the global `~/.claude/` environment on a fresh
+  machine or new Claude Code install — settings.json with all recommended plugins
+  and marketplaces, CLAUDE.md, and glob-scoped rules/. Use this before the first
+  repo scaffold, or to onboard a new machine.
+
+**Core principle (repo mode):** local == CI (both call the same Makefile
+targets), and never clobber existing files — detect, diff, ask, merge. On an
+existing repo, audit the full inventory and add only the missing pieces.
 
 ## When to use
 
+- `--setup-claude`: fresh machine, new Claude Code install, or syncing global
+  Claude config to the team standard.
 - Starting a fresh repo that needs CI/quality gates.
 - An existing repo with no `.github/workflows/`, no pre-commit checks, or
   inconsistent tooling.
@@ -38,7 +44,59 @@ the full inventory and add only the missing pieces.
 - `gitleaks` installed locally for the pre-commit secret scan
   (`brew install gitleaks`).
 
-## Workflow
+## --setup-claude: Global Claude Setup
+
+When the user passes `--setup-claude` (or says "setup claude", "set up my claude
+environment", "configure claude globally"), run this workflow instead of the repo
+scaffold below.
+
+**What it configures** (all under `~/.claude/`, never inside any repo):
+
+1. **settings.json** — deep-merge `templates/claude/settings.json` into
+   `~/.claude/settings.json`. Team values win on conflict for scalar and object
+   keys; existing personal keys not in the template are preserved. **Array values
+   (e.g. `hooks.Stop`) are concatenated** so existing hooks survive. Show the diff
+   before applying; ask before overwriting.
+
+   Note: `enabledPlugins` entries that the template sets to `false` (e.g.
+   `superpowers@claude-plugins-official`) will override a user's `true` — the
+   template prefers `wp-labs-superpowers@wp-labs-starter` instead. The diff step
+   makes this visible before it applies.
+
+   ```bash
+   merged=$(jq -s '.[0] * .[1] | .hooks.Stop = ((.[0].hooks.Stop // []) + (.[1].hooks.Stop // []))' \
+     ~/.claude/settings.json templates/claude/settings.json)
+   echo "$merged" > ~/.claude/settings.json
+   ```
+
+   This registers the wp-labs-starter, ponytail, and playwright-skill marketplaces
+   and enables all recommended plugins. Claude Code auto-installs any plugin in
+   `enabledPlugins` that is not yet cached on next launch — no manual `claude plugins
+   install` needed.
+
+2. **CLAUDE.md** — copy `templates/claude/CLAUDE.md` to `~/.claude/CLAUDE.md`. If
+   it already exists, show the diff and ask before overwriting.
+
+3. **rules/** — copy each file in `templates/claude/rules/` to `~/.claude/rules/`,
+   skipping files that are already identical. For any file that differs, show the
+   diff and ask.
+
+   Included rules: `coding-guidelines.md` (always-apply), `python.md`,
+   `js-ts.md`, `css.md`, `sql.md`, `context7.md`.
+
+**Standalone (no Claude needed):** the user can also run
+`scripts/setup-claude.sh` directly from a terminal — useful for bootstrapping a
+fresh machine before Claude Code is configured. It is interactive and follows the
+same detect/diff/ask/apply pattern.
+
+```bash
+bash plugins/wp-labs-sdlc/skills/scaffolding-sdlc/scripts/setup-claude.sh
+```
+
+After applying, tell the user to restart Claude Code so it picks up the new
+settings and triggers plugin auto-install.
+
+## Workflow (Repo Mode)
 
 Run these steps in order. The template root is this skill's `templates/`
 directory; copy from there.
@@ -61,8 +119,9 @@ directory; copy from there.
      force-push and deletion) — see "Set branch protection" below
    - `dependabot.yml`; the managed labels; hosting (`Dockerfile`,
      `docker-compose.yml`, `infra/` Bicep, `azure-deploy.yml`)
-   - Claude team settings (`.claude/settings.json`: the marketplaces,
-     default `enabledPlugins`, and the ponytail `statusLine` badge)
+   - Claude team settings (`.claude/settings.json`, `.claude/CLAUDE.md`,
+     `.claude/rules/`: marketplaces, plugins, Stop hook, prose style rules,
+     and glob-scoped coding guidelines)
 
    Present the inventory to the user. **On an existing repo, add only the
    missing pieces** and **explicitly ask about each gap** before adding it —
@@ -125,12 +184,14 @@ directory; copy from there.
    `check-in-progress`, `check-pass`, `check-fail`, `question`, `no-automation`,
    `dependencies`, `security`, `needs-rebase`.
 
-8. **Claude team settings.** Deep-merge `templates/claude/settings.json` — the
-   team default Claude config (marketplaces, default `enabledPlugins`, and the
-   ponytail `statusLine` badge) — into the target repo's `.claude/settings.json`
-   (team values win on conflict; the repo keeps every other key). This template
-   is the **single source of truth** for the team default set; the root README's
-   "Recommended setup" points here.
+8. **Claude team settings.** Three components — all live under `.claude/` and are
+   checked into the repo so every teammate gets the same baseline.
+
+   **a. settings.json** — deep-merge `templates/claude/settings.json` (marketplaces,
+   `enabledPlugins`, Stop hook, ponytail `statusLine`, `defaultMode: plan`,
+   `alwaysThinkingEnabled`, `includeCoAuthoredBy`, and the output-token env var)
+   into the target repo's `.claude/settings.json` (team values win on conflict;
+   the repo keeps every other key):
 
    ```bash
    tmpl=templates/claude/settings.json   # this skill's template
@@ -143,6 +204,23 @@ directory; copy from there.
    `statusLine` command assumes a bash-capable shell (`ls`/`sort`/`tail`) and that
    the user has ponytail installed; it self-resolves the newest install, so it
    survives plugin auto-updates.
+
+   **b. CLAUDE.md** — copy `templates/claude/CLAUDE.md` → `.claude/CLAUDE.md` if
+   not already present. If it exists, show the diff and offer to merge sections.
+   This sets the git commit policy, ambiguity-handling, and prose output-style
+   rules for the whole team (the "no filler, no trailing summaries, no AI slop"
+   rules that keep Claude's prose from sounding AI-generated). It complements
+   Ponytail, which governs code minimalism; CLAUDE.md governs communication style.
+
+   **c. rules/** — copy `templates/claude/rules/` → `.claude/rules/`, skipping any
+   file that already exists (show diff and ask for conflicts). These are
+   glob-scoped rules that Claude loads automatically for matching files:
+   - `coding-guidelines.md` (`alwaysApply: true`) — general AI coding conventions
+   - `python.md` (glob `*.py`) — Google-style docstrings, type annotations, ruff/mypy
+   - `js-ts.md` (glob `*.js,*.ts,*.tsx,*.jsx`) — no `any`, Biome conventions, React rules
+   - `css.md` (glob `*.css,*.scss,*.sass`) — Airbnb CSS + BEM
+   - `sql.md` (glob `*.sql`) — naming, FK constraints, parameterized queries
+   - `context7.md` — instructs Claude to fetch live library docs via `npx ctx7@latest`
 
 9. **Verify & summarize.** Run `make check` and `make test` locally and report
    results. Summarize what was created/changed and list manual follow-ups: add
