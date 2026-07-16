@@ -1,0 +1,85 @@
+name: Deploy — Staging
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Concurrent staging deploys cancel in-progress runs; never cancel a running deploy.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+# OIDC federated login — no long-lived Azure credentials stored as secrets.
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    # Gate on the repo variable so this workflow is a no-op until Azure is configured.
+    if: ${{ vars.AZURE_WEBAPP_NAME_STAGING != '' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: ${{ vars.AZURE_WEBAPP_URL_STAGING }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve release SHA
+        id: sha
+        run: echo "value=${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+
+      # ── Frontend build (remove/adapt if no frontend) ─────────────────────
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+        env:
+          VITE_APP_ENV: staging
+          VITE_SENTRY_RELEASE: ${{ steps.sha.outputs.value }}
+          # Add project-specific VITE_* vars here from vars.* or secrets.*
+      # ─────────────────────────────────────────────────────────────────────
+
+      - name: Package artifact
+        run: |
+          zip -r deploy.zip . \
+            --exclude ".git/*" "node_modules/*" "frontend/node_modules/*" \
+            "__pycache__/*" ".pytest_cache/*" "*.pyc" \
+            ".env" ".venv/*" ".DS_Store"
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_WEBAPP_NAME_STAGING }}
+          package: deploy.zip
+
+      - name: Stamp release and restart
+        run: |
+          az webapp config appsettings set \
+            --name "${{ vars.AZURE_WEBAPP_NAME_STAGING }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --settings RELEASE="${{ steps.sha.outputs.value }}"
+
+      - name: Health check
+        run: |
+          url="${{ vars.AZURE_WEBAPP_URL_STAGING }}/api/status/"
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$url")
+            [ "$code" = "200" ] && echo "✅ healthy ($code)" && exit 0
+            echo "attempt $i: $code — waiting…"
+            sleep 10
+          done
+          echo "❌ health check timed out" && exit 1
+
+      - name: Azure logout
+        if: always()
+        run: az logout

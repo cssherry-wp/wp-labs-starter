@@ -61,6 +61,8 @@ jobs:
       - if: steps.detect.outputs.present == 'true'
         run: npm run lint
       - if: steps.detect.outputs.present == 'true'
+        run: npm run lint:css
+      - if: steps.detect.outputs.present == 'true'
         run: npm run typecheck
       - if: steps.detect.outputs.present == 'true'
         run: npm test

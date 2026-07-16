@@ -7,6 +7,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "biome check src/",
+    "lint:css": "stylelint \"src/**/*.scss\" --allow-empty-input",
     "format": "biome format --write src/",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
