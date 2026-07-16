@@ -4,7 +4,7 @@ A Claude Code **plugin marketplace** for the team. It packages our coding standa
 helpers, and a curated plugin setup so everyone gets the same Claude Code experience from a single
 `git` repo.
 
-> Verified against Claude Code **2.1.179**.
+> Verified against Claude Code **2.1.211**.
 
 ## What's inside
 
@@ -13,29 +13,58 @@ This repo is itself the marketplace (`.claude-plugin/marketplace.json`). It ship
 | Plugin | What it gives you |
 |---|---|
 | **wp-labs-standards** | Coding-standard skills (`general-coding-guidelines`, `python-style`, `typescript-style`, `css-style`, `sql-style`, `team-docs-convention`) **plus** the common-task workflows `/commit` (structured commit-message format), `change-review` (broad review dispatcher — see [review-skills map](plugins/wp-labs-standards/skills/change-review/review-skills-map.md)), `github-pr-prepare`, and `github-pr-review`. A `PreToolUse` hook also injects the matching standard **deterministically by file type** on every edit (see [Deterministic standards](#deterministic-standards)). |
-| **wp-labs-sdlc** | The `scaffolding-sdlc` skill: interactively bootstraps a repo's SDLC — a runnable starter app (TypeScript / Python+Django / fullstack Python+React), a Makefile task runner, a git pre-commit hook, GitHub Actions for lint/typecheck/unit/Playwright-e2e/security gates, Dependabot, PR-status labels, PR auto-rebase, the Claude review/triage workflows, and an optional hosting layer (Docker + docker-compose + Azure Bicep deploy). On an existing repo it audits what's present and adds only the missing pieces. |
-| **wp-labs-superpowers** | *Opt-in.* A fork of [superpowers](https://github.com/obra/superpowers) with our docs-path convention baked in. See [`plugins/wp-labs-superpowers/FORK.md`](plugins/wp-labs-superpowers/FORK.md). |
+| **wp-labs-sdlc** `v0.3` | The `scaffolding-sdlc` skill with two modes: **repo mode** bootstraps a repo's full SDLC (runnable starter app, Makefile, pre-commit hook, GitHub Actions CI/security/Claude-PR-automation, Dependabot, PR-status labels, PR auto-rebase, optional hosting with Docker + Azure Bicep); **`--setup-claude` mode** configures the global `~/.claude/` environment on a fresh machine (settings, plugins, `CLAUDE.md`, glob-scoped coding rules). See [Setting up a new machine](#setting-up-a-new-machine). |
+| **wp-labs-superpowers** | A fork of [superpowers](https://github.com/obra/superpowers) with our docs-path convention baked in. **Enabled by default** (the stock `superpowers@claude-plugins-official` is disabled to avoid duplicate skill names). See [`plugins/wp-labs-superpowers/FORK.md`](plugins/wp-labs-superpowers/FORK.md). |
 
-We also recommend a curated set of **external** plugins (see [Recommended setup](#recommended-setup)).
+We also use a curated set of **external** plugins (see [Recommended setup](#recommended-setup)).
+
+## Setting up a new machine
+
+The fastest path on a fresh machine or new Claude Code install:
+
+```bash
+git clone https://github.com/cssherry-wp/wp-labs-starter.git
+cd wp-labs-starter
+bash plugins/wp-labs-sdlc/skills/scaffolding-sdlc/scripts/setup-claude.sh
+```
+
+This writes `~/.claude/settings.json` (marketplaces + plugins), `~/.claude/CLAUDE.md` (commit policy, output style rules), and `~/.claude/rules/` (glob-scoped coding guidelines). Restart Claude Code — it auto-installs any plugin listed in `enabledPlugins` on first launch.
+
+Alternatively, once Claude Code is running, invoke the skill:
+
+```text
+/scaffolding-sdlc --setup-claude
+```
+
+See [`docs/setting-up-claude-environment.md`](docs/setting-up-claude-environment.md) for full details.
 
 ## Quick start (individual)
+
+To add the marketplace and install manually:
 
 ```text
 /plugin marketplace add cssherry-wp/wp-labs-starter
 /plugin install wp-labs-standards@wp-labs-starter
 /plugin install wp-labs-sdlc@wp-labs-starter
+/plugin install wp-labs-superpowers@wp-labs-starter
 ```
 
-Then enable the recommended external plugins:
+Then the external plugins:
 
 ```text
 /plugin install code-review@claude-plugins-official
 /plugin install code-simplifier@claude-plugins-official
 /plugin install security-guidance@claude-plugins-official
-/plugin install context7@claude-plugins-official
-/plugin install playwright@claude-plugins-official
+/plugin install explanatory-output-style@claude-plugins-official
+/plugin install frontend-design@claude-plugins-official
 /plugin install typescript-lsp@claude-plugins-official
-/plugin install superpowers@claude-plugins-official
+/plugin install chrome-devtools-mcp@claude-plugins-official
+/plugin install context7@claude-plugins-official
+/plugin install claude-md-management@claude-plugins-official
+/plugin install ralph-loop@claude-plugins-official
+/plugin install playwright@claude-plugins-official
+/plugin marketplace add lackeyjb/playwright-skill
+/plugin install playwright-skill@playwright-skill
 /plugin marketplace add DietrichGebert/ponytail
 /plugin install ponytail@ponytail
 ```
@@ -44,31 +73,28 @@ Browse or manage everything anytime with `/plugin`.
 
 ## Recommended setup
 
-The default set (wp-labs-standards + stock superpowers + the curated externals, plus the ponytail
-statusline badge) lives in the `wp-labs-sdlc` plugin at
+The full recommended config lives in:
 [`plugins/wp-labs-sdlc/skills/scaffolding-sdlc/templates/claude/settings.json`](plugins/wp-labs-sdlc/skills/scaffolding-sdlc/templates/claude/settings.json)
-— the single source of truth. To adopt it for a project, either let `wp-labs-sdlc` scaffold it for
-you (it deep-merges this file into the repo's `.claude/settings.json`) or merge that file's
-`extraKnownMarketplaces`, `enabledPlugins`, and `statusLine` in by hand and commit it — teammates get
-the marketplaces added and the plugins enabled automatically on clone (after the workspace-trust
-prompt).
+
+This is the single source of truth for marketplaces, `enabledPlugins`, the ponytail status-line badge,
+the Stop hook, and team-wide Claude settings. The `--setup-claude` mode and the repo scaffold both
+deep-merge from this file.
 
 ### Default-enabled
 
-`wp-labs-standards`, `superpowers` (stock), `code-review`, `code-simplifier`,
-`security-guidance`, `context7`, `playwright`, `typescript-lsp`, `ponytail`.
+`wp-labs-standards`, `wp-labs-sdlc`, `wp-labs-superpowers` (fork), `ponytail`,
+`playwright-skill`, `code-review`, `code-simplifier`, `security-guidance`,
+`explanatory-output-style`, `frontend-design`, `typescript-lsp`, `chrome-devtools-mcp`,
+`context7`, `claude-md-management`, `ralph-loop`, `playwright`.
 
-`wp-labs-sdlc` is available but not default-enabled — install it when you need to scaffold or top up
-a repo's SDLC automation.
+`superpowers@claude-plugins-official` is explicitly disabled — the fork (`wp-labs-superpowers`)
+replaces it. Never enable both (duplicate skill names).
 
 ### Opt-in (available, not enabled by default)
 
 | Plugin | Add it when |
 |---|---|
-| `wp-labs-sdlc@wp-labs-starter` | You're starting a repo or adding CI/test/security/hosting automation to one. |
-| `chrome-devtools-mcp@claude-plugins-official` | You need perf traces, Lighthouse, or memory profiling. Playwright already covers test writing + functional debugging, so add this only for perf/CWV/memory work. |
-| `ralph-loop@claude-plugins-official` | You want the autonomous loop runner — better as an individual opt-in than a team default. |
-| `wp-labs-superpowers@wp-labs-starter` | You want our docs-path convention baked into superpowers itself. **Disable stock `superpowers` first** — never enable both (duplicate skill names). |
+| `superpowers@claude-plugins-official` | You want stock superpowers without our docs-path convention. Disable `wp-labs-superpowers` first. |
 
 ## Notes
 
@@ -95,23 +121,29 @@ skill-only (not file-type specific).
 The hook runs on `node` (always present wherever Claude Code runs), so there's no extra
 dependency to install.
 
-### superpowers: overlay (default) vs fork (opt-in)
+### CLAUDE.md and rules/
 
-The docs-path convention ships two ways. **By default** we keep stock superpowers and rely on the
-`team-docs-convention` skill (in `wp-labs-standards`) to redirect spec/plan output. The
-`wp-labs-superpowers` fork is the alternative for teams that prefer the paths baked in. Run only one
-of them.
+The `scaffolding-sdlc` templates include:
+
+- **`CLAUDE.md`** — git commit policy, ambiguity handling, and prose output style rules (no
+  filler language, no em-dashes, no hype, honest specificity). Written into `.claude/CLAUDE.md`
+  per repo or `~/.claude/CLAUDE.md` globally via `--setup-claude`.
+- **`rules/`** — six glob-scoped rule files that Claude loads automatically for matching file
+  types: `coding-guidelines.md` (always-on), `python.md`, `js-ts.md`, `css.md`, `sql.md`,
+  `context7.md`.
+
+### superpowers: fork (default) vs stock (opt-in)
+
+`wp-labs-superpowers` is the default: it has our docs-path convention baked in (specs to
+`.superpowers/01-specs/`, plans to `.superpowers/02-plans/`). The stock
+`superpowers@claude-plugins-official` is disabled in the team template. If you prefer stock
+superpowers, disable the fork and enable the stock one — but never run both.
 
 ### If you already have personal copies of these skills
 
 `wp-labs-standards` provides `github-pr-prepare` and `github-pr-review`. If you also keep personal
 copies in `~/.claude/skills/`, remove the personal copies to avoid duplicate skill names once the
 plugin is enabled.
-
-### Docs convention
-
-Specs go to `.superpowers/01-specs/YYYY-MM-DD-HHmm-<name>.md`; plans to
-`.superpowers/02-plans/YYYY-MM-DD-HHmm-<name>.md`.
 
 ## Maintaining
 
