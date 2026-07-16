@@ -61,7 +61,6 @@ Then the external plugins:
 /plugin install chrome-devtools-mcp@claude-plugins-official
 /plugin install context7@claude-plugins-official
 /plugin install claude-md-management@claude-plugins-official
-/plugin install ralph-loop@claude-plugins-official
 /plugin install playwright@claude-plugins-official
 /plugin marketplace add lackeyjb/playwright-skill
 /plugin install playwright-skill@playwright-skill
@@ -85,7 +84,7 @@ deep-merge from this file.
 `wp-labs-standards`, `wp-labs-sdlc`, `wp-labs-superpowers` (fork), `ponytail`,
 `playwright-skill`, `code-review`, `code-simplifier`, `security-guidance`,
 `explanatory-output-style`, `frontend-design`, `typescript-lsp`, `chrome-devtools-mcp`,
-`context7`, `claude-md-management`, `ralph-loop`, `playwright`.
+`context7`, `claude-md-management`, `playwright`.
 
 `superpowers@claude-plugins-official` is explicitly disabled — the fork (`wp-labs-superpowers`)
 replaces it. Never enable both (duplicate skill names).
@@ -94,6 +93,7 @@ replaces it. Never enable both (duplicate skill names).
 
 | Plugin | Add it when |
 |---|---|
+| `ralph-loop@claude-plugins-official` | You want the autonomous loop runner (`/ralph-loop`). Better as an individual opt-in — easy to trigger accidentally if always enabled. |
 | `superpowers@claude-plugins-official` | You want stock superpowers without our docs-path convention. Disable `wp-labs-superpowers` first. |
 
 ## Notes
