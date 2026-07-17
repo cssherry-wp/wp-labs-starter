@@ -9,13 +9,13 @@ install:
 lint: lint-python lint-js lint-css
 lint-python: ; uv run --extra dev ruff check .
 lint-js: ; cd frontend && npm run lint
-lint-css: ; cd frontend && npx stylelint "src/**/*.scss" --allow-empty-input
+lint-css: ; cd frontend && npm run lint:css
 
 format:
 	uv run --extra dev ruff format .
 	uv run --extra dev ruff check --fix .
 	cd frontend && npm run format
-	cd frontend && npx stylelint --fix "src/**/*.scss" --allow-empty-input
+	cd frontend && npm run format:css
 
 # CI mode: no file modifications.
 check: check-python check-js check-css
@@ -25,7 +25,7 @@ check-python:
 check-js:
 	cd frontend && npm run typecheck
 	cd frontend && npm run lint
-check-css: ; cd frontend && npx stylelint "src/**/*.scss" --allow-empty-input
+check-css: ; cd frontend && npm run lint:css
 
 typecheck: check-js typecheck-python
 typecheck-python:
