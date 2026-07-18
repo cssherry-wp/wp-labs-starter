@@ -141,6 +141,12 @@ directory; copy from there.
    enable (gitleaks default-on; dependency audit, Dependabot, Semgrep opt-in) —
    see `references/security-tooling.md`.
 
+   **CSS/SCSS/Sass is its own independent language option** — it is not implied
+   by TypeScript/Fullstack. A project can have stylesheets without a JS build
+   (e.g. WordPress themes, PHP+CSS). Ask explicitly whether the project uses
+   CSS/SCSS/Sass; if yes, it gets its own `styles` paths-filter and `stylelint`
+   CI job regardless of the other language choices.
+
    **Language choice drives two downstream decisions** — record it explicitly
    before proceeding:
    - **CI jobs and path filters** (step 5): only include CI jobs for the chosen
@@ -191,9 +197,14 @@ directory; copy from there.
      | `node` | `**/*.ts`, `!app/**` | Remove `!app/**` exclusion if there is no nested Python `app/`; add/remove globs to match where TS source lives |
      | `frontend` | `app/frontend/**` | Replace with the actual nested frontend dir (e.g. `frontend/**`, `client/**`) |
      | `python` | `app/**/*.py`, `app/pyproject.toml` | Replace `app/` with the actual Python source root (e.g. `src/`, `api/`, `.`) |
+     | `styles` | `**/*.css`, `**/*.scss`, `**/*.sass` | Usually kept broad (any stylesheet anywhere); narrow only if CSS lives in one specific subtree |
 
    - **Omit filter keys entirely** for languages not in the project (don't leave
      dead filters — they slow CI and confuse future editors).
+   - **`stylelint` job** is independent of `frontend` — it fires on `styles`
+     changes regardless of whether there is a JS build. Do not remove it just
+     because the project has no TypeScript. Remove it only if the project has
+     no CSS/SCSS/Sass at all.
 
 6. **Hosting (web-app stacks).** For Python/Fullstack, offer the hosting layer:
    copy `templates/<stack>/hosting/` (`Dockerfile`, `.dockerignore`,
@@ -246,7 +257,7 @@ directory; copy from there.
    | `context7.md` | **Always** — fetches live library docs |
    | `python.md` | Stack includes Python |
    | `js-ts.md` | Stack includes TypeScript or JavaScript |
-   | `css.md` | Stack includes TypeScript/Fullstack (has a frontend) |
+   | `css.md` | Stack includes CSS/SCSS/Sass (independent of TypeScript) |
    | `sql.md` | Project uses SQL (detected: ORM migration files, `.sql` files, or DB dependency in manifest) |
 
    Do not copy a rule file if its language is not in use — dead rules load
