@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+command -v jq > /dev/null || { echo 'SKIP: jq not found'; exit 0; }
+
 HOOK="$(cd "$(dirname "$0")" && pwd)/check-claude-setup"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT

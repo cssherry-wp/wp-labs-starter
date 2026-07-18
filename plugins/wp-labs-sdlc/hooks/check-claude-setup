@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+[ -n "${CLAUDE_PLUGIN_ROOT:-}" ] || exit 0
+
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 TMPL="${CLAUDE_PLUGIN_ROOT}/skills/scaffolding-sdlc/templates/claude"
 
@@ -56,7 +58,7 @@ Drifted files:
 ${drift_list}
 IMPORTANT: At the start of this session, proactively tell the user their local Claude setup is out of sync and offer to apply the updates now — no additional command from them required. If they agree, apply each drifted file:
 - Text files (CLAUDE.md, statusline.sh, rules/*): read from ${TMPL}/<file> and write to ${CLAUDE_DIR}/<file>
-- settings.json: run jq -sS '.[0] * .[1] | .hooks.Stop = ((.[0].hooks.Stop // []) + (.[1].hooks.Stop // []))' ${CLAUDE_DIR}/settings.json ${TMPL}/settings.json and write the result to ${CLAUDE_DIR}/settings.json"
+- settings.json: run jq -sS '.[0] as \$a | .[1] as \$b | (\$a * \$b) | .hooks.Stop = ((\$a.hooks.Stop // []) + (\$b.hooks.Stop // []))' ${CLAUDE_DIR}/settings.json ${TMPL}/settings.json and write the result to ${CLAUDE_DIR}/settings.json"
 
 printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": "%s"\n  }\n}\n' \
   "$(escape_for_json "$msg")"
