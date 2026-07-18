@@ -7,8 +7,37 @@ on:
     branches: [main]
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    outputs:
+      node: ${{ steps.filter.outputs.node }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      python: ${{ steps.filter.outputs.python }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            node:
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.js'
+              - '**/*.jsx'
+              - 'package*.json'
+              - '!app/**'
+            frontend:
+              - 'app/frontend/**'
+            python:
+              - 'app/**/*.py'
+              - 'app/pyproject.toml'
+              - 'app/requirements*.txt'
+
   # Root-level Node/TypeScript project (package-lock.json at repo root).
   node:
+    needs: changes
+    if: needs.changes.outputs.node == 'true'
     runs-on: ubuntu-latest
     permissions: { contents: read }
     steps:
@@ -35,50 +64,56 @@ jobs:
       - if: steps.detect.outputs.present == 'true'
         run: make test
 
-  # Nested frontend/ npm project (fullstack: Django at root, React in frontend/).
+  # Nested app/frontend/ npm project (fullstack: Django at root of app/, React in app/frontend/).
   frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     permissions: { contents: read }
-    defaults: { run: { working-directory: frontend } }
+    defaults: { run: { working-directory: app/frontend } }
     steps:
       - uses: actions/checkout@v5
       - id: detect
         working-directory: .
         run: |
-          if [ -f frontend/package.json ] && [ ! -f package-lock.json ]; then
+          if [ -f app/frontend/package.json ] && [ ! -f package-lock.json ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
-            echo "✅ frontend/: nested npm project found — running lint + typecheck + test" >> "$GITHUB_STEP_SUMMARY"
+            echo "✅ app/frontend/: npm project found — running lint + typecheck + test" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::No nested frontend/ project; skipping."
-            echo "⏭️ frontend/: no nested npm project — skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice::No app/frontend/ project; skipping."
+            echo "⏭️ app/frontend/: no npm project — skipped" >> "$GITHUB_STEP_SUMMARY"
           fi
       - if: steps.detect.outputs.present == 'true'
         uses: actions/setup-node@v5
-        with: { node-version: 20, cache: npm, cache-dependency-path: frontend/package-lock.json }
+        with: { node-version: 20, cache: npm, cache-dependency-path: app/frontend/package-lock.json }
       - if: steps.detect.outputs.present == 'true'
         run: npm ci
       - if: steps.detect.outputs.present == 'true'
         run: npm run lint
+      - if: steps.detect.outputs.present == 'true'
+        run: npm run lint:css
       - if: steps.detect.outputs.present == 'true'
         run: npm run typecheck
       - if: steps.detect.outputs.present == 'true'
         run: npm test
 
   python:
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
     runs-on: ubuntu-latest
     permissions: { contents: read }
     steps:
       - uses: actions/checkout@v5
       - id: detect
         run: |
-          if [ -f pyproject.toml ]; then
+          if [ -f app/pyproject.toml ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
-            echo "✅ Python: pyproject.toml found — running check + typecheck + test" >> "$GITHUB_STEP_SUMMARY"
+            echo "✅ Python: app/pyproject.toml found — running check + typecheck + test" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::No pyproject.toml; skipping Python jobs."
-            echo "⏭️ Python: no pyproject.toml — skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice::No app/pyproject.toml; skipping Python jobs."
+            echo "⏭️ Python: no app/pyproject.toml — skipped" >> "$GITHUB_STEP_SUMMARY"
           fi
       - if: steps.detect.outputs.present == 'true'
         uses: astral-sh/setup-uv@v5
@@ -90,6 +125,8 @@ jobs:
         run: make test-python
 
   e2e:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     permissions: { contents: read }
     steps:
@@ -98,7 +135,7 @@ jobs:
         with: { node-version: 20 }
       - name: Run Playwright e2e where configured
         run: |
-          if [ -f frontend/playwright.config.ts ]; then DIR=frontend;
+          if [ -f app/frontend/playwright.config.ts ]; then DIR=app/frontend;
           elif [ -f playwright.config.ts ]; then DIR=.;
           else
             echo "::notice::No Playwright config; skipping e2e."

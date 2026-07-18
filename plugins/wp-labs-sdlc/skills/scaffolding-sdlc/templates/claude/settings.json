@@ -51,6 +51,6 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "bash \"$(ls -d \"$HOME\"/.claude/plugins/cache/ponytail/ponytail/*/hooks/ponytail-statusline.sh 2>/dev/null | sort -V | tail -1)\""
+    "command": "bash \"$HOME/.claude/statusline.sh\""
   }
 }

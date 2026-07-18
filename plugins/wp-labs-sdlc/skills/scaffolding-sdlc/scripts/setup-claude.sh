@@ -95,6 +95,19 @@ for src in "$TMPL/rules/"*; do
   fi
 done
 
+# --- statusline.sh ---
+src="$TMPL/statusline.sh"
+dst="$CLAUDE_DIR/statusline.sh"
+if [ -f "$src" ]; then
+  if [ -f "$dst" ] && diff -q "$src" "$dst" > /dev/null 2>&1; then
+    echo "statusline.sh: already up to date"
+  else
+    cp "$src" "$dst"
+    chmod +x "$dst"
+    echo "statusline.sh: installed"
+  fi
+fi
+
 echo ""
 echo "Done. Restart Claude Code to pick up the new settings."
 echo "Plugins listed in settings.json will auto-install on first launch."

@@ -4,9 +4,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "biome check src/",
+    "lint:css": "stylelint \"src/**/*.scss\" --allow-empty-input",
+    "format:css": "stylelint --fix \"src/**/*.scss\" --allow-empty-input",
     "format": "biome format --write src/",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -14,8 +16,10 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "axios": "^1.7.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.23.0"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
