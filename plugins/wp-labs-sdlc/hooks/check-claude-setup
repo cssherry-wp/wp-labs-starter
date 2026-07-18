@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+TMPL="${CLAUDE_PLUGIN_ROOT}/skills/scaffolding-sdlc/templates/claude"
+
+drift_files=()
+
+check_text_file() {
+  local rel="$1" src="$TMPL/$1" dst="$CLAUDE_DIR/$1"
+  [ -f "$src" ] || return 0
+  if [ ! -f "$dst" ]; then
+    drift_files+=("$rel (missing)")
+  elif ! diff -q "$src" "$dst" > /dev/null 2>&1; then
+    drift_files+=("$rel")
+  fi
+}
+
+check_text_file "CLAUDE.md"
+check_text_file "statusline.sh"
+
+if [ -d "$TMPL/rules" ]; then
+  for src in "$TMPL/rules/"*; do
+    [ -e "$src" ] || continue
+    check_text_file "rules/$(basename "$src")"
+  done
+fi
+
+# settings.json: merge template into local (template wins), compare to current.
+# Excludes .hooks to avoid false positives from hook ordering/duplication.
+# Uses jq -S (sorted keys) for deterministic string comparison.
+if command -v jq > /dev/null 2>&1 && [ -f "$TMPL/settings.json" ] && [ -f "$CLAUDE_DIR/settings.json" ]; then
+  merged=$(jq -sS '(.[0] | del(.hooks)) * (.[1] | del(.hooks))' \
+    "$CLAUDE_DIR/settings.json" "$TMPL/settings.json" 2>/dev/null || true)
+  current=$(jq -S 'del(.hooks)' "$CLAUDE_DIR/settings.json" 2>/dev/null || true)
+  [ "$merged" != "$current" ] && drift_files+=("settings.json")
+fi
+
+[ ${#drift_files[@]} -eq 0 ] && exit 0
+
+drift_list=$(printf '  - %s\n' "${drift_files[@]}")
+
+escape_for_json() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\r'/\\r}"
+  s="${s//$'\t'/\\t}"
+  printf '%s' "$s"
+}
+
+msg="Your ~/.claude/ setup is out of sync with the wp-labs-sdlc plugin templates.
+
+Drifted files:
+${drift_list}
+IMPORTANT: At the start of this session, proactively tell the user their local Claude setup is out of sync and offer to apply the updates now — no additional command from them required. If they agree, apply each drifted file:
+- Text files (CLAUDE.md, statusline.sh, rules/*): read from ${TMPL}/<file> and write to ${CLAUDE_DIR}/<file>
+- settings.json: run jq -sS '.[0] * .[1] | .hooks.Stop = ((.[0].hooks.Stop // []) + (.[1].hooks.Stop // []))' ${CLAUDE_DIR}/settings.json ${TMPL}/settings.json and write the result to ${CLAUDE_DIR}/settings.json"
+
+printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": "%s"\n  }\n}\n' \
+  "$(escape_for_json "$msg")"
