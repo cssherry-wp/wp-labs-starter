@@ -106,6 +106,14 @@ directory; copy from there.
    `ruff.toml`/`pytest.ini` vs `[tool.*]`), project subdirectory (manifests under
    `app/`, `app/frontend/`, etc.), and existing frontend linter.
 
+   **Detect the git hosting platform** from the remote URL:
+   ```bash
+   git remote get-url origin 2>/dev/null
+   ```
+   - Contains `github.com` → **GitHub** (full scaffold available)
+   - Contains `bitbucket.org` → **Bitbucket** (CI only — see step 5)
+   - Anything else (GitLab, self-hosted, no remote) → treat as non-GitHub
+
    Then produce a **scaffold inventory** — go through EVERY component this skill
    can add and mark each present / partial / missing:
    - dev-loop: `Makefile`, tool configs, `.gitignore`, manifest
@@ -154,11 +162,29 @@ directory; copy from there.
      in the project (detected in step 1).
    - **Claude rules** (step 8c): only copy language-relevant rules.
 
-3. **Local dev loop.** Copy the chosen stack's templates
-   (`templates/<stack>/`): the `Makefile`, tool configs, and `gitignore` →
-   `.gitignore`. Merge `package-scripts.json` / `pyproject-tooling.toml` into an
-   existing manifest (do not overwrite the whole file). Create README and the
-   manifest only if missing.
+3. **Local dev loop.** Copy tool configs from the chosen stack's templates
+   (`templates/<stack>/`). Only copy the `Makefile` if the stack includes
+   TypeScript or Python — a CSS-only project has no build toolchain to
+   orchestrate. Only merge `pyproject-tooling.toml` for Python stacks; only
+   merge `package-scripts.json` for TypeScript stacks. Do not overwrite existing
+   manifests — merge only. Create README and the manifest only if missing.
+
+   **Assemble `.gitignore` from language snippets** in `templates/gitignore.d/`:
+   always start with `common`, then append one snippet per chosen language:
+
+   | Language | Snippet |
+   |----------|---------|
+   | Always | `common` |
+   | Python | `python` |
+   | TypeScript / JavaScript | `node` |
+   | CSS / SCSS / Sass | `css` |
+
+   Concatenate the relevant files in that order and write to `.gitignore`. If
+   `.gitignore` already exists, merge (append any lines not already present) rather
+   than overwriting. Adapt paths in the `node` snippet to match the project
+   structure detected in step 1 — for a fullstack project with a nested frontend
+   dir, `dist/` should be scoped to that dir (e.g. `app/frontend/dist/`) rather
+   than matching root-level build output.
 
    **Starter app (greenfield only).** If the repo has no source yet, also copy
    the stack's runnable skeleton from `templates/<stack>/scaffold/` (TS: a typed
@@ -172,13 +198,19 @@ directory; copy from there.
 4. **git pre-commit hook.** Copy `templates/git-hooks/pre-commit` →
    `.sdlc-hooks/pre-commit`, then run `make install-hooks` to symlink it.
 
-5. **GitHub Actions.** Copy `templates/github/workflows/*.yml` →
-   `.github/workflows/`. When `code-review.yml` is included, also copy its helper
+5. **CI / GitHub Actions.** The platform detected in step 1 determines scope:
+
+   **Non-GitHub (Bitbucket, GitLab, no remote):** copy `ci.yml` only →
+   `.github/workflows/ci.yml`. Skip every other workflow, `dependabot.yml`,
+   branch protection, and label setup — they are all GitHub-specific. Note to
+   the user that `ci.yml` is in GitHub Actions format; for Bitbucket Pipelines
+   they will need to convert it to `bitbucket-pipelines.yml` format.
+
+   **GitHub:** copy `templates/github/workflows/*.yml` → `.github/workflows/`.
+   When `code-review.yml` is included, also copy its helper
    `templates/github/workflows/build-review-payload.jq` → `.github/workflows/`
-   (the apply job calls it via `jq -f .github/workflows/build-review-payload.jq`). (gates
-   `ci.yml`/`security.yml`, the Claude automation
-   trio, `pr-status-labels.yml`, and `pr-rebase.yml`) and
-   `templates/github/dependabot.yml` → `.github/dependabot.yml`. Skip any
+   (the apply job calls it via `jq -f .github/workflows/build-review-payload.jq`).
+   Copy `templates/github/dependabot.yml` → `.github/dependabot.yml`. Skip any
    workflow the user opted out of (e.g. no Semgrep → leave the `semgrep` job out
    of `security.yml`). `pr-rebase.yml` auto-rebases behind PRs onto `main` and
    force-pushes with lease; remind the user to add the GitHub App (preferred) or
@@ -186,9 +218,20 @@ directory; copy from there.
 
    **Adapt `ci.yml` to the chosen stack and project layout:**
 
-   - **Remove jobs for languages not in use.** TypeScript-only → delete the
-     `python` and `e2e` jobs. Python-only → delete `node`, `frontend`, and `e2e`
-     jobs. Fullstack → keep all four jobs.
+   - **Keep only the jobs for chosen languages** — use this table to decide:
+
+     | Job | Keep when |
+     |-----|-----------|
+     | `node` | TypeScript / JavaScript |
+     | `frontend` | Fullstack (nested frontend dir exists) |
+     | `python` | Python |
+     | `stylelint` | CSS / SCSS / Sass (independent of TypeScript) |
+     | `e2e` | Fullstack (Playwright config present or planned) |
+
+   - **Omit filter keys for languages not in the project** — dead filters slow CI
+     and confuse future editors. Drop the corresponding `outputs:` line and
+     `paths-filter` entry alongside the job.
+
    - **Adjust `paths-filter` patterns to match the actual project structure**
      detected in step 1. Replace the template's assumed paths with the real ones:
 
@@ -197,14 +240,7 @@ directory; copy from there.
      | `node` | `**/*.ts`, `!app/**` | Remove `!app/**` exclusion if there is no nested Python `app/`; add/remove globs to match where TS source lives |
      | `frontend` | `app/frontend/**` | Replace with the actual nested frontend dir (e.g. `frontend/**`, `client/**`) |
      | `python` | `app/**/*.py`, `app/pyproject.toml` | Replace `app/` with the actual Python source root (e.g. `src/`, `api/`, `.`) |
-     | `styles` | `**/*.css`, `**/*.scss`, `**/*.sass` | Usually kept broad (any stylesheet anywhere); narrow only if CSS lives in one specific subtree |
-
-   - **Omit filter keys entirely** for languages not in the project (don't leave
-     dead filters — they slow CI and confuse future editors).
-   - **`stylelint` job** is independent of `frontend` — it fires on `styles`
-     changes regardless of whether there is a JS build. Do not remove it just
-     because the project has no TypeScript. Remove it only if the project has
-     no CSS/SCSS/Sass at all.
+     | `styles` | `**/*.css`, `**/*.scss`, `**/*.sass` | Usually kept broad; narrow only if CSS lives in one specific subtree |
 
 6. **Hosting (web-app stacks).** For Python/Fullstack, offer the hosting layer:
    copy `templates/<stack>/hosting/` (`Dockerfile`, `.dockerignore`,
