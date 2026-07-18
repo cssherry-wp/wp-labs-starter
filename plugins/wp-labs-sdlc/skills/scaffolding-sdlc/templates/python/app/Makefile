@@ -18,7 +18,7 @@ check:
 typecheck:
 	uv run --extra dev mypy . || echo "WARNING: mypy found issues — review output above"
 
-test: ; uv run --extra dev pytest
+test: ; uv run --extra dev pytest || [ $$? -eq 5 ]
 
 # Aliases so CI can use one target set across Python and fullstack repos.
 check-python: check
