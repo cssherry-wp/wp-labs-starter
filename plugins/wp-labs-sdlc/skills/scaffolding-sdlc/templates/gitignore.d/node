@@ -3,6 +3,5 @@ dist/
 .astro/
 coverage/
 *.log
-.env
-.env.*
-.DS_Store
+playwright-report/
+test-results/

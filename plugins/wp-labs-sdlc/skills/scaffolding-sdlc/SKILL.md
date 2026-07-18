@@ -155,10 +155,27 @@ directory; copy from there.
    - **Claude rules** (step 8c): only copy language-relevant rules.
 
 3. **Local dev loop.** Copy the chosen stack's templates
-   (`templates/<stack>/`): the `Makefile`, tool configs, and `gitignore` →
-   `.gitignore`. Merge `package-scripts.json` / `pyproject-tooling.toml` into an
-   existing manifest (do not overwrite the whole file). Create README and the
-   manifest only if missing.
+   (`templates/<stack>/`): the `Makefile` and tool configs. Merge
+   `package-scripts.json` / `pyproject-tooling.toml` into an existing manifest
+   (do not overwrite the whole file). Create README and the manifest only if
+   missing.
+
+   **Assemble `.gitignore` from language snippets** in `templates/gitignore.d/`:
+   always start with `common`, then append one snippet per chosen language:
+
+   | Language | Snippet |
+   |----------|---------|
+   | Always | `common` |
+   | Python | `python` |
+   | TypeScript / JavaScript | `node` |
+   | CSS / SCSS / Sass | `css` |
+
+   Concatenate the relevant files in that order and write to `.gitignore`. If
+   `.gitignore` already exists, merge (append any lines not already present) rather
+   than overwriting. Adapt paths in the `node` snippet to match the project
+   structure detected in step 1 — for a fullstack project with a nested frontend
+   dir, `dist/` should be scoped to that dir (e.g. `app/frontend/dist/`) rather
+   than matching root-level build output.
 
    **Starter app (greenfield only).** If the repo has no source yet, also copy
    the stack's runnable skeleton from `templates/<stack>/scaffold/` (TS: a typed
