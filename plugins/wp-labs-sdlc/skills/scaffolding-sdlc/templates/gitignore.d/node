@@ -2,6 +2,9 @@ node_modules/
 dist/
 .astro/
 coverage/
+playwright-report/
+test-results/
+.sass-cache/
 *.log
 playwright-report/
 test-results/

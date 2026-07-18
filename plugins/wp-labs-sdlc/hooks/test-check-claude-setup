@@ -67,5 +67,9 @@ out=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$LOCAL" bash "$HOOK" 
 echo "$out" | jq -e '.hookSpecificOutput.additionalContext | test("settings.json")' > /dev/null \
   && pass "settings.json drift -> JSON" || fail "settings.json drift -> expected settings.json in output, got: $out"
 
+# --- Test 5: CLAUDE_PLUGIN_ROOT unset -> silent exit ---
+out=$(CLAUDE_CONFIG_DIR="$TMP/clean" bash "$HOOK" 2>/dev/null || true)
+[ -z "$out" ] && pass "CLAUDE_PLUGIN_ROOT unset -> silent" || fail "CLAUDE_PLUGIN_ROOT unset -> expected no output, got: $out"
+
 echo ""
 echo "All tests passed."
