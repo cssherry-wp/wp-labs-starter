@@ -154,11 +154,12 @@ directory; copy from there.
      in the project (detected in step 1).
    - **Claude rules** (step 8c): only copy language-relevant rules.
 
-3. **Local dev loop.** Copy the chosen stack's templates
-   (`templates/<stack>/`): the `Makefile` and tool configs. Merge
-   `package-scripts.json` / `pyproject-tooling.toml` into an existing manifest
-   (do not overwrite the whole file). Create README and the manifest only if
-   missing.
+3. **Local dev loop.** Copy tool configs from the chosen stack's templates
+   (`templates/<stack>/`). Only copy the `Makefile` if the stack includes
+   TypeScript or Python — a CSS-only project has no build toolchain to
+   orchestrate. Only merge `pyproject-tooling.toml` for Python stacks; only
+   merge `package-scripts.json` for TypeScript stacks. Do not overwrite existing
+   manifests — merge only. Create README and the manifest only if missing.
 
    **Assemble `.gitignore` from language snippets** in `templates/gitignore.d/`:
    always start with `common`, then append one snippet per chosen language:
