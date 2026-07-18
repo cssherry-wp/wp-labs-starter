@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # Claude Code status bar: git context | ponytail mode | active model | config directory
 
 pt=$(bash "$(ls -d "$HOME"/.claude/plugins/cache/ponytail/ponytail/*/hooks/ponytail-statusline.sh 2>/dev/null | sort -V | tail -1)" 2>/dev/null || true)
