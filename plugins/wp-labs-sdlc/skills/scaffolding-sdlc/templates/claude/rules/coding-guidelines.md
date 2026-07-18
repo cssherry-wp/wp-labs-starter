@@ -73,6 +73,11 @@ For every feature added or bug fixed, add unit tests covering the core logic and
 ### Test Invalid Input
 Always include tests for edge cases and invalid input, not just the happy path.
 
+## Version Control
+
+### Atomic Commits
+Each commit should contain one discrete, logically related change. Don't bundle unrelated fixes, refactors, and features into one commit. A reviewer should be able to understand and evaluate each commit on its own merits. If you find yourself writing "and" in a commit subject, consider splitting it.
+
 ## Documentation
 
 ### Keep README and Docs Updated
