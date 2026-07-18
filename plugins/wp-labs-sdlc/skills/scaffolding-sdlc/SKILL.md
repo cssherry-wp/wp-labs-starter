@@ -204,9 +204,20 @@ directory; copy from there.
 
    **Adapt `ci.yml` to the chosen stack and project layout:**
 
-   - **Remove jobs for languages not in use.** TypeScript-only → delete the
-     `python` and `e2e` jobs. Python-only → delete `node`, `frontend`, and `e2e`
-     jobs. Fullstack → keep all four jobs.
+   - **Keep only the jobs for chosen languages** — use this table to decide:
+
+     | Job | Keep when |
+     |-----|-----------|
+     | `node` | TypeScript / JavaScript |
+     | `frontend` | Fullstack (nested frontend dir exists) |
+     | `python` | Python |
+     | `stylelint` | CSS / SCSS / Sass (independent of TypeScript) |
+     | `e2e` | Fullstack (Playwright config present or planned) |
+
+   - **Omit filter keys for languages not in the project** — dead filters slow CI
+     and confuse future editors. Drop the corresponding `outputs:` line and
+     `paths-filter` entry alongside the job.
+
    - **Adjust `paths-filter` patterns to match the actual project structure**
      detected in step 1. Replace the template's assumed paths with the real ones:
 
@@ -215,14 +226,7 @@ directory; copy from there.
      | `node` | `**/*.ts`, `!app/**` | Remove `!app/**` exclusion if there is no nested Python `app/`; add/remove globs to match where TS source lives |
      | `frontend` | `app/frontend/**` | Replace with the actual nested frontend dir (e.g. `frontend/**`, `client/**`) |
      | `python` | `app/**/*.py`, `app/pyproject.toml` | Replace `app/` with the actual Python source root (e.g. `src/`, `api/`, `.`) |
-     | `styles` | `**/*.css`, `**/*.scss`, `**/*.sass` | Usually kept broad (any stylesheet anywhere); narrow only if CSS lives in one specific subtree |
-
-   - **Omit filter keys entirely** for languages not in the project (don't leave
-     dead filters — they slow CI and confuse future editors).
-   - **`stylelint` job** is independent of `frontend` — it fires on `styles`
-     changes regardless of whether there is a JS build. Do not remove it just
-     because the project has no TypeScript. Remove it only if the project has
-     no CSS/SCSS/Sass at all.
+     | `styles` | `**/*.css`, `**/*.scss`, `**/*.sass` | Usually kept broad; narrow only if CSS lives in one specific subtree |
 
 6. **Hosting (web-app stacks).** For Python/Fullstack, offer the hosting layer:
    copy `templates/<stack>/hosting/` (`Dockerfile`, `.dockerignore`,
