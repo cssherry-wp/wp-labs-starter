@@ -106,6 +106,14 @@ directory; copy from there.
    `ruff.toml`/`pytest.ini` vs `[tool.*]`), project subdirectory (manifests under
    `app/`, `app/frontend/`, etc.), and existing frontend linter.
 
+   **Detect the git hosting platform** from the remote URL:
+   ```bash
+   git remote get-url origin 2>/dev/null
+   ```
+   - Contains `github.com` → **GitHub** (full scaffold available)
+   - Contains `bitbucket.org` → **Bitbucket** (CI only — see step 5)
+   - Anything else (GitLab, self-hosted, no remote) → treat as non-GitHub
+
    Then produce a **scaffold inventory** — go through EVERY component this skill
    can add and mark each present / partial / missing:
    - dev-loop: `Makefile`, tool configs, `.gitignore`, manifest
@@ -190,13 +198,19 @@ directory; copy from there.
 4. **git pre-commit hook.** Copy `templates/git-hooks/pre-commit` →
    `.sdlc-hooks/pre-commit`, then run `make install-hooks` to symlink it.
 
-5. **GitHub Actions.** Copy `templates/github/workflows/*.yml` →
-   `.github/workflows/`. When `code-review.yml` is included, also copy its helper
+5. **CI / GitHub Actions.** The platform detected in step 1 determines scope:
+
+   **Non-GitHub (Bitbucket, GitLab, no remote):** copy `ci.yml` only →
+   `.github/workflows/ci.yml`. Skip every other workflow, `dependabot.yml`,
+   branch protection, and label setup — they are all GitHub-specific. Note to
+   the user that `ci.yml` is in GitHub Actions format; for Bitbucket Pipelines
+   they will need to convert it to `bitbucket-pipelines.yml` format.
+
+   **GitHub:** copy `templates/github/workflows/*.yml` → `.github/workflows/`.
+   When `code-review.yml` is included, also copy its helper
    `templates/github/workflows/build-review-payload.jq` → `.github/workflows/`
-   (the apply job calls it via `jq -f .github/workflows/build-review-payload.jq`). (gates
-   `ci.yml`/`security.yml`, the Claude automation
-   trio, `pr-status-labels.yml`, and `pr-rebase.yml`) and
-   `templates/github/dependabot.yml` → `.github/dependabot.yml`. Skip any
+   (the apply job calls it via `jq -f .github/workflows/build-review-payload.jq`).
+   Copy `templates/github/dependabot.yml` → `.github/dependabot.yml`. Skip any
    workflow the user opted out of (e.g. no Semgrep → leave the `semgrep` job out
    of `security.yml`). `pr-rebase.yml` auto-rebases behind PRs onto `main` and
    force-pushes with lease; remind the user to add the GitHub App (preferred) or
