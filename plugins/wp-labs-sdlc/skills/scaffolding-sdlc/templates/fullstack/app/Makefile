@@ -32,7 +32,7 @@ typecheck-python:
 	uv run --extra dev mypy . || echo "WARNING: mypy found issues — review output above"
 
 test: test-python test-js
-test-python: ; uv run --extra dev pytest
+test-python: ; uv run --extra dev pytest || [ $$? -eq 5 ]
 test-js: ; cd frontend && npm test
 test-e2e: ; cd frontend && npm run test:e2e
 
