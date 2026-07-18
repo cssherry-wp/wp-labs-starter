@@ -141,6 +141,13 @@ directory; copy from there.
    enable (gitleaks default-on; dependency audit, Dependabot, Semgrep opt-in) —
    see `references/security-tooling.md`.
 
+   **Language choice drives two downstream decisions** — record it explicitly
+   before proceeding:
+   - **CI jobs and path filters** (step 5): only include CI jobs for the chosen
+     languages; path filters must match where those languages' files actually live
+     in the project (detected in step 1).
+   - **Claude rules** (step 8c): only copy language-relevant rules.
+
 3. **Local dev loop.** Copy the chosen stack's templates
    (`templates/<stack>/`): the `Makefile`, tool configs, and `gitignore` →
    `.gitignore`. Merge `package-scripts.json` / `pyproject-tooling.toml` into an
@@ -170,6 +177,23 @@ directory; copy from there.
    of `security.yml`). `pr-rebase.yml` auto-rebases behind PRs onto `main` and
    force-pushes with lease; remind the user to add the GitHub App (preferred) or
    `REBASE_TOKEN` PAT secrets so rebased pushes re-trigger CI (see Prerequisites).
+
+   **Adapt `ci.yml` to the chosen stack and project layout:**
+
+   - **Remove jobs for languages not in use.** TypeScript-only → delete the
+     `python` and `e2e` jobs. Python-only → delete `node`, `frontend`, and `e2e`
+     jobs. Fullstack → keep all four jobs.
+   - **Adjust `paths-filter` patterns to match the actual project structure**
+     detected in step 1. Replace the template's assumed paths with the real ones:
+
+     | Filter key | Template default | Adapt to |
+     |------------|-----------------|----------|
+     | `node` | `**/*.ts`, `!app/**` | Remove `!app/**` exclusion if there is no nested Python `app/`; add/remove globs to match where TS source lives |
+     | `frontend` | `app/frontend/**` | Replace with the actual nested frontend dir (e.g. `frontend/**`, `client/**`) |
+     | `python` | `app/**/*.py`, `app/pyproject.toml` | Replace `app/` with the actual Python source root (e.g. `src/`, `api/`, `.`) |
+
+   - **Omit filter keys entirely** for languages not in the project (don't leave
+     dead filters — they slow CI and confuse future editors).
 
 6. **Hosting (web-app stacks).** For Python/Fullstack, offer the hosting layer:
    copy `templates/<stack>/hosting/` (`Dockerfile`, `.dockerignore`,
@@ -212,15 +236,21 @@ directory; copy from there.
    rules that keep Claude's prose from sounding AI-generated). It complements
    Ponytail, which governs code minimalism; CLAUDE.md governs communication style.
 
-   **c. rules/** — copy `templates/claude/rules/` → `.claude/rules/`, skipping any
-   file that already exists (show diff and ask for conflicts). These are
-   glob-scoped rules that Claude loads automatically for matching files:
-   - `coding-guidelines.md` (`alwaysApply: true`) — general AI coding conventions
-   - `python.md` (glob `*.py`) — Google-style docstrings, type annotations, ruff/mypy
-   - `js-ts.md` (glob `*.js,*.ts,*.tsx,*.jsx`) — no `any`, Biome conventions, React rules
-   - `css.md` (glob `*.css,*.scss,*.sass`) — Airbnb CSS + BEM
-   - `sql.md` (glob `*.sql`) — naming, FK constraints, parameterized queries
-   - `context7.md` — instructs Claude to fetch live library docs via `npx ctx7@latest`
+   **c. rules/** — copy ONLY the rules relevant to the chosen stack from
+   `templates/claude/rules/` → `.claude/rules/`, skipping any file that already
+   exists (show diff and ask for conflicts). Selection logic:
+
+   | Rule file | Copy when |
+   |-----------|-----------|
+   | `coding-guidelines.md` | **Always** (`alwaysApply: true`) |
+   | `context7.md` | **Always** — fetches live library docs |
+   | `python.md` | Stack includes Python |
+   | `js-ts.md` | Stack includes TypeScript or JavaScript |
+   | `css.md` | Stack includes TypeScript/Fullstack (has a frontend) |
+   | `sql.md` | Project uses SQL (detected: ORM migration files, `.sql` files, or DB dependency in manifest) |
+
+   Do not copy a rule file if its language is not in use — dead rules load
+   noise into every Claude session.
 
 9. **Verify & summarize.** Run `make check` and `make test` locally and report
    results. Summarize what was created/changed and list manual follow-ups: add
