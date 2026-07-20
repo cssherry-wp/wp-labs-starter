@@ -210,7 +210,23 @@ directory; copy from there.
    When `code-review.yml` is included, also copy its helper
    `templates/github/workflows/build-review-payload.jq` → `.github/workflows/`
    (the apply job calls it via `jq -f .github/workflows/build-review-payload.jq`).
-   Copy `templates/github/dependabot.yml` → `.github/dependabot.yml`. Skip any
+   Copy `templates/github/dependabot.yml` → `.github/dependabot.yml`.
+
+   **Trim `dependabot.yml` to the detected stack** (from step 1's
+   `detect-stack.sh` output):
+
+   | Update block | Keep when |
+   |--------------|-----------|
+   | `npm` | `typescript` or `frontend` detected |
+   | `pip` | `python` detected |
+   | `github-actions` | always |
+
+   Delete the whole `- package-ecosystem` block for any ecosystem not kept —
+   a block with no matching manifest makes Dependabot log an error on every
+   run. If neither npm nor pip applies, only the `github-actions` block
+   remains.
+
+   Skip any
    workflow the user opted out of (e.g. no Semgrep → leave the `semgrep` job out
    of `security.yml`). `pr-rebase.yml` auto-rebases behind PRs onto `main` and
    force-pushes with lease; remind the user to add the GitHub App (preferred) or
@@ -257,6 +273,23 @@ directory; copy from there.
 
 8. **Claude team settings.** Three components — all live under `.claude/` and are
    checked into the repo so every teammate gets the same baseline.
+
+   **Before importing, ask and warn about duplication.** These `.claude/` files
+   are checked into the repo so teammates share the baseline. A developer who
+   also ran `--setup-claude` already has this same content in their `~/.claude/`,
+   so both copies load at once (the repo copy wins on project precedence; the
+   global copy becomes redundant context). Ask before importing:
+
+   > Import the team `.claude/` templates (CLAUDE.md, rules/) into this repo?
+   > They are the shared team baseline for anyone who has NOT run `--setup-claude`.
+   > If you already ran `--setup-claude`, the same content also lives in your
+   > `~/.claude/` and will load twice — harmless (identical), but redundant. [Y/n]
+
+   Default **Yes** — the repo copy is the team baseline for teammates without
+   global setup. This warning covers the harmless identical-duplicate case; the
+   dangerous *divergent* case (repo and global disagree) is already handled by the
+   per-file diff-and-ask in sub-steps a–c below. If the user declines, skip
+   sub-steps a–c.
 
    **a. settings.json** — deep-merge `templates/claude/settings.json` (marketplaces,
    `enabledPlugins`, Stop hook, ponytail `statusLine`, `defaultMode: plan`,

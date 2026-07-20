@@ -58,6 +58,8 @@ Each job detects whether the relevant config file exists at runtime (e.g. `app/p
 
 Groups updates by ecosystem: `npm-production`, `npm-development`, `pip-production`, `pip-development`, and `actions`. This keeps automated PRs to a manageable count.
 
+The scaffolder trims the ecosystems to the detected stack: the `npm` block is kept only when TypeScript/JavaScript (or a frontend) is present, the `pip` block only when Python is present, and `github-actions` always stays. A block with no matching manifest makes Dependabot log an error on every run, so unused ecosystems are dropped rather than shipped empty.
+
 ### Dependabot automerge (`workflows/dependabot-automerge.yml`)
 
 Watches CI via `gh pr checks --watch`, then squash-merges patch and minor bumps automatically. Major version bumps always go to manual review.
@@ -92,3 +94,5 @@ Config: `stylelint.config.js` extending `stylelint-config-standard-scss`.
 **Python-only project:** use the `python` template. It omits `app/frontend/` and the frontend Makefile targets. The CI `frontend` and `stylelint` jobs self-skip at runtime.
 
 **pyproject-tooling merge step:** after scaffolding, the `pyproject.toml` merge targets `app/pyproject.toml`. Verify the merge script points to `app/` (tracked separately; see SKILL.md).
+
+**Team `.claude/` templates:** the scaffolder asks before importing the team `.claude/` templates (`CLAUDE.md`, `rules/`) into the repo, because that same content also lives in `~/.claude/` for anyone who ran `--setup-claude` and would then load twice. The repo copy is the shared baseline for teammates who have not run `--setup-claude`, so the prompt defaults to importing; the duplicate is harmless (identical content, the repo copy wins on precedence). Divergent files are still surfaced by the per-file diff-and-ask during import. See `setting-up-claude-environment.md` for the global `--setup-claude` side.
