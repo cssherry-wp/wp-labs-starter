@@ -15,6 +15,7 @@ jobs:
       frontend: ${{ steps.filter.outputs.frontend }}
       python: ${{ steps.filter.outputs.python }}
       styles: ${{ steps.filter.outputs.styles }}
+      code: ${{ steps.filter.outputs.code }}
     steps:
       - uses: actions/checkout@v5
       - uses: dorny/paths-filter@v3
@@ -38,6 +39,9 @@ jobs:
               - '**/*.css'
               - '**/*.scss'
               - '**/*.sass'
+            code:
+              - '**'
+              - '!**/*.md'
 
   # Root-level Node/TypeScript project (package-lock.json at repo root).
   node:
@@ -151,7 +155,7 @@ jobs:
 
   e2e:
     needs: changes
-    if: needs.changes.outputs.frontend == 'true'
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     permissions: { contents: read }
     steps:
