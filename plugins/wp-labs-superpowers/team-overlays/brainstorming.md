@@ -46,9 +46,8 @@ tracker counterpart in place — do NOT post a duplicate:
 - GitHub issue body → `gh issue edit <number> --body-file <spec-path>`; comment → edit via the
   recorded `Spec sync:` URL:
   `gh api --method PATCH /repos/{owner}/{repo}/issues/comments/<comment-id> -F body=@<spec-path>`.
-- Jira issue body → rebuild the work-item file as in step 2 and
-  `acli jira workitem edit --key <KEY> --from-file <workitem-file>`; comment → re-run the comment
-  command with `--edit-last`.
+- Jira issue body → `acli jira workitem edit --key <KEY> --summary "<spec slug>" --description-file <spec-path>`;
+  comment → re-run the comment command with `--edit-last`.
 
 **Specs are git-ignored working copies — do NOT commit the spec file.** The tracker issue is its
 durable record. This overrides any "commit the design document to git" step earlier in this skill.
