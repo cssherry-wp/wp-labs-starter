@@ -210,7 +210,23 @@ directory; copy from there.
    When `code-review.yml` is included, also copy its helper
    `templates/github/workflows/build-review-payload.jq` → `.github/workflows/`
    (the apply job calls it via `jq -f .github/workflows/build-review-payload.jq`).
-   Copy `templates/github/dependabot.yml` → `.github/dependabot.yml`. Skip any
+   Copy `templates/github/dependabot.yml` → `.github/dependabot.yml`.
+
+   **Trim `dependabot.yml` to the detected stack** (from step 1's
+   `detect-stack.sh` output):
+
+   | Update block | Keep when |
+   |--------------|-----------|
+   | `npm` | `typescript` or `frontend` detected |
+   | `pip` | `python` detected |
+   | `github-actions` | always |
+
+   Delete the whole `- package-ecosystem` block for any ecosystem not kept —
+   a block with no matching manifest makes Dependabot log an error on every
+   run. If neither npm nor pip applies, only the `github-actions` block
+   remains.
+
+   Skip any
    workflow the user opted out of (e.g. no Semgrep → leave the `semgrep` job out
    of `security.yml`). `pr-rebase.yml` auto-rebases behind PRs onto `main` and
    force-pushes with lease; remind the user to add the GitHub App (preferred) or

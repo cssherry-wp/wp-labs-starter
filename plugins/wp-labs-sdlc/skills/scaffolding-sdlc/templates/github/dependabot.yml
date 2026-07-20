@@ -1,3 +1,6 @@
+# The `npm` and `pip` update blocks below are conditional: the scaffolder
+# (SKILL.md step 5) removes `npm` when no TypeScript/JavaScript is detected and
+# `pip` when no Python is detected. The `github-actions` block always stays.
 version: 2
 updates:
   - package-ecosystem: "npm"
