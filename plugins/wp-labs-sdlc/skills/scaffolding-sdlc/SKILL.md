@@ -106,6 +106,14 @@ directory; copy from there.
    `ruff.toml`/`pytest.ini` vs `[tool.*]`), project subdirectory (manifests under
    `app/`, `app/frontend/`, etc.), and existing frontend linter.
 
+   **Detect the git hosting platform** from the remote URL:
+   ```bash
+   git remote get-url origin 2>/dev/null
+   ```
+   - Contains `github.com` → **GitHub** (full scaffold available)
+   - Contains `bitbucket.org` → **Bitbucket** (CI only — see step 5)
+   - Anything else (GitLab, self-hosted, no remote) → treat as non-GitHub
+
    Then produce a **scaffold inventory** — go through EVERY component this skill
    can add and mark each present / partial / missing:
    - dev-loop: `Makefile`, tool configs, `.gitignore`, manifest
@@ -141,11 +149,42 @@ directory; copy from there.
    enable (gitleaks default-on; dependency audit, Dependabot, Semgrep opt-in) —
    see `references/security-tooling.md`.
 
-3. **Local dev loop.** Copy the chosen stack's templates
-   (`templates/<stack>/`): the `Makefile`, tool configs, and `gitignore` →
-   `.gitignore`. Merge `package-scripts.json` / `pyproject-tooling.toml` into an
-   existing manifest (do not overwrite the whole file). Create README and the
-   manifest only if missing.
+   **CSS/SCSS/Sass is its own independent language option** — it is not implied
+   by TypeScript/Fullstack. A project can have stylesheets without a JS build
+   (e.g. WordPress themes, PHP+CSS). Ask explicitly whether the project uses
+   CSS/SCSS/Sass; if yes, it gets its own `styles` paths-filter and `stylelint`
+   CI job regardless of the other language choices.
+
+   **Language choice drives two downstream decisions** — record it explicitly
+   before proceeding:
+   - **CI jobs and path filters** (step 5): only include CI jobs for the chosen
+     languages; path filters must match where those languages' files actually live
+     in the project (detected in step 1).
+   - **Claude rules** (step 8c): only copy language-relevant rules.
+
+3. **Local dev loop.** Copy tool configs from the chosen stack's templates
+   (`templates/<stack>/`). Only copy the `Makefile` if the stack includes
+   TypeScript or Python — a CSS-only project has no build toolchain to
+   orchestrate. Only merge `pyproject-tooling.toml` for Python stacks; only
+   merge `package-scripts.json` for TypeScript stacks. Do not overwrite existing
+   manifests — merge only. Create README and the manifest only if missing.
+
+   **Assemble `.gitignore` from language snippets** in `templates/gitignore.d/`:
+   always start with `common`, then append one snippet per chosen language:
+
+   | Language | Snippet |
+   |----------|---------|
+   | Always | `common` |
+   | Python | `python` |
+   | TypeScript / JavaScript | `node` |
+   | CSS / SCSS / Sass | `css` |
+
+   Concatenate the relevant files in that order and write to `.gitignore`. If
+   `.gitignore` already exists, merge (append any lines not already present) rather
+   than overwriting. Adapt paths in the `node` snippet to match the project
+   structure detected in step 1 — for a fullstack project with a nested frontend
+   dir, `dist/` should be scoped to that dir (e.g. `app/frontend/dist/`) rather
+   than matching root-level build output.
 
    **Starter app (greenfield only).** If the repo has no source yet, also copy
    the stack's runnable skeleton from `templates/<stack>/scaffold/` (TS: a typed
@@ -159,17 +198,49 @@ directory; copy from there.
 4. **git pre-commit hook.** Copy `templates/git-hooks/pre-commit` →
    `.sdlc-hooks/pre-commit`, then run `make install-hooks` to symlink it.
 
-5. **GitHub Actions.** Copy `templates/github/workflows/*.yml` →
-   `.github/workflows/`. When `code-review.yml` is included, also copy its helper
+5. **CI / GitHub Actions.** The platform detected in step 1 determines scope:
+
+   **Non-GitHub (Bitbucket, GitLab, no remote):** copy `ci.yml` only →
+   `.github/workflows/ci.yml`. Skip every other workflow, `dependabot.yml`,
+   branch protection, and label setup — they are all GitHub-specific. Note to
+   the user that `ci.yml` is in GitHub Actions format; for Bitbucket Pipelines
+   they will need to convert it to `bitbucket-pipelines.yml` format.
+
+   **GitHub:** copy `templates/github/workflows/*.yml` → `.github/workflows/`.
+   When `code-review.yml` is included, also copy its helper
    `templates/github/workflows/build-review-payload.jq` → `.github/workflows/`
-   (the apply job calls it via `jq -f .github/workflows/build-review-payload.jq`). (gates
-   `ci.yml`/`security.yml`, the Claude automation
-   trio, `pr-status-labels.yml`, and `pr-rebase.yml`) and
-   `templates/github/dependabot.yml` → `.github/dependabot.yml`. Skip any
+   (the apply job calls it via `jq -f .github/workflows/build-review-payload.jq`).
+   Copy `templates/github/dependabot.yml` → `.github/dependabot.yml`. Skip any
    workflow the user opted out of (e.g. no Semgrep → leave the `semgrep` job out
    of `security.yml`). `pr-rebase.yml` auto-rebases behind PRs onto `main` and
    force-pushes with lease; remind the user to add the GitHub App (preferred) or
    `REBASE_TOKEN` PAT secrets so rebased pushes re-trigger CI (see Prerequisites).
+
+   **Adapt `ci.yml` to the chosen stack and project layout:**
+
+   - **Keep only the jobs for chosen languages** — use this table to decide:
+
+     | Job | Keep when |
+     |-----|-----------|
+     | `node` | TypeScript / JavaScript |
+     | `frontend` | Fullstack (nested frontend dir exists) |
+     | `python` | Python |
+     | `stylelint` | CSS / SCSS / Sass (independent of TypeScript) |
+     | `e2e` | Fullstack (Playwright config present or planned) |
+
+   - **Omit filter keys for languages not in the project** — dead filters slow CI
+     and confuse future editors. Drop the corresponding `outputs:` line and
+     `paths-filter` entry alongside the job.
+
+   - **Adjust `paths-filter` patterns to match the actual project structure**
+     detected in step 1. Replace the template's assumed paths with the real ones:
+
+     | Filter key | Template default | Adapt to |
+     |------------|-----------------|----------|
+     | `node` | `**/*.ts`, `!app/**` | Remove `!app/**` exclusion if there is no nested Python `app/`; add/remove globs to match where TS source lives |
+     | `frontend` | `app/frontend/**` | Replace with the actual nested frontend dir (e.g. `frontend/**`, `client/**`) |
+     | `python` | `app/**/*.py`, `app/pyproject.toml` | Replace `app/` with the actual Python source root (e.g. `src/`, `api/`, `.`) |
+     | `styles` | `**/*.css`, `**/*.scss`, `**/*.sass` | Usually kept broad; narrow only if CSS lives in one specific subtree |
 
 6. **Hosting (web-app stacks).** For Python/Fullstack, offer the hosting layer:
    copy `templates/<stack>/hosting/` (`Dockerfile`, `.dockerignore`,
@@ -212,15 +283,21 @@ directory; copy from there.
    rules that keep Claude's prose from sounding AI-generated). It complements
    Ponytail, which governs code minimalism; CLAUDE.md governs communication style.
 
-   **c. rules/** — copy `templates/claude/rules/` → `.claude/rules/`, skipping any
-   file that already exists (show diff and ask for conflicts). These are
-   glob-scoped rules that Claude loads automatically for matching files:
-   - `coding-guidelines.md` (`alwaysApply: true`) — general AI coding conventions
-   - `python.md` (glob `*.py`) — Google-style docstrings, type annotations, ruff/mypy
-   - `js-ts.md` (glob `*.js,*.ts,*.tsx,*.jsx`) — no `any`, Biome conventions, React rules
-   - `css.md` (glob `*.css,*.scss,*.sass`) — Airbnb CSS + BEM
-   - `sql.md` (glob `*.sql`) — naming, FK constraints, parameterized queries
-   - `context7.md` — instructs Claude to fetch live library docs via `npx ctx7@latest`
+   **c. rules/** — copy ONLY the rules relevant to the chosen stack from
+   `templates/claude/rules/` → `.claude/rules/`, skipping any file that already
+   exists (show diff and ask for conflicts). Selection logic:
+
+   | Rule file | Copy when |
+   |-----------|-----------|
+   | `coding-guidelines.md` | **Always** (`alwaysApply: true`) |
+   | `context7.md` | **Always** — fetches live library docs |
+   | `python.md` | Stack includes Python |
+   | `js-ts.md` | Stack includes TypeScript or JavaScript |
+   | `css.md` | Stack includes CSS/SCSS/Sass (independent of TypeScript) |
+   | `sql.md` | Project uses SQL (detected: ORM migration files, `.sql` files, or DB dependency in manifest) |
+
+   Do not copy a rule file if its language is not in use — dead rules load
+   noise into every Claude session.
 
 9. **Verify & summarize.** Run `make check` and `make test` locally and report
    results. Summarize what was created/changed and list manual follow-ups: add

@@ -9,7 +9,7 @@ on:
 jobs:
   secrets:
     runs-on: ubuntu-latest
-    permissions: { contents: read }
+    permissions: { contents: read, pull-requests: read }
     steps:
       - uses: actions/checkout@v5
         with: { fetch-depth: 0 }
@@ -17,38 +17,51 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  dependencies:
+  detect:
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    outputs:
+      node: ${{ steps.check.outputs.node }}
+      python: ${{ steps.check.outputs.python }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: check
+        run: |
+          [ -f package-lock.json ] && echo "node=true" >> "$GITHUB_OUTPUT" || echo "node=false" >> "$GITHUB_OUTPUT"
+          [ -f pyproject.toml ] && echo "python=true" >> "$GITHUB_OUTPUT" || echo "python=false" >> "$GITHUB_OUTPUT"
+
+  npm-audit:
+    needs: detect
+    if: needs.detect.outputs.node == 'true'
     runs-on: ubuntu-latest
     permissions: { contents: read }
     steps:
       - uses: actions/checkout@v5
       - name: npm audit
-        # Non-blocking, but a finding must be VISIBLE — distinguish "no lockfile"
-        # (genuine skip) from "audit failed" (real advisories) instead of one echo.
+        # Non-blocking: warn on findings rather than failing the workflow.
         run: |
-          if [ -f package-lock.json ]; then
-            if npm audit --audit-level=high; then
-              echo "✅ npm audit: no high-severity advisories" >> "$GITHUB_STEP_SUMMARY"
-            else
-              echo "::warning::npm audit found high-severity advisories (non-blocking — see log above)"
-              echo "⚠️ npm audit: high-severity advisories found — see job log" >> "$GITHUB_STEP_SUMMARY"
-            fi
+          if npm audit --audit-level=high; then
+            echo "✅ npm audit: no high-severity advisories" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "::notice::no package-lock.json; skipped npm audit"
-            echo "⏭️ npm audit: no package-lock.json — skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::npm audit found high-severity advisories (non-blocking — see log above)"
+            echo "⚠️ npm audit: high-severity advisories found — see job log" >> "$GITHUB_STEP_SUMMARY"
           fi
+
+  pip-audit:
+    needs: detect
+    if: needs.detect.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@v5
       - name: pip-audit
+        # Non-blocking: warn on findings rather than failing the workflow.
         run: |
-          if [ -f pyproject.toml ]; then
-            if pipx run pip-audit; then
-              echo "✅ pip-audit: no known vulnerabilities" >> "$GITHUB_STEP_SUMMARY"
-            else
-              echo "::warning::pip-audit reported vulnerabilities (non-blocking — see log above)"
-              echo "⚠️ pip-audit: vulnerabilities reported — see job log" >> "$GITHUB_STEP_SUMMARY"
-            fi
+          if pipx run pip-audit; then
+            echo "✅ pip-audit: no known vulnerabilities" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "::notice::no pyproject.toml; skipped pip-audit"
-            echo "⏭️ pip-audit: no pyproject.toml — skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::pip-audit reported vulnerabilities (non-blocking — see log above)"
+            echo "⚠️ pip-audit: vulnerabilities reported — see job log" >> "$GITHUB_STEP_SUMMARY"
           fi
 
   semgrep:
