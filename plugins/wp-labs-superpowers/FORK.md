@@ -18,7 +18,7 @@ plugin essentials and customized with the team docs-path convention.
 2. **Slimmed to plugin essentials** — kept `.claude-plugin/`, `skills/`, `hooks/`, `LICENSE`,
    `README.md`; removed upstream dev/CI/test files, the upstream project's own `docs/`, and
    other-harness directories.
-3. **Team workflow overlays** — spec→issue (brainstorming), plan→comment (writing-plans), and
+3. **Team workflow overlays** — spec→tracker (brainstorming), plan→tracker (writing-plans), and
    feature-docs (finishing-a-development-branch) are appended from `team-overlays/` after each
    rebuild.
 
