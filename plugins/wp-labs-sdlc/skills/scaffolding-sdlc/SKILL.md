@@ -274,6 +274,23 @@ directory; copy from there.
 8. **Claude team settings.** Three components — all live under `.claude/` and are
    checked into the repo so every teammate gets the same baseline.
 
+   **Before importing, ask and warn about duplication.** These `.claude/` files
+   are checked into the repo so teammates share the baseline. A developer who
+   also ran `--setup-claude` already has this same content in their `~/.claude/`,
+   so both copies load at once (the repo copy wins on project precedence; the
+   global copy becomes redundant context). Ask before importing:
+
+   > Import the team `.claude/` templates (CLAUDE.md, rules/) into this repo?
+   > They are the shared team baseline for anyone who has NOT run `--setup-claude`.
+   > If you already ran `--setup-claude`, the same content also lives in your
+   > `~/.claude/` and will load twice — harmless (identical), but redundant. [Y/n]
+
+   Default **Yes** — the repo copy is the team baseline for teammates without
+   global setup. This warning covers the harmless identical-duplicate case; the
+   dangerous *divergent* case (repo and global disagree) is already handled by the
+   per-file diff-and-ask in sub-steps a–c below. If the user declines, skip
+   sub-steps a–c.
+
    **a. settings.json** — deep-merge `templates/claude/settings.json` (marketplaces,
    `enabledPlugins`, Stop hook, ponytail `statusLine`, `defaultMode: plan`,
    `alwaysThinkingEnabled`, `includeCoAuthoredBy`, and the output-token env var)
