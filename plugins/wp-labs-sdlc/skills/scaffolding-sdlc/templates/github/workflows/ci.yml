@@ -14,6 +14,8 @@ jobs:
       node: ${{ steps.filter.outputs.node }}
       frontend: ${{ steps.filter.outputs.frontend }}
       python: ${{ steps.filter.outputs.python }}
+      styles: ${{ steps.filter.outputs.styles }}
+      code: ${{ steps.filter.outputs.code }}
     steps:
       - uses: actions/checkout@v5
       - uses: dorny/paths-filter@v3
@@ -33,6 +35,13 @@ jobs:
               - 'app/**/*.py'
               - 'app/pyproject.toml'
               - 'app/requirements*.txt'
+            styles:
+              - '**/*.css'
+              - '**/*.scss'
+              - '**/*.sass'
+            code:
+              - '**'
+              - '!**/*.md'
 
   # Root-level Node/TypeScript project (package-lock.json at repo root).
   node:
@@ -92,8 +101,6 @@ jobs:
       - if: steps.detect.outputs.present == 'true'
         run: npm run lint
       - if: steps.detect.outputs.present == 'true'
-        run: npm run lint:css
-      - if: steps.detect.outputs.present == 'true'
         run: npm run typecheck
       - if: steps.detect.outputs.present == 'true'
         run: npm test
@@ -124,9 +131,31 @@ jobs:
       - if: steps.detect.outputs.present == 'true'
         run: make test-python
 
+  # CSS/SCSS/Sass linting — runs independently of the JS/TS build.
+  stylelint:
+    needs: changes
+    if: needs.changes.outputs.styles == 'true'
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run stylelint where configured
+        run: |
+          if [ -f app/frontend/package.json ]; then DIR=app/frontend;
+          elif [ -f package.json ]; then DIR=.;
+          else
+            echo "::notice::No package.json with stylelint; skipping."
+            echo "⏭️ stylelint: no npm project — skipped" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "✅ stylelint: npm project found in '$DIR' — running lint:css" >> "$GITHUB_STEP_SUMMARY"
+          cd "$DIR"
+          npm ci
+          npm run lint:css
+
   e2e:
     needs: changes
-    if: needs.changes.outputs.frontend == 'true'
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     permissions: { contents: read }
     steps:
