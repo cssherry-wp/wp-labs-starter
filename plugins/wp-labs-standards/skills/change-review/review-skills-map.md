@@ -8,6 +8,7 @@ Which reviewer to reach for, and how they hand off.
 | `codebase-audit` | Whole-repo audit across over-engineering + correctness + security; report-only, `file:line` findings | yes (this plugin) |
 | `/code-review` (built-in) | Deep correctness + reuse/simplification/efficiency on the working diff | no |
 | `/security-review` (built-in) | Deep vulnerability audit of branch changes | no |
+| `/ponytail-review` (ponytail plugin) | Deep over-engineering pass on the working diff | no (third-party) |
 | `/review` (built-in) | Generic GitHub PR review | no |
 | `code-review` plugin (`anthropics/claude-code`) | PR-by-number, 5 specialized agents, confidence scoring | no (third-party) |
 | `requesting-code-review` | Process: ask for a review before merge | yes |
@@ -18,7 +19,8 @@ Which reviewer to reach for, and how they hand off.
 ## Hand-off chain
 
 `change-review` (broad scan; dispatches the deep passes)
-→ `/code-review` (deep correctness) and `/security-review` (deep security)
+→ `/code-review` (deep correctness), `/security-review` (deep security), and
+`/ponytail-review` (deep over-engineering)
 → `requesting-code-review` → `github-pr-prepare` → `receiving-code-review`
 → `github-pr-review` (resolve the resulting threads).
 
