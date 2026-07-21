@@ -4,6 +4,8 @@ description: Audit an entire repository (not a diff) across three lenses — ove
 user-invocable: true
 allowed-tools: Read, Bash, Grep, Glob, Agent, Skill
 argument-hint: "[path] [--effort low|medium|high|max]"
+model: opus
+context: fork
 ---
 
 # Codebase audit
@@ -89,7 +91,11 @@ Report all findings; do not drop by score.
 Collect the correctness/security findings from the slice agents plus the over-engineering findings
 from `/ponytail-audit`. Dedup issues that span slice boundaries (same root cause reported twice).
 Rank: security and correctness by severity × confidence; over-engineering biggest-cut first.
-Produce the report below.
+
+**Assign every finding a unique, stable ID** by lens, numbered in report order: `OE-1, OE-2, …`
+(over-engineering), `CO-1, …` (correctness), `SE-1, …` (security). The ID is how a finding is
+referenced in the Verdict and by any later fix pass (`change-review --fix`, `/code-review --fix`),
+so keep it stable and never reuse a number within one report. Produce the report below.
 
 ## 7. Output format
 
@@ -97,24 +103,26 @@ Produce the report below.
 ## Codebase audit — <path or repo>, <N> files / ~<L> lines, <S> slices
 
 ### Over-engineering
-- <file:line> — <tag> <what to cut> → <replacement> (confidence N)   (or: Lean already)
+- **OE-1** <file:line> — <tag> <what to cut> → <replacement> (confidence N)   (or: Lean already)
 _net: -<N> lines / -<M> deps possible_
 
 ### Correctness
-- [HIGH/MED/LOW] <file:line> — <bug + failure scenario> → <fix> (confidence N)   (or: No obvious defects)
+- **CO-1** [HIGH/MED/LOW] <file:line> — <bug + failure scenario> → <fix> (confidence N)   (or: No obvious defects)
 
 ### Security
-- [HIGH/MED/LOW] <file:line> — <vuln> → <remediation> (confidence N)   (or: No issues found)
+- **SE-1** [HIGH/MED/LOW] <file:line> — <vuln> → <remediation> (confidence N)   (or: No issues found)
 
 ### Verdict
 **Must fix:**
-- <high-severity, high-confidence, ordered>   (or: None)
+- <finding ID + one-line, high-severity/high-confidence, ordered>   (or: None)
 
 **Worth doing:**
-- <med/low items>   (or: None)
+- <finding ID + one-line, med/low items>   (or: None)
 
-<one line: overall health + the single highest-value action>
+<one line: overall health + the single highest-value action (by ID)>
 ```
+
+Every finding leads with its ID (§6) so the Verdict and any later fix pass can reference it.
 
 Report-only. Do not edit, fix, or commit — the `file:line` anchors are the seam for a separate fix
 pass.

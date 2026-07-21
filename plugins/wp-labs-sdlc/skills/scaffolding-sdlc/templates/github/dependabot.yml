@@ -1,6 +1,11 @@
 # The `npm` and `pip` update blocks below are conditional: the scaffolder
 # (SKILL.md step 5) removes `npm` when no TypeScript/JavaScript is detected and
 # `pip` when no Python is detected. The `github-actions` block always stays.
+#
+# Grouping: minor/patch bumps ride together in one auto-mergeable PR per
+# ecosystem; majors get their own PR. Dependabot gates a group's automerge on
+# its highest update-type, so isolating majors keeps the patch/minor group
+# mergeable by dependabot-automerge.yml.
 version: 2
 updates:
   - package-ecosystem: "npm"
@@ -8,23 +13,22 @@ updates:
     schedule: { interval: "weekly" }
     labels: ["dependencies"]
     groups:
-      npm-production:
-        dependency-type: "production"
-      npm-development:
-        dependency-type: "development"
+      npm-minor:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
   - package-ecosystem: "pip"
     directory: "/"
     schedule: { interval: "weekly" }
     labels: ["dependencies"]
     groups:
-      pip-production:
-        dependency-type: "production"
-      pip-development:
-        dependency-type: "development"
+      pip-minor:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule: { interval: "weekly" }
     labels: ["dependencies"]
     groups:
-      actions:
+      actions-minor:
         patterns: ["*"]
+        update-types: ["minor", "patch"]

@@ -1,6 +1,7 @@
 ---
 name: github-pr-prepare
 description: Use when agent makes a GitHub PR
+allowed-tools: Bash
 ---
 
 - You can expect `gh` is installed and configured
@@ -35,6 +36,10 @@ git merge upstream/main  # or `upstream/master`, depending on the repository
        ```
 
 - Avoid verbose text in PR description. Brevity is golden. Prefer bullet points. Focus on WHAT this PR achieves, what major caveats it could have. Emphasize if there is user-observable backwards incompatibility.
+
+- **Issue linking** — depends on the tracker:
+  - **GitHub issue**: put a [linking keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword) + number — `Closes #123` (or `Fixes`/`Resolves`) to close on merge, `Refs #123` to link only — on its own plain-text line; GitHub does NOT parse it inside a heading or backticks/code spans, so `` ## Fix (`Closes #123`) `` links nothing. One issue goes at the bottom of the body. For **multiple** issues, put each keyword at the bottom of the description section it relates to, not all together at the absolute bottom.
+  - **Jira issue(s)**: prefix the PR title with the issue ID, joining multiple with a comma and space (`JIRA-1: <summary>` or `JIRA-1, JIRA-2: <summary>`).
 
 - Include test results: which environment, which cloud provider, which GPUs and what the result was.
 

@@ -1,6 +1,7 @@
 ---
 name: css-style
 description: CSS/SCSS/Sass style rules. Use when writing, editing, or reviewing stylesheets (.css/.scss/.sass) — follows the Airbnb CSS Style Guide and BEM methodology, and prefers SCSS.
+user-invocable: false
 ---
 
 # CSS / SCSS Style Rules

@@ -1,6 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Queue housekeeping: move /queue backlog files untouched for >30 days to the
+# trash. Runs on every startup, before (and independent of) the drift check
+# below. Each trashed file is logged to STDERR (its last edit + new location);
+# stdout stays reserved for the JSON payload below.
+# ponytail: mtime-based; CLAUDE_QUEUE_TRASH_DIR override exists only so the test
+# can redirect the trash away from the real ~/.Trash. `date -r <file>` reads the
+# mtime portably on both BSD (macOS) and GNU coreutils.
+_queue_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue"
+_trash_dir="${CLAUDE_QUEUE_TRASH_DIR:-$HOME/.Trash}"
+if [ -d "$_queue_dir" ]; then
+  mkdir -p "$_trash_dir" 2> /dev/null || true
+  while IFS= read -r -d '' _qf; do
+    _last_edit=$(date -r "$_qf" '+%Y-%m-%d %H:%M:%S' 2> /dev/null || echo "unknown")
+    _dest="$_trash_dir/$(basename "$_qf")"
+    if mv "$_qf" "$_dest" 2> /dev/null; then
+      echo "queue housekeeping: trashed $(basename "$_qf") (last edit ${_last_edit}) -> ${_dest}" >&2
+    fi
+  done < <(find "$_queue_dir" -maxdepth 1 -type f -name '*.md' -mtime +30 -print0 2> /dev/null)
+fi
+
 [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] || exit 0
 # ponytail: jq required for JSON output; silently skips when absent
 command -v jq > /dev/null 2>&1 || exit 0

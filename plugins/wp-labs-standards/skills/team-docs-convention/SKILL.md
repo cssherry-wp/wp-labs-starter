@@ -1,6 +1,7 @@
 ---
 name: team-docs-convention
 description: Team convention for where specs and plans are saved. Use when brainstorming a spec, writing an implementation plan, or referencing spec/plan files — overrides any default doc path (including superpowers' docs/superpowers/... paths).
+user-invocable: false
 ---
 
 # Team Docs Convention

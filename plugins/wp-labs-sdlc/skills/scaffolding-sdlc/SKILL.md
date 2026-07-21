@@ -1,6 +1,7 @@
 ---
 name: scaffolding-sdlc
 description: Use when starting a new repo or adding SDLC automation to an existing one — sets up lint, unit tests, Playwright e2e, security scanning, Dependabot, PR-status labels, pre-commit hooks, and Claude PR automation that run on every PR. Pass --setup-claude to instead configure the global ~/.claude/ environment (settings, plugins, CLAUDE.md, rules) on a fresh machine or new Claude Code install.
+argument-hint: "[--setup-claude]"
 ---
 
 # Scaffolding SDLC
@@ -315,6 +316,14 @@ directory; copy from there.
    rules for the whole team (the "no filler, no trailing summaries, no AI slop"
    rules that keep Claude's prose from sounding AI-generated). It complements
    Ponytail, which governs code minimalism; CLAUDE.md governs communication style.
+
+   **Trim "Pull Request Descriptions" to the repo's issue tracker.** The template
+   carries both a GitHub-issue and a Jira bullet; keep only the one in use and
+   delete the other (and the `<!-- scaffolder: … -->` marker). Default to the
+   **GitHub** bullet for a GitHub-hosted repo (step 1); keep the **Jira** bullet
+   instead when the repo uses Jira — a `.jira`/Jira URL in the repo, a Jira remote,
+   or the user says so. If both trackers are genuinely in use, keep both. Carrying
+   the non-applicable bullet just trains the wrong PR convention into every session.
 
    **c. rules/** — copy ONLY the rules relevant to the chosen stack from
    `templates/claude/rules/` → `.claude/rules/`, skipping any file that already

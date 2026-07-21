@@ -18,7 +18,8 @@ Create a git commit for the current changes following the team commit policy.
 <subject line>
 
 Logic
-<reason for the change — the problem being solved or goal achieved>
+- <reason / problem being solved>
+- <goal being achieved>
 
 What this adds
 - <brief but thorough bullets describing what the change introduces>
@@ -52,3 +53,10 @@ Caveats/assumptions
 - Omit a section only if it genuinely doesn't apply (e.g. no real alternatives for a trivial
   rename, no meaningful caveats). Do not invent content to fill sections.
 - Do not commit secrets or unrelated changes.
+
+## Commit granularity
+
+Prefer one commit per task — each task's work is its own commit. Keep a completed task to a
+**single** commit: if a follow-up modifies an already-committed task (a fix, review correction, or
+amendment for that same task), squash it into that task's original commit rather than leaving a
+separate fixup commit. A finished task should show up as exactly one commit in the log.

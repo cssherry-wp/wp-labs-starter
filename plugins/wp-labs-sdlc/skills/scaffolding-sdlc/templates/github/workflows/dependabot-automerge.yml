@@ -18,6 +18,14 @@ jobs:
     if: github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
+      # gh pr merge shells out to git, so the job needs a working tree. Check out
+      # the BASE ref, not the PR head, so untrusted PR code never lands on disk in
+      # this write-token job. Do NOT add steps here that execute PR code.
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+
       - name: Fetch Dependabot metadata
         id: metadata
         uses: dependabot/fetch-metadata@v2

@@ -4,6 +4,7 @@ description: Review a changeset for a summary, surprises, architecture/security/
 user-invocable: true
 allowed-tools: Read, Bash, Grep, Glob, Agent, Skill, Edit, Write
 argument-hint: "[pr-number | pr-url] [--ci] [--fix] [--comment] [--effort low|medium|high|max]"
+model: opus
 ---
 
 # Change review

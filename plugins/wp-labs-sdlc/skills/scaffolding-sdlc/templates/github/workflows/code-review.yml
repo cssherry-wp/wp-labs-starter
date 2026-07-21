@@ -13,8 +13,11 @@ jobs:
   # artifact for the privileged job to act on. The agent runs ONLY in this job.
   review:
     # Same-repo PRs only: fork PRs get no secrets (the agent can't run) and can't push.
-    # Fork PRs are reviewed by a human, not by this workflow.
+    # Fork PRs are reviewed by a human, not by this workflow. Bot-authored PRs
+    # (e.g. Dependabot) are skipped: claude-code-action refuses non-human actors,
+    # and dependency bumps have no hand-written code to review.
     if: >-
+      github.event.pull_request.user.type != 'Bot' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       !contains(github.event.pull_request.labels.*.name, 'no-automation')
     runs-on: ubuntu-latest
