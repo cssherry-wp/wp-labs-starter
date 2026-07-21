@@ -1,6 +1,6 @@
 ---
 name: change-review
-description: Review a changeset for a summary, surprises, architecture/security/structure risks, correctness bugs, test coverage, lint/style of new files, and doc freshness — dispatching deep correctness to /code-review and deep security to /security-review, with confidence-scored findings. Reviews the uncommitted working-tree diff by default, or a GitHub PR when given a PR number/URL. Trigger when the user asks to review their changes, review the diff, review a branch before pushing, or review a PR.
+description: Review a changeset for a summary, surprises, architecture/security/structure risks, correctness bugs, test coverage, lint/style of new files, and doc freshness — dispatching deep correctness to /code-review, deep security to /security-review, and deep over-engineering to /ponytail-review, with confidence-scored findings. Reviews the uncommitted working-tree diff by default, or a GitHub PR when given a PR number/URL. Trigger when the user asks to review their changes, review the diff, review a branch before pushing, or review a PR.
 user-invocable: true
 allowed-tools: Read, Bash, Grep, Glob, Agent, Skill, Edit, Write
 argument-hint: "[pr-number | pr-url] [--ci] [--fix] [--comment] [--effort low|medium|high|max]"
@@ -9,8 +9,9 @@ argument-hint: "[pr-number | pr-url] [--ci] [--fix] [--comment] [--effort low|me
 # Change review
 
 Produce a focused review of a changeset against a fixed checklist, dispatching the
-deep passes to `/code-review` (correctness) and `/security-review` (security). Read-only
-by default — modify or comment only when `--fix`/`--comment` is passed.
+deep passes to `/code-review` (correctness), `/security-review` (security), and
+`/ponytail-review` (over-engineering). Read-only by default — modify or comment only
+when `--fix`/`--comment` is passed.
 
 ## 0. Parse flags
 
@@ -121,6 +122,9 @@ top-level dirs, or anything contradicting the stated rules from section 2. For e
 **Deep security hand-off:** always run `/security-review` against the working diff (the throwaway
 worktree for PR targets), scoped to these changes, and fold its findings into this point. Forward
 `--comment`/effort; security findings are generally not auto-fixable.
+**Deep over-engineering hand-off:** always run `/ponytail-review` against the same working diff to
+hunt reinvented stdlib, unneeded dependencies, speculative abstractions, and dead flexibility; fold
+its findings into this point. Report-only (no `--fix`/effort flags); forward `--comment`.
 
 **(4) Lint/style on new files.** For every **newly added** file, verify it matches the repo's
 linting/formatting and local conventions. Prefer running the real tools, scoped to the new files:
@@ -229,6 +233,7 @@ When `--ci` is passed (read-only mode), write findings as JSON, not prose — re
 ### 3. Architecture / security / structure
 - [HIGH/MED/LOW] <file:line> — <risk> → <direction> (confidence N)   (or: None)
   <deep security via /security-review folded in>
+  <deep over-engineering via /ponytail-review folded in>
 
 ### 4. Lint & style (new files)
 - <file> — <tool result / deviation + fix> (confidence N)   (or: All new files conform)
@@ -286,7 +291,8 @@ one-line summary of what was changed, logged, and ignored.
 - Respect the repo's own stated rules above generic priors.
 - **Relationship to other review skills** (see `review-skills-map.md`): this skill is the broad
   dispatcher. `/code-review` (built-in) is the deep correctness + code-quality pass it calls;
-  `/security-review` (built-in) is the deep vuln audit it calls. Note the **name collision**:
+  `/security-review` (built-in) is the deep vuln audit it calls; `/ponytail-review` (ponytail
+  plugin) is the deep over-engineering pass it calls. Note the **name collision**:
   built-in `/code-review` is *not* the third-party `code-review` plugin (PR-by-number, 5 agents) —
   this skill now absorbs that plugin's git-history, prior-PR, and inline-comment angles, so it is
   no longer needed in the review flow. After a review, `github-pr-review` handles replying to and
