@@ -21,6 +21,18 @@ if [ -d "$_queue_dir" ]; then
   done < <(find "$_queue_dir" -maxdepth 1 -type f -name '*.md' -mtime +30 -print0 2> /dev/null)
 fi
 
+# Queue migration check: collect queue files with open items from other sessions.
+# Runs before early exits so the data is available for the combined output below.
+_open_queue_files=()
+if [ -d "$_queue_dir" ]; then
+  while IFS= read -r -d '' _qf; do
+    _n=$(grep -c '^\- \[ \]' "$_qf" 2>/dev/null || true)
+    if [ "${_n:-0}" -gt 0 ]; then
+      _open_queue_files+=("$(basename "$_qf" .md): ${_n} open item(s)")
+    fi
+  done < <(find "$_queue_dir" -maxdepth 1 -type f -name '*.md' -print0 2>/dev/null)
+fi
+
 [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] || exit 0
 # ponytail: jq required for JSON output; silently skips when absent
 command -v jq > /dev/null 2>&1 || exit 0
@@ -60,16 +72,30 @@ if [ -f "$TMPL/settings.json" ] && [ -f "$CLAUDE_DIR/settings.json" ]; then
   [ "$merged" != "$current" ] && drift_files+=("settings.json")
 fi
 
-[ ${#drift_files[@]} -eq 0 ] && exit 0
+[ ${#drift_files[@]} -eq 0 ] && [ ${#_open_queue_files[@]} -eq 0 ] && exit 0
 
-drift_list=$(printf '  - %s\n' "${drift_files[@]}")
+msg=""
 
-msg="Your ~/.claude/ setup is out of sync with the wp-labs-sdlc plugin templates.
+if [ ${#drift_files[@]} -gt 0 ]; then
+  drift_list=$(printf '  - %s\n' "${drift_files[@]}")
+  drift_msg="Your ~/.claude/ setup is out of sync with the wp-labs-sdlc plugin templates.
 
 Drifted files:
 ${drift_list}
 IMPORTANT: At the start of this session, proactively tell the user their local Claude setup is out of sync and offer to apply the updates now — no additional command from them required. If they agree, apply each drifted file:
 - Text files (CLAUDE.md, statusline.sh, rules/*): read from ${TMPL}/<file> and write to ${CLAUDE_DIR}/<file>
 - settings.json: run jq -sS '.[0] as \$a | .[1] as \$b | (\$a * \$b) | .hooks = (((\$a.hooks // {} | keys) + (\$b.hooks // {} | keys) | unique) as \$keys | reduce \$keys[] as \$k ({}; . + {(\$k): ([\$a.hooks[\$k] // [], \$b.hooks[\$k] // []] | add)}))' ${CLAUDE_DIR}/settings.json ${TMPL}/settings.json and write the result to ${CLAUDE_DIR}/settings.json"
+  msg="$drift_msg"
+fi
+
+if [ ${#_open_queue_files[@]} -gt 0 ]; then
+  queue_list=$(printf '  - %s\n' "${_open_queue_files[@]}")
+  queue_msg="Open queue backlog from previous session(s):
+${queue_list}
+IMPORTANT: Ask the user if they want to migrate these open items to the current session. If yes, read each listed file, extract the open '- [ ]' items, and append them to ~/.claude/queue/<current-session-id>.md with a comment '# migrated from <uuid> <date>' before the block."
+  msg="${msg:+$msg
+
+}$queue_msg"
+fi
 
 jq -n --arg v "$msg" '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":$v}}'

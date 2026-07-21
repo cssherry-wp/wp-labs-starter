@@ -3,12 +3,12 @@ name: queue
 description: >-
   Session follow-up backlog. Invoked ONLY by the explicit /queue command — never
   auto-run: `/queue <ask>` captures a follow-up without derailing current work,
-  `/queue` (no args) reviews and runs the backlog after the current task, and
+  `/queue` (no args / empty args) reviews and runs the backlog after the current task, and
   `/queue list` shows it. The point is non-disruptive capture now, deferred
   execution later.
 user-invocable: true
 disable-model-invocation: true
-argument-hint: "[<ask> | list]"
+argument-hint: "[<ask> | list | (empty → drain backlog)]"
 allowed-tools: Read, Write, Edit, Bash
 ---
 
@@ -65,10 +65,12 @@ Rules:
 If nothing is currently in progress, say so and offer to run the item now
 instead of queueing it.
 
-## Mode B — Drain (review + run): `/queue` with no arguments
+## Mode B — Drain (review + run): empty ARGUMENTS
 
-Trigger this when the user runs it explicitly, or **proactively the moment the
-current task batch is complete** (that is the "run after current work" promise).
+Trigger when: the skill is invoked with **no arguments** (ARGUMENTS is empty or
+whitespace-only) — whether typed as `/queue`, as a bare skill name, or any other
+invocation that passes no text. Also trigger **proactively the moment the current
+task batch is complete** (that is the "run after current work" promise).
 
 1. Read the backlog. If there are no open items, say so and stop.
 2. For each open item, produce its **detailed `interpretation`** now (this is
