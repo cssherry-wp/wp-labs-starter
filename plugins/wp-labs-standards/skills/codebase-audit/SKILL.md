@@ -15,7 +15,9 @@ or manual pass can act on it.
 
 Built-in `/code-review` and `/security-review` are change-scoped (they operate on the branch
 diff), so this skill does NOT call them — it reuses their *lenses* and finding format, applied by
-fan-out agents over slices of the repo.
+fan-out agents over slices of the repo. `/ponytail-audit` is the exception: it is already
+whole-repo scoped, so the over-engineering lens is **delegated to it** rather than reimplemented
+inline, and its findings are folded into the Over-engineering section.
 
 ## 0. Parse arguments
 
@@ -47,29 +49,32 @@ Group in-scope files into size-bounded slices, one per coherent module/directory
 - Don't split a small directory; split an oversized one by subdirectory or file.
 - Keep files read together (a module and its tests) in the same slice.
 
-## 3. Fan out — one agent per slice
+## 3. Over-engineering lens — delegate to /ponytail-audit
+
+Run `/ponytail-audit` once over the in-scope tree (forward the `path` argument when given; it is
+report-only and takes no effort flag). It self-slices the whole repo, so do **not** also fan out
+over-engineering per slice. Map each of its ranked findings (`<tag> <what to cut>. <replacement>.
+[path]`) into the common finding shape below with `category: over-engineering`, and keep its
+`net: -<N> lines, -<M> deps` line for the section footer.
+
+## 4. Fan out — one agent per slice (correctness + security)
 
 Dispatch one Agent per slice (batch to a sane concurrency — don't launch hundreds at once). Give
-each agent the slice's file list and instruct it to apply all three lenses in a single read and
+each agent the slice's file list and instruct it to apply both lenses below in a single read and
 return findings as JSON.
 
-**Lens 1 — over-engineering** (ponytail lens): `delete:` dead code / speculative features;
-`stdlib:` hand-rolled things the standard library ships; `native:` deps doing what the platform
-already does; `yagni:` abstractions with one implementation / config nobody sets; `shrink:` same
-logic in fewer lines. Name the replacement.
-
-**Lens 2 — correctness** (`/code-review` lens): real defects with a concrete failure scenario
+**Correctness** (`/code-review` lens): real defects with a concrete failure scenario
 (null/undefined, off-by-one, wrong error handling, race, resource leak), plus reuse/efficiency
 issues.
 
-**Lens 3 — security** (vuln taxonomy): injection (SQL/command/template), SSRF, path traversal,
+**Security** (vuln taxonomy): injection (SQL/command/template), SSRF, path traversal,
 insecure deserialization, missing authn/authz, secrets in code, unsafe crypto. `/security-review`
 is change-scoped, so this taxonomy is the lens.
 
 Each finding: `{ file, line, category (over-engineering|correctness|security), severity
 (high|med|low), confidence (0-100), summary, detail, suggestion }`.
 
-## 4. Confidence scoring
+## 5. Confidence scoring
 
 Same scale as `change-review`:
 
@@ -79,13 +84,14 @@ Same scale as `change-review`:
 
 Report all findings; do not drop by score.
 
-## 5. Synthesize
+## 6. Synthesize
 
-Collect all slice findings. Dedup issues that span slice boundaries (same root cause reported
-twice). Rank: security and correctness by severity × confidence; over-engineering biggest-cut
-first. Produce the report below.
+Collect the correctness/security findings from the slice agents plus the over-engineering findings
+from `/ponytail-audit`. Dedup issues that span slice boundaries (same root cause reported twice).
+Rank: security and correctness by severity × confidence; over-engineering biggest-cut first.
+Produce the report below.
 
-## 6. Output format
+## 7. Output format
 
 ```
 ## Codebase audit — <path or repo>, <N> files / ~<L> lines, <S> slices

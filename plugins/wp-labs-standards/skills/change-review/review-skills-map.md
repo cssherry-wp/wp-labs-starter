@@ -9,6 +9,7 @@ Which reviewer to reach for, and how they hand off.
 | `/code-review` (built-in) | Deep correctness + reuse/simplification/efficiency on the working diff | no |
 | `/security-review` (built-in) | Deep vulnerability audit of branch changes | no |
 | `/ponytail-review` (ponytail plugin) | Deep over-engineering pass on the working diff | no (third-party) |
+| `/ponytail-audit` (ponytail plugin) | Whole-repo over-engineering audit; called by `codebase-audit` | no (third-party) |
 | `/review` (built-in) | Generic GitHub PR review | no |
 | `code-review` plugin (`anthropics/claude-code`) | PR-by-number, 5 specialized agents, confidence scoring | no (third-party) |
 | `requesting-code-review` | Process: ask for a review before merge | yes |
@@ -39,7 +40,9 @@ Three different things sit near the name "code-review":
 ## Whole-repo vs diff
 
 `change-review` reviews a **changeset** and dispatches the deep change-scoped passes
-(`/code-review`, `/security-review`). `codebase-audit` is its **whole-repo** sibling: it reviews
-the entire tree across three lenses (over-engineering, correctness, security) by fanning out
-agents that reuse those passes' lenses — it calls neither change-scoped command. Use
+(`/code-review`, `/security-review`, `/ponytail-review`). `codebase-audit` is its **whole-repo**
+sibling: it audits the entire tree across three lenses (over-engineering, correctness, security).
+It calls neither change-scoped review command (`/code-review`, `/security-review`) — those are
+diff-scoped, so it reuses their lenses via fan-out agents — but it **does** delegate the
+over-engineering lens to `/ponytail-audit`, which is itself whole-repo scoped. Use
 `codebase-audit` to sweep existing code; use `change-review` before pushing a change.
