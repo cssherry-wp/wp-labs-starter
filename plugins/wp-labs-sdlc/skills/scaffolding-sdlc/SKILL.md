@@ -316,6 +316,14 @@ directory; copy from there.
    rules that keep Claude's prose from sounding AI-generated). It complements
    Ponytail, which governs code minimalism; CLAUDE.md governs communication style.
 
+   **Trim "Pull Request Descriptions" to the repo's issue tracker.** The template
+   carries both a GitHub-issue and a Jira bullet; keep only the one in use and
+   delete the other (and the `<!-- scaffolder: … -->` marker). Default to the
+   **GitHub** bullet for a GitHub-hosted repo (step 1); keep the **Jira** bullet
+   instead when the repo uses Jira — a `.jira`/Jira URL in the repo, a Jira remote,
+   or the user says so. If both trackers are genuinely in use, keep both. Carrying
+   the non-applicable bullet just trains the wrong PR convention into every session.
+
    **c. rules/** — copy ONLY the rules relevant to the chosen stack from
    `templates/claude/rules/` → `.claude/rules/`, skipping any file that already
    exists (show diff and ask for conflicts). Selection logic:

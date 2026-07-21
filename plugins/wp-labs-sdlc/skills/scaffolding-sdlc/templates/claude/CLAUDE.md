@@ -38,6 +38,16 @@ Omit a section only if it genuinely doesn't apply (e.g. no real alternatives for
 
 Prefer one commit per task — each task's work is its own commit. But keep a completed task to a **single** commit: if you make a follow-up commit that modifies an already-committed task (a fix, review correction, or amendment for that same task), squash it into that task's original commit rather than leaving a separate fixup commit. A finished task should show up as exactly one commit in the log.
 
+## Pull Request Descriptions
+
+<!-- scaffolder (SKILL.md step 8b): keep only the bullet for this repo's issue
+     tracker and delete the other bullet and this comment. -->
+
+Link the tracker issue by its type:
+
+- **GitHub issue**: put a [linking keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword) with the issue number — `Closes #123` (also `Fixes`/`Resolves`) to close on merge, or `Refs #123` to link without closing — on its own plain-text line; GitHub ignores it inside a markdown heading or backticks/code spans. A single issue goes at the bottom of the description. When the PR resolves **multiple** issues, put each keyword at the bottom of the description section it relates to, not all together at the absolute bottom.
+- **Jira issue(s)**: prefix the PR title with the issue ID, joining multiple with a comma and space (e.g. `JIRA-1: <summary>` or `JIRA-1, JIRA-2: <summary>`).
+
 ## Output Style
 
 These rules apply to all Claude output: responses, artifact text, PR descriptions, docs, and inline comments.
