@@ -265,9 +265,7 @@ per finding (batch up to 4 per call, iterate until all are triaged). Skip this e
 
 - **`header`**: `<file>:<line>` or short finding slug.
 - **`question`**: the finding's impact (what breaks or degrades if left as-is) plus the pro/con of
-  each choice, so the trade-offs live in the text — apply now (resolved this pass, but grows the
-  diff), log as issue (tracked without growing the diff, but deferred), or ignore (no work, but the
-  risk stands).
+  each choice, so the trade-offs live in the text.
 - **`options`** — the action label only, no pro/con in the descriptions:
   - **Make the change** — apply the fix now.
   - **Log as new issue** — create a tracker issue (repo convention: `gh issue create`, else Jira
