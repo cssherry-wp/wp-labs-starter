@@ -10,3 +10,9 @@ Any change to a plugin under `plugins/` MUST increment that plugin's `version` i
 - **patch** (`0.0.X`) — small fixes, docs, and tweaks.
 
 Bump in the same PR as the change. A plugin change without a version bump is incomplete.
+
+## Commits reference an issue
+
+Every commit MUST reference the GitHub issue it addresses via a trailer — `Closes #123` when
+the commit completes the issue, otherwise `Refs #123`. If no issue exists for the change, create
+one first (`gh issue create`), then reference it.
