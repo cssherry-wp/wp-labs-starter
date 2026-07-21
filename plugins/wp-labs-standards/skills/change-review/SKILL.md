@@ -256,6 +256,29 @@ When `--ci` is passed (read-only mode), write findings as JSON, not prose — re
 
 Keep it tight. End with the verdict, blockers first.
 
+## 8. Interactive triage (non-`--ci` only)
+
+After printing the report, if there are **unfixed** findings (everything not applied under
+`--fix`), present them for the user to decide on with the `AskUserQuestion` tool — one question
+per finding (batch up to 4 per call, iterate until all are triaged). Skip this entirely under
+`--ci` (machine mode writes JSON and never prompts).
+
+- **`header`**: `<file>:<line>` or short finding slug.
+- **`question`**: the finding's impact (what breaks or degrades if left as-is) plus the pro/con of
+  each choice, so the trade-offs live in the text.
+- **`options`** — the action label only, no pro/con in the descriptions:
+  - **Make the change** — apply the fix now.
+  - **Log as new issue** — create a tracker issue (repo convention: `gh issue create`, else Jira
+    via `acli`) capturing the finding, and link it back.
+  - **Ignore** — drop it.
+
+The user can press **`n`** to attach a free-text note to any choice; read it from the answer's
+`annotations[].notes` and carry it into the action (append to the issue body, or record alongside
+an ignored finding).
+
+Act on each selection: apply the edit, create the issue, or record it as acknowledged. Report a
+one-line summary of what was changed, logged, and ignored.
+
 ## Notes
 
 - For large changesets, fan out with the Agent tool (one agent per area or checklist point) and
