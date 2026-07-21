@@ -18,3 +18,4 @@ ensure "no-automation"     "ededed" "Opt out of Claude comment-triage auto-fix o
 ensure "dependencies"      "0366d6" "Dependency updates (Dependabot)"
 ensure "security"          "b60205" "Security finding or security-related change"
 ensure "needs-rebase"      "e99695" "PR is behind main and auto-rebase hit conflicts"
+ensure "needs-ai-review"   "e99695" "Trigger an AI code review on this PR"

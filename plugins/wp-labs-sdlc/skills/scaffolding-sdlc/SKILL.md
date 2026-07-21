@@ -120,9 +120,10 @@ directory; copy from there.
    - dev-loop: `Makefile`, tool configs, `.gitignore`, manifest
    - starter app (greenfield only)
    - `git-hooks/pre-commit`
-   - each workflow: `ci.yml`, `security.yml`, `code-review.yml` (two jobs — a
-     read-only `review` job runs `change-review` and a privileged `apply` job
-     applies its patch + posts findings), `claude.yml`,
+   - each workflow: `ci.yml`, `security.yml`, `code-review.yml` (three jobs — a
+     `remove-label` job strips `needs-ai-review` immediately, a read-only `review`
+     job runs `change-review`, and a privileged `apply` job applies its patch + posts
+     findings; triggers only when the `needs-ai-review` label is added), `claude.yml`,
      `claude-comment-triage.yml`, `pr-status-labels.yml`, `pr-rebase.yml`
    - branch protection on the default branch (require a PR to merge; block
      force-push and deletion) — see "Set branch protection" below
