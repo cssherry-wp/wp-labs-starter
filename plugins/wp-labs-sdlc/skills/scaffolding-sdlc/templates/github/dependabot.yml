@@ -1,6 +1,9 @@
-# The `npm` and `pip` update blocks below are conditional: the scaffolder
+# The `npm` and `uv` update blocks below are conditional: the scaffolder
 # (SKILL.md step 5) removes `npm` when no TypeScript/JavaScript is detected and
-# `pip` when no Python is detected. The `github-actions` block always stays.
+# the Python block when no Python is detected. The Python block defaults to the
+# `uv` ecosystem; switch it to `pip` when the repo already pins with pip
+# (requirements.txt / Pipfile / setup.py and no uv.lock). The `github-actions`
+# block always stays.
 #
 # Grouping: minor/patch bumps ride together in one auto-mergeable PR per
 # ecosystem; majors get their own PR. Dependabot gates a group's automerge on
@@ -16,12 +19,12 @@ updates:
       npm-minor:
         patterns: ["*"]
         update-types: ["minor", "patch"]
-  - package-ecosystem: "pip"
+  - package-ecosystem: "uv" # switch to "pip" if the repo already pins with pip
     directory: "/"
     schedule: { interval: "weekly" }
     labels: ["dependencies"]
     groups:
-      pip-minor:
+      python-minor:
         patterns: ["*"]
         update-types: ["minor", "patch"]
   - package-ecosystem: "github-actions"

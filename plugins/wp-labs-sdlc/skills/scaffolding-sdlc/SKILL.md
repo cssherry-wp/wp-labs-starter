@@ -219,12 +219,18 @@ directory; copy from there.
    | Update block | Keep when |
    |--------------|-----------|
    | `npm` | `typescript` or `frontend` detected |
-   | `pip` | `python` detected |
+   | Python (`uv`) | `python` detected |
    | `github-actions` | always |
+
+   The Python block ships as `package-ecosystem: "uv"`. Keep `uv` by default;
+   switch it to `pip` only when the repo already pins with pip — a
+   `requirements.txt`, `Pipfile`, or `setup.py` and no `uv.lock`. `uv` and
+   `pip` are distinct ecosystems, not aliases, so the value must match how the
+   repo actually locks dependencies.
 
    Delete the whole `- package-ecosystem` block for any ecosystem not kept —
    a block with no matching manifest makes Dependabot log an error on every
-   run. If neither npm nor pip applies, only the `github-actions` block
+   run. If neither npm nor Python applies, only the `github-actions` block
    remains.
 
    Skip any
