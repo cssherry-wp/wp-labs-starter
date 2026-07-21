@@ -53,7 +53,12 @@ Keep this near-instant so it does not disrupt the current flow:
    timestamp and a one-line `ctx`. Do **not** write an `interpretation` now —
    reading scope/files/open-questions is the mid-task disruption this skill
    avoids; it is produced later at drain/list time.
-3. Acknowledge in ONE line: `Queued (N in backlog) — continuing current task.`
+3. Run one final Bash command to print the acknowledgment — output **no prose
+   text**. The tool result IS the notification; a prose response would linger
+   permanently in the conversation.
+   ```bash
+   printf 'Queued (%d in backlog) → %s\n' N ~/.claude/queue/<session-id>.md
+   ```
 4. Do NOT start the ask, and do NOT re-plan current work around it. Return
    immediately to what you were doing.
 
