@@ -44,23 +44,23 @@ Each item is one block. Capture writes only the first three lines; the
 
 ## Mode A — Capture: `/queue <ask>` (arguments present)
 
-Keep this near-instant so it does not disrupt the current flow:
+Keep this near-instant so it does not disrupt the current flow. Use **one single
+Bash call** — timestamp + append + acknowledgment together, so the item hits disk
+before any other tool runs:
 
-1. Get the real timestamp: run `date '+%Y-%m-%d %H:%M:%S'` via Bash. (This is
-   a skill you execute, so `date` is available — record the actual time, do not
-   guess or omit it.)
-2. Append a new `- [ ] ` item preserving the user's wording, with the `queued`
-   timestamp and a one-line `ctx`. Do **not** write an `interpretation` now —
-   reading scope/files/open-questions is the mid-task disruption this skill
-   avoids; it is produced later at drain/list time.
-3. Run one final Bash command to print the acknowledgment — output **no prose
-   text**. The tool result IS the notification; a prose response would linger
-   permanently in the conversation.
-   ```bash
-   printf 'Queued (%d in backlog) → %s\n' N ~/.claude/queue/<session-id>.md
-   ```
-4. Do NOT start the ask, and do NOT re-plan current work around it. Return
-   immediately to what you were doing.
+```bash
+FILE=~/.claude/queue/<session-id>.md
+STAMP=$(date '+%Y-%m-%d %H:%M:%S')
+mkdir -p ~/.claude/queue
+printf -- '- [ ] <ask verbatim>\n  queued: %s\n  ctx: <one line on current work>\n\n' "$STAMP" >> "$FILE"
+printf 'Queued (%d in backlog) → %s\n' "$(grep -c '^\- \[' "$FILE")" "$FILE"
+```
+
+Rules:
+- Store the user's exact wording as the `- [ ] ` item. Do **not** summarize or paraphrase.
+- Do **not** write an `interpretation` — reading scope is the disruption this avoids; it is added at drain/list time.
+- Output **no prose text** — the Bash tool result IS the notification; prose lingers permanently.
+- Do NOT start the ask, and do NOT re-plan current work around it. Return immediately to what you were doing.
 
 If nothing is currently in progress, say so and offer to run the item now
 instead of queueing it.
