@@ -1,6 +1,7 @@
 ---
 name: python-style
 description: Python coding standards. Use when writing, editing, or reviewing Python (.py) files — covers AI-prone mistakes, Google-style docstrings, type annotations, and testing.
+user-invocable: false
 ---
 
 # Python Coding Guidelines

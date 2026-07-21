@@ -1,6 +1,7 @@
 ---
 name: general-coding-guidelines
 description: General coding standards for any code. Use whenever writing, reviewing, or refactoring code in any language — covers KISS, clean code, function length, logging/observability, testing, docs, and security expectations.
+user-invocable: false
 ---
 
 # AI Coding Guidelines

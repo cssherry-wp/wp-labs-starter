@@ -1,6 +1,7 @@
 ---
 name: github-pr-review
 description: Handle GitHub PR review comments using gh CLI and GraphQL API. Use when responding to inline PR comments, resolving review threads, or managing PR feedback.
+allowed-tools: Bash
 ---
 
 # GitHub PR Review Comment Handler

@@ -1,6 +1,7 @@
 ---
 name: sql-style
 description: Enterprise SQL guidelines. Use when writing or reviewing SQL, schema definitions, or database migrations — covers naming, indexing, primary-key strategy, injection prevention, and best practices.
+user-invocable: false
 ---
 
 # Enterprise SQL Guidelines

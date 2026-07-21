@@ -1,6 +1,7 @@
 ---
 name: github-pr-prepare
 description: Use when agent makes a GitHub PR
+allowed-tools: Bash
 ---
 
 - You can expect `gh` is installed and configured

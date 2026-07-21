@@ -1,6 +1,7 @@
 ---
 name: scaffolding-sdlc
 description: Use when starting a new repo or adding SDLC automation to an existing one — sets up lint, unit tests, Playwright e2e, security scanning, Dependabot, PR-status labels, pre-commit hooks, and Claude PR automation that run on every PR. Pass --setup-claude to instead configure the global ~/.claude/ environment (settings, plugins, CLAUDE.md, rules) on a fresh machine or new Claude Code install.
+argument-hint: "[--setup-claude]"
 ---
 
 # Scaffolding SDLC

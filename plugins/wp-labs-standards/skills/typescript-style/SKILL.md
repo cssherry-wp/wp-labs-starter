@@ -1,6 +1,7 @@
 ---
 name: typescript-style
 description: JavaScript, TypeScript & React standards. Use when writing, editing, or reviewing .js/.ts/.jsx/.tsx files — covers AI-prone mistakes, TypeScript preferences, React rules, and architecture.
+user-invocable: false
 ---
 
 # JavaScript, TypeScript & React Rules

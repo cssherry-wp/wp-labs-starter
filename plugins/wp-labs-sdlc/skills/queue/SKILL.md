@@ -7,6 +7,8 @@ description: >-
   `/queue list` shows it. The point is non-disruptive capture now, deferred
   execution later.
 user-invocable: true
+disable-model-invocation: true
+argument-hint: "[<ask> | list]"
 allowed-tools: Read, Write, Edit, Bash
 ---
 
