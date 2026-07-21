@@ -33,6 +33,7 @@ jobs:
     # (e.g. Dependabot) are skipped: claude-code-action refuses non-human actors,
     # and dependency bumps have no hand-written code to review.
     if: >-
+      github.event.label.name == 'needs-ai-review' &&
       github.event.pull_request.user.type != 'Bot' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       !contains(github.event.pull_request.labels.*.name, 'no-automation')
