@@ -2,16 +2,32 @@ name: Code Review
 
 on:
   pull_request:
-    types: [opened, synchronize, ready_for_review, reopened]
+    types: [labeled]
 
 # No permissions by default; each job requests only the minimum it needs.
 permissions: {}
 
 jobs:
-  # Job A — runs the agent on untrusted PR content. Its token is read-only, so it can
+  # Job A — removes the needs-ai-review label immediately so re-labelling re-triggers a
+  # fresh review instead of being deduplicated.
+  remove-label:
+    if: github.event.label.name == 'needs-ai-review'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Remove needs-ai-review label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: gh api -X DELETE "repos/$REPO/issues/$PR/labels/needs-ai-review" || true
+
+  # Job B — runs the agent on untrusted PR content. Its token is read-only, so it can
   # neither push nor comment. It produces an autofix patch + a findings file as an
   # artifact for the privileged job to act on. The agent runs ONLY in this job.
   review:
+    needs: remove-label
     # Same-repo PRs only: fork PRs get no secrets (the agent can't run) and can't push.
     # Fork PRs are reviewed by a human, not by this workflow. Bot-authored PRs
     # (e.g. Dependabot) are skipped: claude-code-action refuses non-human actors,
@@ -118,7 +134,7 @@ jobs:
           path: ${{ runner.temp }}/cr/
           retention-days: 1
 
-  # Job B — privileged and deterministic. No agent, no execution of PR code. It applies
+  # Job C — privileged and deterministic. No agent, no execution of PR code. It applies
   # the vetted patch and posts the findings comment, nothing else.
   apply:
     needs: review
