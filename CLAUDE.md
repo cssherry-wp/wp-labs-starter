@@ -1,0 +1,12 @@
+# Repository instructions
+
+## Plugin version bumps
+
+Any change to a plugin under `plugins/` MUST increment that plugin's `version` in its
+`.claude-plugin/plugin.json`. Follow [semver](https://semver.org):
+
+- **major** (`X.0.0`) — breaking or large changes.
+- **minor** (`0.X.0`) — new backward-compatible features.
+- **patch** (`0.0.X`) — small fixes, docs, and tweaks.
+
+Bump in the same PR as the change. A plugin change without a version bump is incomplete.
