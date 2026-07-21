@@ -59,6 +59,7 @@ class LlmCfg:
     flags: list[str]
     model: str
     endpoint: str
+    timeout: int = 300
 
 
 @dataclass
@@ -156,6 +157,7 @@ def _build_llm(ll: dict[str, Any]) -> LlmCfg:
         flags=list(ll.get("flags", ["-p"])),
         model=ll.get("model", ""),
         endpoint=ll.get("endpoint", ""),
+        timeout=int(ll.get("timeout", 300)),
     )
     if cfg.backend not in ("claude", "local"):
         raise ConfigError("llm.backend must be 'claude' or 'local'")

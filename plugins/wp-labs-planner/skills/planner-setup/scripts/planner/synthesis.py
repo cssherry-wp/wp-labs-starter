@@ -15,7 +15,7 @@ def run_backend(cfg: LlmCfg, prompt: str) -> str:
         return _run_http(cfg, prompt)
     cmd = [cfg.command, *cfg.flags]
     try:
-        proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=300)
+        proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=cfg.timeout)
     except (subprocess.SubprocessError, OSError) as exc:
         raise SynthesisError(f"LLM backend failed to run: {exc}") from exc
     if proc.returncode != 0 or not proc.stdout.strip():
@@ -30,7 +30,7 @@ def _run_http(cfg: LlmCfg, prompt: str) -> str:
     body = json.dumps({"model": cfg.model, "prompt": prompt, "stream": False}).encode()
     req = urllib.request.Request(cfg.endpoint, data=body, headers={"Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=300) as resp:
+        with urllib.request.urlopen(req, timeout=cfg.timeout) as resp:
             data = json.loads(resp.read().decode())
     except (OSError, json.JSONDecodeError) as exc:
         raise SynthesisError(f"Local LLM endpoint failed: {exc}") from exc
