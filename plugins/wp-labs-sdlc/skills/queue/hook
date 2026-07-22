@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Queue interceptor: Modes A (capture) and C (list) return decision:block to bypass LLM.
-# Installed to ${CLAUDE_CONFIG_DIR:-~/.claude}/queue/hook by /queue setup.
+# Queue interceptor: all /queue commands route through here first.
+# - Capture (A) and list (C): block LLM, handle directly
+# - Drain (B) and migrate (D): pre-fetch q data, inject context, let LLM handle
+# - Setup: pass through to LLM
 set -euo pipefail
 command -v jq >/dev/null 2>&1 || exit 0
 
@@ -8,13 +10,29 @@ _in=$(cat)
 _prompt=$(printf '%s' "$_in" | jq -r '.prompt // empty' 2>/dev/null || true)
 _sid=$(printf '%s' "$_in" | jq -r '.session_id // empty' 2>/dev/null || true)
 
-# Only intercept /queue <args> (requires a space — bare /queue goes to LLM for drain)
-[[ "$_prompt" =~ ^/queue\  ]] || exit 0
-_args="${_prompt#/queue }"
+# Intercept bare /queue and /queue <args>
+[[ "$_prompt" == "/queue" ]] || [[ "$_prompt" =~ ^/queue\  ]] || exit 0
 
-# q symlink created by /queue setup — stable regardless of plugin version
 _q="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q"
 [ -x "$_q" ] || exit 0
+
+if [[ "$_prompt" == "/queue" ]]; then
+  # Mode B: drain — inject queue state so Claude can handle selection and execution
+  _list=$("$_q" list "$_sid" 2>&1 || true)
+  _needs=$("$_q" needs-interpretation "$_sid" 2>&1 || true)
+  if [ -n "$_needs" ]; then
+    jq -n --arg list "$_list" --arg needs "$_needs" \
+      '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":
+        ("Queue state (do not re-fetch):\n\n"+$list+"\n\nNeeding interpretation:\n"+$needs)}}'
+  else
+    jq -n --arg list "$_list" \
+      '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":
+        ("Queue state (do not re-fetch):\n\n"+$list)}}'
+  fi
+  exit 0
+fi
+
+_args="${_prompt#/queue }"
 
 case "$_args" in
   list*)
@@ -22,8 +40,13 @@ case "$_args" in
     _result=$("$_q" list "$_sid" 2>&1 || true)
     jq -n --arg r "$_result" '{"decision":"block","reason":$r}'
     ;;
-  migrate*|setup*)
-    # Modes E, Setup: pass through to LLM
+  migrate*)
+    # Mode D: inject other-session items so Claude can handle interactive selection
+    _others=$("$_q" list-other "$_sid" 2>&1 || true)
+    jq -n --arg ctx "Other session items (do not re-fetch):\n\n${_others}" \
+      '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":$ctx}}'
+    ;;
+  setup*)
     exit 0
     ;;
   *)

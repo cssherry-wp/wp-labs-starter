@@ -71,31 +71,32 @@ ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q add <session-id> [--high|--med|--low
 
 If nothing is currently in progress, say so and offer to run the item now instead.
 
-## Mode B — Drain: empty ARGUMENTS
+## Mode B — Drain: bare `/queue` (no arguments)
 
-Trigger when invoked with no arguments. Also trigger proactively when the current
-task batch is complete (that is the "run after current work" promise).
+The hook pre-fetches queue state and injects it as `additionalContext`. Use the injected
+data — do not re-run `q list` or `q needs-interpretation`.
 
-1. `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q needs-interpretation <session-id>` → prints `<n>\t<ask>` for
-   each open item missing an `interpretation:`. If output is empty, all items already
-   have interpretations — skip to step 3.
-2. For each listed item, generate a detailed `interpretation` (scope, files to touch,
-   open questions), then write it:
+1. From the injected "Needing interpretation" section, generate a detailed `interpretation`
+   for each listed item and write it:
    `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q write-interpretation <session-id> <n> "<interpretation>"`
-3. `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q list <session-id>` — print the full formatted list.
-4. **Select items to run:**
-   - **≤ 4 open items**: use `AskUserQuestion` (multiSelect) — one option per item
-     showing ask + priority badge. Users can attach per-item notes.
-   - **> 4 open items**: the numbered list from step 3 is already printed. Ask:
+   If no items are listed there, skip this step.
+
+2. Count open items from the injected list and select which to run:
+   - **≤ 4 open items**: use `AskUserQuestion` (multiSelect) — one option per item showing
+     ask + priority badge. Users can attach per-item notes.
+   - **> 4 open items**: print the list (already in context) and ask:
      "Which items to run? Reply with numbers (e.g. 1 3 5) and any per-item notes."
-     **Never use `AskUserQuestion` for > 4 items — not even for a subset of them. Always use plain text.**
-5. Run chosen items in order. A per-item note overrides the original wording.
+     **Never use `AskUserQuestion` for > 4 items.**
+
+3. Run chosen items in order. A per-item note overrides the original wording.
    Treat each as its own task (own commit if it touches code, per the commit policy).
-6. Mark completed: `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q mark-done <session-id> <n1> <n2> ...`
+
+4. Mark completed: `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q mark-done <session-id> <n1> <n2> ...`
    Close with one line: what ran, what was skipped, what was dropped.
-7. **Ralph loop**: if open items still remain, go back to step 1 immediately — do NOT
-   wait for another `/queue` invocation. Exit the loop only when no open items remain
-   or the user replies with nothing / "stop" / "done" / "exit".
+
+5. **Ralph loop**: if open items remain, call `q list` and `q needs-interpretation` directly
+   (hook only pre-fetches on the initial `/queue` prompt). Loop until no open items or user
+   replies "stop" / "done" / "exit".
 
 ## Mode C — List only: `/queue list`
 
@@ -111,28 +112,29 @@ Print the output. Done — produce or write no interpretations.
 
 ## Mode D — Migrate: `/queue migrate [<src-session-id>]`
 
-Trigger when ARGUMENTS starts with `migrate`. Always interactive — list first, then ask.
+The hook pre-fetches `q list-other` and injects as `additionalContext`. Use that data.
 
-1. `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q list-other <session-id>` — print open items from all other
-   sessions, each labelled `[sid8:n]`. If a `<src-session-id>` was given in ARGUMENTS,
-   display only shows items from that session (still uses `list-other`, Claude filters
-   the display by session prefix).
+1. Display the injected list of other-session items (each labelled `[sid8:n]`).
+   If a `<src-session-id>` was given in ARGUMENTS, filter the display to that session prefix.
+
 2. Ask: "Which items to migrate? Reply with numbers (e.g. `1 3 5`) or `[sid8:n]` refs.
    `none` or empty to abort."
-3. Map plain numbers to the `[sid8:n]` refs shown in the listing from step 1.
+
+3. Map plain numbers to the `[sid8:n]` refs from the displayed list.
+
 4. `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q migrate-items <session-id> <sid8:n> [<sid8:n> ...]`
+
 5. Print the output. Done — do NOT auto-drain the backlog afterward.
 
 ## Mode Setup: `/queue setup`
 
 One-time install of the UserPromptSubmit interceptor hook.
 
-After setup:
-- **Mode A** (capture) — hook calls `q add` and returns `{"decision":"block"}`, bypassing
-  the LLM entirely. Zero latency.
-- **Mode C** (list) — hook runs `q list`, returns `{"decision":"block"}` with the output.
-  Claude is never invoked.
-- Modes B, D — unchanged, go through LLM as before.
+After setup, all `/queue` commands route through the hook first:
+- **Mode A** (capture) — hook calls `q add`, blocks LLM. Zero latency.
+- **Mode B** (drain) — hook pre-fetches queue state, injects as context, LLM handles selection/execution.
+- **Mode C** (list) — hook calls `q list`, blocks LLM, shows output directly.
+- **Mode D** (migrate) — hook pre-fetches `q list-other`, injects as context, LLM handles selection.
 
 Steps:
 
