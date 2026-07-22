@@ -52,10 +52,10 @@ if [ -f "$_q" ] && [ -n "$_session_id" ]; then
 ${_pending}
 
 Each item is labelled [sid8:n]. To migrate selected items:
-  \`${_q} migrate-items ${_session_id} <sid8:n> [<sid8:n> ...]\`
+  \`q migrate-items ${_session_id} <sid8:n> [<sid8:n> ...]\`
 To migrate all items from a session:
-  \`${_q} migrate ${_session_id} <src-session-id>\`
-To see full details: \`${_q} list-other ${_session_id}\`"
+  \`q migrate ${_session_id} <src-session-id>\`
+To see full details: \`q list-other ${_session_id}\`"
   fi
 fi
 
