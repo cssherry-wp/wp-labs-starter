@@ -113,11 +113,15 @@ This is the preferred exit path; items migrate silently into the next session.
 
 ## Mode E — Migrate: `/queue migrate`
 
-Pulls open items from all other sessions into this one, cancelling them in place.
-Idempotent — safe to run manually if the hook missed it.
+The hook detects open items in other sessions and asks you which to migrate.
+You can also trigger migration manually. Always confirm before migrating.
 
 ```bash
+# Migrate all other sessions:
 ~/.claude/queue/q migrate <session-id>
+
+# Migrate specific sessions only:
+~/.claude/queue/q migrate <session-id> <src-session-id> [...]
 ```
 
 Print the output. Done.

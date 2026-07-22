@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # queue helper — deterministic file I/O for the /queue skill
-# usage: q <add|list|needs-interpretation|write-interpretation|mark-done|mark-cancelled|clear|rename-pending|migrate> ...
+# usage: q <add|list|needs-interpretation|write-interpretation|mark-done|mark-cancelled|clear|rename-pending|list-migrateable|migrate> ...
 set -euo pipefail
 
 QUEUE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue"
@@ -249,9 +249,25 @@ rename-pending)
   fi
   ;;
 
+list-migrateable)
+  # q list-migrateable <session-id>  — list sessions with open items, no mutations
+  SID="$1"
+  for src_file in "$QUEUE_DIR"/*.md; do
+    [ -f "$src_file" ] || continue
+    base=$(basename "$src_file" .md)
+    [ "$base" = "$SID" ] && continue
+    [ "$base" = "pending" ] && continue
+    n=$(grep -c '^- \[ \]' "$src_file" 2>/dev/null || echo 0)
+    [ "${n:-0}" -gt 0 ] && printf '%d open item(s) in session %s\n' "$n" "$base"
+  done
+  ;;
+
 migrate)
-  # q migrate <session-id>  — cancel open items in other sessions, append fresh copies here
-  SID="$1"; DST="$QUEUE_DIR/$SID.md"
+  # q migrate <session-id> [src-session-id ...]  — cancel open items in other sessions, append fresh copies here
+  # If source session IDs are given, only migrate those; otherwise migrate all
+  SID="$1"; shift || true
+  SRC_FILTER=("$@")
+  DST="$QUEUE_DIR/$SID.md"
   total=0; sessions=0
 
   for src_file in "$QUEUE_DIR"/*.md; do
@@ -259,6 +275,11 @@ migrate)
     base=$(basename "$src_file" .md)
     [ "$base" = "$SID" ] && continue
     [ "$base" = "pending" ] && continue
+    if [ "${#SRC_FILTER[@]}" -gt 0 ]; then
+      found=0
+      for s in "${SRC_FILTER[@]}"; do [ "$base" = "$s" ] && found=1 && break; done
+      [ $found -eq 0 ] && continue
+    fi
 
     n=$(python3 - "$src_file" "$DST" "$SID" "$base" <<'PY'
 import sys, re
@@ -314,7 +335,7 @@ PY
   ;;
 
 *)
-  echo "Usage: q <add|list|needs-interpretation|write-interpretation|mark-done|mark-cancelled|clear|rename-pending|migrate> ..." >&2
+  echo "Usage: q <add|list|needs-interpretation|write-interpretation|mark-done|mark-cancelled|clear|rename-pending|list-migrateable|migrate> ..." >&2
   exit 1
   ;;
 esac
