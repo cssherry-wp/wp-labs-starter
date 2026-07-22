@@ -107,6 +107,17 @@ Print the output. Done — produce or write no interpretations.
 
 Print the output. Done. Open items are marked `[-]` with `cancelled: <timestamp>` and
 `reason: Moved after clear`, then written as fresh `- [ ]` blocks to
-`~/.claude/queue/pending.md`. The SessionStart hook automatically renames `pending.md`
-to the new session's UUID on the next session start — no user confirmation needed.
+`~/.claude/queue/pending.md`. The UserPromptSubmit hook automatically renames `pending.md`
+to the new session's UUID on the first prompt of the next session — no user confirmation needed.
 This is the preferred exit path; items migrate silently into the next session.
+
+## Mode E — Migrate: `/queue migrate`
+
+Pulls open items from all other sessions into this one, cancelling them in place.
+Idempotent — safe to run manually if the hook missed it.
+
+```bash
+~/.claude/queue/q migrate <session-id>
+```
+
+Print the output. Done.
