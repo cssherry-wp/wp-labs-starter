@@ -9,6 +9,7 @@ command -v jq > /dev/null 2>&1 || exit 0
 
 _input=$(cat)
 _session_id=$(printf '%s' "$_input" | jq -r '.session_id // empty' 2>/dev/null || true)
+_prompt=$(printf '%s' "$_input" | jq -r '.prompt // empty' 2>/dev/null || true)
 
 _queue_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue"
 _trash_dir="${CLAUDE_QUEUE_TRASH_DIR:-$HOME/.Trash}"
@@ -37,25 +38,34 @@ fi
 
 _q="${CLAUDE_PLUGIN_ROOT}/skills/queue/q"
 
+# Keep stable q symlink pointing at the active plugin version.
+# Runs once per session (sentinel above guards frequency); cheap and keeps the
+# symlink current when the plugin upgrades, without requiring /queue setup.
+_stable_q="${_queue_dir}/q"
+[ -f "$_q" ] && ln -sf "$_q" "$_stable_q" 2>/dev/null || true
+
 # Rename pending.md → <session-id>.md (left by /queue clear in a prior session)
 if [ -f "${_queue_dir}/pending.md" ] && [ -n "$_session_id" ]; then
   "$_q" rename-pending "$_session_id" >&2 || true
 fi
 
-# Detect open items in other sessions (no migration yet — Claude will prompt the user)
+# Detect open items in other sessions (no migration yet — Claude will prompt the user).
+# Skip if prompt is already a /queue command — the queue/hook handles that path.
 _migrate_output=""
-if [ -f "$_q" ] && [ -n "$_session_id" ]; then
+_is_queue_cmd=false
+case "$_prompt" in /queue|"/queue "*) _is_queue_cmd=true ;; esac
+if [ "$_is_queue_cmd" = false ] && [ -f "$_q" ] && [ -n "$_session_id" ]; then
   _pending=$("$_q" list-other "$_session_id" --oneline 2>/dev/null || true)
   if [ -n "$_pending" ]; then
-    _migrate_output="Open items exist in other sessions. IMPORTANT: before doing anything else, show the list below and ask the user which items to bring into this session. Do not migrate without confirmation.
+    _migrate_output="Open items exist from other sessions. BEFORE responding to the user's request, use AskUserQuestion with multiSelect:true to ask which items to bring into this session. Do not migrate without confirmation. Do not proceed with the user's task until the user answers.
 
+Items (each labelled [sid8:n]):
 ${_pending}
 
-Each item is labelled [sid8:n]. To migrate selected items:
-  \`q migrate-items ${_session_id} <sid8:n> [<sid8:n> ...]\`
-To migrate all items from a session:
-  \`q migrate ${_session_id} <src-session-id>\`
-To see full details: \`q list-other ${_session_id}\`"
+After user responds:
+- To migrate chosen items: \`${_q} migrate-items ${_session_id} <sid8:n> [<sid8:n> ...]\`
+- To skip all: proceed with the user's original request.
+- THEN run the user's original request."
   fi
 fi
 
