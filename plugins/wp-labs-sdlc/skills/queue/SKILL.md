@@ -43,6 +43,15 @@ Each item is one block. Capture writes the first three (or four) lines; the
     what it requires, the scope, the files/areas it will touch, open questions>
 ```
 
+Cancelled items use `- [-]` and gain a `reason:` field:
+
+```
+- [-] <the ask, verbatim>
+  queued: <YYYY-MM-DD HH:MM:SS>
+  reason: Moved after clear | Moved after exit | <other>
+  moved-to: <uuid | pending>   ← include when moved to another session
+```
+
 ## Mode A — Capture: `/queue [--high|--med|--low] <ask>` (arguments present)
 
 **Priority flags** (optional): if ARGUMENTS begins with `--high`, `--med`, or `--low`,
@@ -104,14 +113,30 @@ task batch is complete** (that is the "run after current work" promise).
    - Remove an item only when the user explicitly says to drop it.
    Close with one line: what ran, what was skipped (still queued), what was
    dropped.
-7. **Post-run continuation**: after step 6, if open items still remain, list
-   them briefly (number + ask + badge, no full interpretation) and ask: "N
-   items still queued — run any?" If the user picks more, execute them and
-   repeat from step 5. If they decline or don't respond with item numbers,
-   stop.
+7. **Loop (ralph loop)**: after step 6, if open items still remain, immediately
+   return to step 2 (re-read, re-sort, re-list with full interpretation, ask
+   again) — do NOT wait for another `/queue` invocation. Repeat until:
+   - no open items remain, or
+   - the user replies with nothing, "stop", "done", or "exit".
 
 ## Mode C — List only: `/queue list`
 
 Print the open backlog items, numbered, each with its `queued` date-time and a
 detailed `interpretation` (produce it now if the item has none yet, and write it
 back). Change nothing else.
+
+## Mode D — Clear: `/queue clear`
+
+Park all open items for the next session. Use when ending work mid-backlog.
+
+1. Read the current session's queue file. If no open `- [ ]` items, say so and stop.
+2. For each open item, rewrite `- [ ]` → `- [-]` and insert `  reason: Moved after clear`
+   on the line after `queued:` (or after `priority:` if present). Append
+   `  moved-to: pending` as the last field of the block.
+3. Write those items as **fresh `- [ ]` blocks** (no `reason:`, no `moved-to:`) to
+   `~/.claude/queue/pending.md`. Prepend: `# Pending from <session-id> <YYYY-MM-DD>`.
+   Overwrite if `pending.md` already exists.
+4. Acknowledge: "Cleared N items — parked in pending.md for next session."
+
+The SessionStart hook detects `pending.md` on the next session start and renames
+it to `~/.claude/queue/<new-session-uuid>.md` automatically.
