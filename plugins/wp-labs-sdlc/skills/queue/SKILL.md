@@ -3,12 +3,12 @@ name: queue
 description: >-
   Session follow-up backlog. Invoked ONLY by the explicit /queue command — never
   auto-run: `/queue <ask>` captures a follow-up without derailing current work,
-  `/queue` (no args / empty args) reviews and runs the backlog after the current task, and
-  `/queue list` shows it. The point is non-disruptive capture now, deferred
-  execution later.
+  `/queue` (no args / empty args) reviews and runs the backlog after the current task,
+  `/queue list` shows it, and `/queue migrate` lets you cherry-pick items from other
+  sessions. The point is non-disruptive capture now, deferred execution later.
 user-invocable: true
 disable-model-invocation: true
-argument-hint: "[<ask> | list | clear | (empty → drain backlog)]"
+argument-hint: "[<ask> | list | clear | migrate | (empty → drain backlog)]"
 allowed-tools: Read, Write, Edit, Bash
 ---
 
@@ -140,3 +140,20 @@ Always confirm before migrating. Two levels of control:
 ```
 
 Print the output. Done.
+
+## Mode F — Cherry-pick: `/queue migrate`
+
+Trigger when invoked with the argument `migrate` (exactly). Lets the user select
+individual items from other sessions rather than migrating an entire session at once.
+
+1. `~/.claude/queue/q list-other <session-id>` — print the full list of open items
+   from all other sessions, each labelled `[sid8:n]` for reference.
+2. Ask the user which items to bring in. Accept either:
+   - `[sid8:n]` references (e.g. `e81329ef:1 e81329ef:3`)
+   - "all from `<session-id>`" to fall back to session-level migration
+   - "none" / empty to abort
+3. For item-level picks:
+   `~/.claude/queue/q migrate-items <session-id> <sid8:n> [<sid8:n> ...]`
+4. For session-level picks:
+   `~/.claude/queue/q migrate <session-id> <src-session-id>`
+5. Print the output. Done — do NOT auto-drain the backlog afterward.
