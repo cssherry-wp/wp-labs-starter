@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Queue interceptor: Mode A (capture) returns decision:block to bypass LLM;
+# Mode C (list) pre-fetches and injects result so Claude just formats it.
+# Installed to ~/.claude/queue/hook by /queue setup.
+set -euo pipefail
+command -v jq >/dev/null 2>&1 || exit 0
+
+_in=$(cat)
+_prompt=$(printf '%s' "$_in" | jq -r '.prompt // empty' 2>/dev/null || true)
+_sid=$(printf '%s' "$_in" | jq -r '.session_id // empty' 2>/dev/null || true)
+
+# Only intercept /queue <args> (requires a space — bare /queue goes to LLM for drain)
+[[ "$_prompt" =~ ^/queue\  ]] || exit 0
+_args="${_prompt#/queue }"
+
+# q symlink created by /queue setup — stable regardless of plugin version
+_q="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q"
+[ -x "$_q" ] || exit 0
+
+case "$_args" in
+  list*)
+    # Mode C: pre-fetch and inject as context; LLM still runs to format and follow up
+    _result=$("$_q" list "$_sid" 2>&1 || true)
+    jq -n --arg ctx "$_result" \
+      '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":$ctx}}'
+    ;;
+  migrate*|setup*)
+    # Modes E, Setup: pass through to LLM
+    exit 0
+    ;;
+  *)
+    # Mode A: capture — block LLM entirely
+    _pri=""
+    case "$_args" in
+      "--high "*) _pri="--high"; _args="${_args#--high }" ;;
+      "--med "*)  _pri="--med";  _args="${_args#--med }"  ;;
+      "--low "*)  _pri="--low";  _args="${_args#--low }"  ;;
+    esac
+    _result=$("$_q" add "$_sid" ${_pri:+"$_pri"} "$_args" "$(pwd)" 2>&1)
+    jq -n --arg r "$_result" '{"decision":"block","reason":$r}'
+    ;;
+esac
