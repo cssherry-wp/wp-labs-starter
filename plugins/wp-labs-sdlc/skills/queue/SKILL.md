@@ -94,10 +94,11 @@ data — do not re-run `q list` or `q needs-interpretation`.
      - `header`: `"#N"` + priority badge if set (e.g. `"#3 [H]"`, max 12 chars)
      - `question`: first line of the ask, then `Queued: <time>`, then `Intent: <interpretation>`
      - `multiSelect`: false
-     - `options` (3 choices):
-       - **Implement** — run this item now
-       - **Keep in queue** — leave it for a later session
-       - **Cancel** — drop it
+     - `options`: **always exactly these 3, in this order** (the tool rejects questions with
+       fewer than 2 options — never omit or merge any):
+       1. label `"Implement"`, description `"Run this item now"`
+       2. label `"Keep in queue"`, description `"Leave it for a later session"`
+       3. label `"Cancel"`, description `"Drop it"`
      User may attach notes to any selection; a note on **Implement** overrides the item wording.
    - **> 4 open items**: print the list (already in context) and ask:
      "For each item reply: `<n> implement|queue|cancel [note]`. E.g. `1 implement 2 cancel`."
