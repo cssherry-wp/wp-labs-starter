@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # queue helper — deterministic file I/O for the /queue skill
-# usage: q <add|list|needs-interpretation|write-interpretation|mark-done|clear|rename-pending> ...
+# usage: q <add|list|needs-interpretation|write-interpretation|mark-done|mark-cancelled|clear|rename-pending|migrate> ...
 set -euo pipefail
 
 QUEUE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue"
@@ -249,8 +249,72 @@ rename-pending)
   fi
   ;;
 
+migrate)
+  # q migrate <session-id>  — cancel open items in other sessions, append fresh copies here
+  SID="$1"; DST="$QUEUE_DIR/$SID.md"
+  total=0; sessions=0
+
+  for src_file in "$QUEUE_DIR"/*.md; do
+    [ -f "$src_file" ] || continue
+    base=$(basename "$src_file" .md)
+    [ "$base" = "$SID" ] && continue
+    [ "$base" = "pending" ] && continue
+
+    n=$(python3 - "$src_file" "$DST" "$SID" "$base" <<'PY'
+import sys, re
+from datetime import datetime, date
+
+src_path, dst_path, cur_sid, src_sid = sys.argv[1:5]
+stamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+date_str = date.today().isoformat()
+text = open(src_path).read()
+blocks = re.split(r'(?=^- \[)', text, flags=re.MULTILINE)
+
+new_src, fresh_items = [], []
+for block in blocks:
+    if block.startswith('- [ ]'):
+        cancelled = block.replace('- [ ]', '- [-]', 1)
+        cancelled = re.sub(
+            r'(  queued: [^\n]+)',
+            r'\1\n  cancelled: ' + stamp + r'\n  reason: Moved after exit\n  moved-to: ' + cur_sid,
+            cancelled, count=1
+        )
+        new_src.append(cancelled)
+        fresh = []
+        skip = False
+        for line in block.split('\n'):
+            s = line.lstrip()
+            if s.startswith('interpretation:'):
+                skip = True; continue
+            if skip and line.startswith('    '):
+                continue
+            skip = False
+            fresh.append(line)
+        fresh_items.append('\n'.join(fresh).rstrip())
+    else:
+        new_src.append(block)
+
+if not fresh_items:
+    print(0)
+else:
+    open(src_path, 'w').write(''.join(new_src))
+    with open(dst_path, 'a') as f:
+        f.write(f'\n# migrated from {src_sid} {date_str}\n')
+        for item in fresh_items:
+            f.write(item + '\n\n')
+    print(len(fresh_items))
+PY
+    )
+    [ "${n:-0}" -gt 0 ] && { total=$((total + n)); sessions=$((sessions + 1)); } || true
+  done
+
+  [ "$total" -gt 0 ] && \
+    printf 'Migrated %d item(s) from %d session(s) into this session. Run /queue to review.\n' "$total" "$sessions" \
+    || true
+  ;;
+
 *)
-  echo "Usage: q <add|list|needs-interpretation|write-interpretation|mark-done|mark-cancelled|clear|rename-pending> ..." >&2
+  echo "Usage: q <add|list|needs-interpretation|write-interpretation|mark-done|mark-cancelled|clear|rename-pending|migrate> ..." >&2
   exit 1
   ;;
 esac
