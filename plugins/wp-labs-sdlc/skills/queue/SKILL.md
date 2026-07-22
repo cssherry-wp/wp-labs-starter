@@ -94,7 +94,11 @@ task batch is complete (that is the "run after current work" promise).
 ## Mode C — List only: `/queue list`
 
 ```bash
+# Current session:
 ~/.claude/queue/q list <session-id>
+
+# All sessions, one line each:
+~/.claude/queue/q list --oneline
 ```
 
 Print the output. Done — produce or write no interpretations.
