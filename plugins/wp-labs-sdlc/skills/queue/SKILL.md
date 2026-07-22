@@ -117,14 +117,25 @@ This is the preferred exit path; items migrate silently into the next session.
 
 ## Mode E — Migrate: `/queue migrate`
 
-The hook detects open items in other sessions and asks you which to migrate.
-You can also trigger migration manually. Always confirm before migrating.
+The hook detects open items in other sessions and asks which to bring in.
+Always confirm before migrating. Two levels of control:
 
+**Item-level (selective):**
 ```bash
-# Migrate all other sessions:
+# List items from other sessions with [sid8:n] labels:
+~/.claude/queue/q list-other <session-id>
+~/.claude/queue/q list-other <session-id> --oneline
+
+# Migrate specific items by label:
+~/.claude/queue/q migrate-items <session-id> <sid8:n> [<sid8:n> ...]
+```
+
+**Session-level (all items from a session):**
+```bash
+# Migrate all from all other sessions:
 ~/.claude/queue/q migrate <session-id>
 
-# Migrate specific sessions only:
+# Migrate all from specific sessions only:
 ~/.claude/queue/q migrate <session-id> <src-session-id> [...]
 ```
 

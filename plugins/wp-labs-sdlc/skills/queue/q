@@ -120,6 +120,154 @@ if n == 0:
 PY
   ;;
 
+list-other)
+  # q list-other <session-id> [--oneline]
+  # Lists open items from all sessions EXCEPT <session-id>, labelled with [sid8:n] refs
+  SID="${1:-}"; shift || true
+  ONELINE=0
+  [ "${1:-}" = "--oneline" ] && { ONELINE=1; shift; }
+  shopt -s nullglob; FILES=("$QUEUE_DIR"/*.md); shopt -u nullglob
+  [ ${#FILES[@]} -eq 0 ] && { echo "No queue files."; exit 0; }
+
+  python3 - "$ONELINE" "$SID" "${FILES[@]}" <<'PY'
+import sys, re, os
+
+oneline = sys.argv[1] == '1'
+cur_sid = sys.argv[2]
+files = [f for f in sys.argv[3:] if os.path.isfile(f)]
+
+total = 0
+for path in files:
+    sid = os.path.basename(path)[:-3]
+    if sid in ('pending', cur_sid):
+        continue
+    text = open(path).read()
+    blocks = re.split(r'(?=^- \[)', text, flags=re.MULTILINE)
+    open_blocks = [(i+1, b) for i, b in enumerate(b for b in blocks if b.startswith('- [ ]'))]
+    # recount with correct local numbering
+    local_open = [b for b in blocks if b.startswith('- [ ]')]
+    if not local_open:
+        continue
+
+    if not oneline:
+        print(f'## {sid}  ({len(local_open)} item{"s" if len(local_open)!=1 else ""})\n')
+
+    for local_n, block in enumerate(local_open, 1):
+        total += 1
+        lines = block.strip().split('\n')
+        ask = lines[0][6:]
+        ref = f'{sid[:8]}:{local_n}'
+
+        if oneline:
+            print(f'{total}. {sid[:8]}: {ask}  [{ref}]')
+            continue
+
+        meta, sub, interp_lines, in_interp = {}, [], [], False
+        for line in lines[1:]:
+            s = line.strip()
+            if in_interp:
+                if line.startswith('    '): interp_lines.append(s)
+                else: in_interp = False
+            if s.startswith('- '): sub.append(s[2:])
+            elif s.startswith('interpretation:'):
+                interp_lines.append(s[len('interpretation:'):].strip()); in_interp = True
+            elif ': ' in s and not in_interp:
+                k, v = s.split(': ', 1); meta[k] = v
+
+        badge = {'high': '[H]', 'med': '[M]', 'low': '[L]'}.get(meta.get('priority', ''), '')
+        pfx = f'{badge} ' if badge else ''
+        print(f'{total}. {pfx}{ask}  [{ref}]')
+        for s in sub: print(f'   • {s}')
+        print(f'   queued: {meta.get("queued", "?")}')
+        if interp_lines: print(f'   interpretation: {" ".join(interp_lines)}')
+        print()
+
+if total == 0:
+    print('No open items in other sessions.')
+    sys.exit(1)
+PY
+  ;;
+
+migrate-items)
+  # q migrate-items <dst-session-id> <sid8:n> [<sid8:n> ...]
+  # Migrates specific items (by per-session number, full or 8-char UUID prefix) into dst
+  [ $# -lt 2 ] && { echo "Usage: q migrate-items <session-id> <sid8:n> [...]" >&2; exit 1; }
+  SID="$1"; shift
+  DST="$QUEUE_DIR/$SID.md"
+
+  python3 - "$SID" "$QUEUE_DIR" "$@" <<'PY'
+import sys, re, os
+from datetime import datetime, date
+
+cur_sid, queue_dir = sys.argv[1], sys.argv[2]
+refs = sys.argv[3:]
+stamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+date_str = date.today().isoformat()
+dst_path = os.path.join(queue_dir, cur_sid + '.md')
+
+# Group refs by sid prefix → set of local item numbers
+by_sid = {}
+for ref in refs:
+    parts = ref.split(':')
+    if len(parts) != 2:
+        print(f'Invalid ref (expected sid8:n): {ref}', file=sys.stderr); continue
+    sid_prefix, n = parts[0], int(parts[1])
+    by_sid.setdefault(sid_prefix, set()).add(n)
+
+total = 0
+for sid_prefix, item_nums in by_sid.items():
+    # Match by full UUID or 8-char prefix
+    matching = [f for f in os.listdir(queue_dir)
+                if f.endswith('.md') and f != 'pending.md'
+                and (f[:-3] == sid_prefix or f[:len(sid_prefix)] == sid_prefix)]
+    if not matching:
+        print(f'Session not found: {sid_prefix}'); continue
+    src_path = os.path.join(queue_dir, matching[0])
+    src_sid = matching[0][:-3]
+
+    text = open(src_path).read()
+    blocks = re.split(r'(?=^- \[)', text, flags=re.MULTILINE)
+
+    local_n = 0
+    new_src, fresh_items = [], []
+    for block in blocks:
+        if block.startswith('- [ ]'):
+            local_n += 1
+            if local_n in item_nums:
+                cancelled = block.replace('- [ ]', '- [-]', 1)
+                cancelled = re.sub(
+                    r'(  queued: [^\n]+)',
+                    r'\1\n  cancelled: ' + stamp + r'\n  reason: Moved after exit\n  moved-to: ' + cur_sid,
+                    cancelled, count=1
+                )
+                new_src.append(cancelled)
+                fresh, skip = [], False
+                for line in block.split('\n'):
+                    s = line.lstrip()
+                    if s.startswith('interpretation:'):
+                        skip = True; continue
+                    if skip and line.startswith('    '):
+                        continue
+                    skip = False
+                    fresh.append(line)
+                fresh_items.append('\n'.join(fresh).rstrip())
+                total += 1
+            else:
+                new_src.append(block)
+        else:
+            new_src.append(block)
+
+    if fresh_items:
+        open(src_path, 'w').write(''.join(new_src))
+        with open(dst_path, 'a') as f:
+            f.write(f'\n# migrated from {src_sid} {date_str}\n')
+            for item in fresh_items:
+                f.write(item + '\n\n')
+
+print(f'Migrated {total} item(s) to this session.' if total else 'No items migrated.')
+PY
+  ;;
+
 needs-interpretation)
   # q needs-interpretation <session-id>
   # prints "<n>\t<ask>" for each open item missing an interpretation: line; empty = all have one
@@ -353,7 +501,7 @@ PY
   ;;
 
 *)
-  echo "Usage: q <add|list|needs-interpretation|write-interpretation|mark-done|mark-cancelled|clear|rename-pending|migrate> ..." >&2
+  echo "Usage: q <add|list|list-other|needs-interpretation|write-interpretation|mark-done|mark-cancelled|clear|rename-pending|migrate|migrate-items> ..." >&2
   exit 1
   ;;
 esac
