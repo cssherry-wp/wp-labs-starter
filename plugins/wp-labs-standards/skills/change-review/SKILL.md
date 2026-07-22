@@ -277,12 +277,13 @@ all batched into a single call. Per-finding fields:
   - **Make the change** — apply the fix now.
   - **Log as new issue** — create a tracker issue (`gh issue create`, or Jira via `acli`) and
     link it back.
+  - **Add to queue** — capture as a `/queue` item for the current session so it runs later.
   - **Ignore** — drop it.
 
 **If > 4 unfixed findings**: print a compact numbered list — one line per finding:
 `F<n>  <file>:<line>  <one-line summary>  (confidence N)` — then ask:
 "Which findings to address? Reply with IDs (e.g. F1 F3 F7). Any others will be ignored."
-Act on the selected IDs using the same three options; treat unmentioned findings as Ignored.
+Act on the selected IDs using the same four options; treat unmentioned findings as Ignored.
 
 In both paths, carry free-text notes from `annotations[].notes` into the action (append to
 the issue body, or record alongside an ignored finding).
