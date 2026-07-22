@@ -106,8 +106,8 @@ data — do not re-run `q list` or `q needs-interpretation`.
 3. For all items marked **Implement**, run them in order.
    A per-item note overrides the original wording.
    Treat each as its own task (own commit if it touches code, per the commit policy).
-   For items marked **Cancel**, call `q mark-cancelled <session-id> <n> "<reason>"` if a reason
-   was given; otherwise `q mark-cancelled <session-id> <n> "user cancelled at drain"`.
+   For items marked **Cancel**, call `q mark-cancelled <session-id> --reason "<reason>" <n>` if
+   a reason was given; otherwise `q mark-cancelled <session-id> <n>` (default reason "Cancelled").
    Items marked **Keep in queue** are left untouched.
 
 4. Mark completed: `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q mark-done <session-id> <n1> <n2> ...`
