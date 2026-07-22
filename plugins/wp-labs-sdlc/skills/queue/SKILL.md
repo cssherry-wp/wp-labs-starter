@@ -115,45 +115,16 @@ Print the output. Done. Open items are marked `[-]` with `cancelled: <timestamp>
 to the new session's UUID on the first prompt of the next session — no user confirmation needed.
 This is the preferred exit path; items migrate silently into the next session.
 
-## Mode E — Migrate: `/queue migrate`
+## Mode E — Migrate: `/queue migrate [<src-session-id>]`
 
-The hook detects open items in other sessions and asks which to bring in.
-Always confirm before migrating. Two levels of control:
+Trigger when ARGUMENTS starts with `migrate`. Always interactive — list first, then ask.
 
-**Item-level (selective):**
-```bash
-# List items from other sessions with [sid8:n] labels:
-~/.claude/queue/q list-other <session-id>
-~/.claude/queue/q list-other <session-id> --oneline
-
-# Migrate specific items by label:
-~/.claude/queue/q migrate-items <session-id> <sid8:n> [<sid8:n> ...]
-```
-
-**Session-level (all items from a session):**
-```bash
-# Migrate all from all other sessions:
-~/.claude/queue/q migrate <session-id>
-
-# Migrate all from specific sessions only:
-~/.claude/queue/q migrate <session-id> <src-session-id> [...]
-```
-
-Print the output. Done.
-
-## Mode F — Cherry-pick: `/queue migrate`
-
-Trigger when invoked with the argument `migrate` (exactly). Lets the user select
-individual items from other sessions rather than migrating an entire session at once.
-
-1. `~/.claude/queue/q list-other <session-id>` — print the full list of open items
-   from all other sessions, each labelled `[sid8:n]` for reference.
-2. Ask the user which items to bring in. Accept either:
-   - `[sid8:n]` references (e.g. `e81329ef:1 e81329ef:3`)
-   - "all from `<session-id>`" to fall back to session-level migration
-   - "none" / empty to abort
-3. For item-level picks:
-   `~/.claude/queue/q migrate-items <session-id> <sid8:n> [<sid8:n> ...]`
-4. For session-level picks:
-   `~/.claude/queue/q migrate <session-id> <src-session-id>`
+1. `~/.claude/queue/q list-other <session-id>` — print open items from all other
+   sessions, each labelled `[sid8:n]`. If a `<src-session-id>` was given in ARGUMENTS,
+   display only shows items from that session (still uses `list-other`, Claude filters
+   the display by session prefix).
+2. Ask: "Which items to migrate? Reply with numbers (e.g. `1 3 5`) or `[sid8:n]` refs.
+   `none` or empty to abort."
+3. Map plain numbers to the `[sid8:n]` refs shown in the listing from step 1.
+4. `~/.claude/queue/q migrate-items <session-id> <sid8:n> [<sid8:n> ...]`
 5. Print the output. Done — do NOT auto-drain the backlog afterward.
