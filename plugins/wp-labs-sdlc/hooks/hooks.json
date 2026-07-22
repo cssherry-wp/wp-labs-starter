@@ -1,8 +1,7 @@
 {
   "hooks": {
-    "SessionStart": [
+    "UserPromptSubmit": [
       {
-        "matcher": "startup|clear|compact",
         "hooks": [
           {
             "type": "command",
