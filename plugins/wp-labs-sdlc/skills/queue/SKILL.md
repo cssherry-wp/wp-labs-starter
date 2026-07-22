@@ -89,8 +89,12 @@ data — do not re-run `q list` or `q needs-interpretation`.
    If no items are listed there, skip this step.
 
 2. Count open items from the injected list and select which to run:
-   - **≤ 4 open items**: use `AskUserQuestion` (multiSelect) — one option per item showing
-     ask + priority badge. Users can attach per-item notes.
+   - **≤ 4 open items**: use `AskUserQuestion` (multiSelect). One option per item:
+     - `header`: item number + priority badge (e.g. `"#3 [H]"`, max 12 chars)
+     - `label`: first line of the ask (≤ 5 words, trimmed)
+     - `description`: queued timestamp + short ask summary if label was truncated
+     - `preview`: full ask text, then `Queued: <time>`, then `Intent: <interpretation>`
+     Users attach per-item notes via the built-in notes field; a note overrides the wording.
    - **> 4 open items**: print the list (already in context) and ask:
      "Which items to run? Reply with numbers (e.g. 1 3 5) and any per-item notes."
      **Never use `AskUserQuestion` for > 4 items.**
