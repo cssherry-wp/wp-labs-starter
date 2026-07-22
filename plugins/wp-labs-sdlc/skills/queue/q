@@ -163,13 +163,17 @@ PY
   ;;
 
 mark-cancelled)
-  # q mark-cancelled <session-id> <n> [<n> ...] -- marks items as [-] with reason: It's no longer needed
+  # q mark-cancelled <session-id> [--reason <text>] <n> [<n> ...]
   SID="$1"; shift; FILE="$QUEUE_DIR/$SID.md"
-  python3 - "$FILE" "$@" <<'PY'
+  REASON="Cancelled"
+  if [ "${1:-}" = "--reason" ]; then REASON="$2"; shift 2; fi
+  python3 - "$FILE" "$REASON" "$@" <<'PY'
 import sys, re
+from datetime import datetime
 
-path = sys.argv[1]
-nums = set(int(x) for x in sys.argv[2:])
+path, reason = sys.argv[1], sys.argv[2]
+nums = set(int(x) for x in sys.argv[3:])
+stamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 text = open(path).read()
 blocks = re.split(r'(?=^- \[)', text, flags=re.MULTILINE)
 
@@ -179,7 +183,9 @@ for block in blocks:
         n += 1
         if n in nums:
             block = block.replace('- [ ]', '- [-]', 1)
-            block = re.sub(r'(  queued: [^\n]+)', r"\1\n  reason: It's no longer needed", block)
+            block = re.sub(r'(  queued: [^\n]+)',
+                           r'\1\n  cancelled: ' + stamp + r'\n  reason: ' + reason,
+                           block)
     result.append(block)
 
 open(path, 'w').write(''.join(result))
@@ -193,9 +199,10 @@ clear)
   [ -f "$FILE" ] || { echo "No queue file: $FILE"; exit 0; }
   python3 - "$FILE" "$PENDING" "$SID" <<'PY'
 import sys, re
-from datetime import date
+from datetime import datetime, date
 
 src, pending, sid = sys.argv[1], sys.argv[2], sys.argv[3]
+stamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 text = open(src).read()
 blocks = re.split(r'(?=^- \[)', text, flags=re.MULTILINE)
 
@@ -203,7 +210,9 @@ new_src, pending_items = [], []
 for block in blocks:
     if block.startswith('- [ ]'):
         cancelled = block.replace('- [ ]', '- [-]', 1)
-        cancelled = re.sub(r'(  queued: [^\n]+)', r'\1\n  reason: Moved after clear\n  moved-to: pending', cancelled)
+        cancelled = re.sub(r'(  queued: [^\n]+)',
+                           r'\1\n  cancelled: ' + stamp + r'\n  reason: Moved after clear\n  moved-to: pending',
+                           cancelled)
         new_src.append(cancelled)
         # fresh copy: keep ask/sub-bullets/queued/priority/ctx, drop interpretation
         fresh, skip = [], False
