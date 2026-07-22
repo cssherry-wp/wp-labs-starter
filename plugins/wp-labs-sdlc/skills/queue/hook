@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Queue interceptor: Mode A (capture) returns decision:block to bypass LLM;
-# Mode C (list) pre-fetches and injects result so Claude just formats it.
-# Installed to ~/.claude/queue/hook by /queue setup.
+# Queue interceptor: Modes A (capture) and C (list) return decision:block to bypass LLM.
+# Installed to ${CLAUDE_CONFIG_DIR:-~/.claude}/queue/hook by /queue setup.
 set -euo pipefail
 command -v jq >/dev/null 2>&1 || exit 0
 
@@ -19,10 +18,9 @@ _q="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q"
 
 case "$_args" in
   list*)
-    # Mode C: pre-fetch and inject as context; LLM still runs to format and follow up
+    # Mode C: block LLM — show list directly
     _result=$("$_q" list "$_sid" 2>&1 || true)
-    jq -n --arg ctx "$_result" \
-      '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":$ctx}}'
+    jq -n --arg r "$_result" '{"decision":"block","reason":$r}'
     ;;
   migrate*|setup*)
     # Modes E, Setup: pass through to LLM
