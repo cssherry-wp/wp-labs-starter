@@ -4,11 +4,11 @@ description: >-
   Session follow-up backlog. Invoked ONLY by the explicit /queue command — never
   auto-run: `/queue <ask>` captures a follow-up without derailing current work,
   `/queue` (no args / empty args) reviews and runs the backlog after the current task,
-  `/queue list` shows it, and `/queue migrate` lets you cherry-pick items from other
-  sessions. The point is non-disruptive capture now, deferred execution later.
+  `/queue list` shows it, `/queue migrate` cherry-picks from other sessions, and
+  `/queue setup` installs a UserPromptSubmit hook so capture and list bypass the LLM.
 user-invocable: true
 disable-model-invocation: true
-argument-hint: "[<ask> | list | clear | migrate | (empty → drain backlog)]"
+argument-hint: "[<ask> | list | migrate | setup | (empty → drain backlog)]"
 allowed-tools: Read, Write, Edit, Bash
 ---
 
@@ -51,7 +51,13 @@ Cancelled items:
 
 ## Mode A — Capture: `/queue [--high|--med|--low] <ask>` (arguments present)
 
-Single Bash call — no other steps:
+If the hook is installed (`~/.claude/queue/hook` exists and is executable), the hook
+intercepts this before it reaches the LLM and returns `{"decision":"block"}`. You should
+not see this mode. If you do, the block mechanism is not supported — output a note to the
+user ("Run `/queue setup` and restart — the hook block mechanism needs adjustment") and
+do NOT call `q add` to avoid a duplicate.
+
+If the hook is not installed, fall back to a single Bash call — no other steps:
 
 ```bash
 ~/.claude/queue/q add <session-id> [--high|--med|--low] "<ask verbatim, flag stripped>" "$(pwd)"
@@ -93,29 +99,17 @@ task batch is complete (that is the "run after current work" promise).
 
 ## Mode C — List only: `/queue list`
 
-```bash
-# Current session:
-~/.claude/queue/q list <session-id>
+If the hook is installed, the list is already in your context as `additionalContext` from
+the UserPromptSubmit hook. Display that content directly — no Bash call needed.
 
-# All sessions, one line each:
-~/.claude/queue/q list --oneline
+If the hook is not installed:
+```bash
+~/.claude/queue/q list <session-id>
 ```
 
 Print the output. Done — produce or write no interpretations.
 
-## Mode D — Clear: `/queue clear`
-
-```bash
-~/.claude/queue/q clear <session-id>
-```
-
-Print the output. Done. Open items are marked `[-]` with `cancelled: <timestamp>` and
-`reason: Moved after clear`, then written as fresh `- [ ]` blocks to
-`~/.claude/queue/pending.md`. The UserPromptSubmit hook automatically renames `pending.md`
-to the new session's UUID on the first prompt of the next session — no user confirmation needed.
-This is the preferred exit path; items migrate silently into the next session.
-
-## Mode E — Migrate: `/queue migrate [<src-session-id>]`
+## Mode D — Migrate: `/queue migrate [<src-session-id>]`
 
 Trigger when ARGUMENTS starts with `migrate`. Always interactive — list first, then ask.
 
@@ -128,3 +122,49 @@ Trigger when ARGUMENTS starts with `migrate`. Always interactive — list first,
 3. Map plain numbers to the `[sid8:n]` refs shown in the listing from step 1.
 4. `~/.claude/queue/q migrate-items <session-id> <sid8:n> [<sid8:n> ...]`
 5. Print the output. Done — do NOT auto-drain the backlog afterward.
+
+## Mode Setup: `/queue setup`
+
+One-time install of the UserPromptSubmit interceptor hook.
+
+After setup:
+- **Mode A** (capture) — hook calls `q add` and returns `{"decision":"block"}`, bypassing
+  the LLM entirely. Zero latency.
+- **Mode C** (list) — hook pre-fetches and injects the list as `additionalContext`; Claude
+  just formats and displays it without an extra Bash call.
+- Modes B, D — unchanged, go through LLM as before.
+
+Steps:
+
+1. Find the latest non-orphaned `q` and `hook` in the plugin cache. Skip version dirs that
+   contain a `.orphaned_at` file. Path pattern:
+   `~/.claude/plugins/cache/wp-labs-starter/wp-labs-sdlc/VERSION/skills/queue/{q,hook}`
+   Use python3 for semver-aware sort:
+   ```bash
+   python3 -c "
+   import os, glob
+   base = os.path.expanduser(os.environ.get('CLAUDE_CONFIG_DIR','~/.claude'))
+   for name in ['q','hook']:
+       ps = glob.glob(f'{base}/plugins/cache/wp-labs-starter/wp-labs-sdlc/*/skills/queue/{name}')
+       ok = [p for p in ps if os.access(p, os.X_OK)
+             and not os.path.exists(os.path.dirname(os.path.dirname(os.path.dirname(p)))+'/.orphaned_at')]
+       if ok:
+           print(name+'='+max(ok, key=lambda p: tuple(int(x) for x in p.split('/')[-4].split('.'))))
+   "
+   ```
+
+2. Create symlink: `ln -sf <q_path> ~/.claude/queue/q`
+   The interceptor uses this stable path at runtime.
+
+3. Copy hook: `cp <hook_path> ~/.claude/queue/hook && chmod +x ~/.claude/queue/hook`
+
+4. Register in `~/.claude/settings.json` (idempotent):
+   ```bash
+   grep -q 'queue/hook' ~/.claude/settings.json 2>/dev/null && echo "already installed" || \
+   jq '.hooks.UserPromptSubmit = [(.hooks.UserPromptSubmit // [])[], \
+     {"hooks":[{"type":"command","command":"bash ~/.claude/queue/hook","async":false}]}]' \
+     ~/.claude/settings.json > /tmp/q-s.json && mv /tmp/q-s.json ~/.claude/settings.json
+   ```
+
+5. Tell the user: "Queue hook installed. Restart Claude to activate. After restart,
+   `/queue <text>` captures instantly without LLM."
