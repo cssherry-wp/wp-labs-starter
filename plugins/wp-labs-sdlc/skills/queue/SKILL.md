@@ -14,6 +14,13 @@ allowed-tools: Read, Write, Edit, Bash
 
 # /queue — session follow-up backlog
 
+**Hook check (run before every mode):** if `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/hook`
+does not exist or `queue/hook` is not in `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`,
+prepend your response with:
+
+> Queue hook not installed — capture and list are routed through the LLM (slower).
+> Run `/queue setup` and restart to enable instant operation.
+
 Capture follow-up asks or behavior changes mid-task and defer them until the
 current work is done, so they never derail the flow in progress. The backlog is
 scoped to THIS session (terminal), so parallel sessions keep separate lists.
@@ -160,12 +167,14 @@ Steps:
 
 3. Copy hook: `cp <hook_path> ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/hook && chmod +x ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/hook`
 
-4. Register in `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json` (idempotent):
+4. Register in `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json` (idempotent — remove existing entry first, then add fresh):
    ```bash
-   grep -q 'queue/hook' ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json 2>/dev/null && echo "already installed" || \
-   jq '.hooks.UserPromptSubmit = [(.hooks.UserPromptSubmit // [])[], \
-     {"hooks":[{"type":"command","command":"bash ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/hook","async":false}]}]' \
-     ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json > /tmp/q-s.json && mv /tmp/q-s.json ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json
+   jq '.hooks.UserPromptSubmit = (
+     [(.hooks.UserPromptSubmit // [])[] |
+       select((.hooks // []) | map(.command // "" | contains("queue/hook")) | any | not)]
+     + [{"hooks":[{"type":"command","command":"bash ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/hook","async":false}]}]
+   )' "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json" > /tmp/q-s.json && \
+   mv /tmp/q-s.json "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
    ```
 
 5. Tell the user: "Queue hook installed. Restart Claude to activate. After restart,
