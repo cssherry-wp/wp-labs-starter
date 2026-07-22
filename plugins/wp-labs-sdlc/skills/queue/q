@@ -140,9 +140,11 @@ mark-done)
   SID="$1"; shift; FILE="$QUEUE_DIR/$SID.md"
   python3 - "$FILE" "$@" <<'PY'
 import sys, re
+from datetime import datetime
 
 path = sys.argv[1]
 nums = set(int(x) for x in sys.argv[2:])
+stamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 text = open(path).read()
 blocks = re.split(r'(?=^- \[)', text, flags=re.MULTILINE)
 
@@ -152,6 +154,7 @@ for block in blocks:
         n += 1
         if n in nums:
             block = block.replace('- [ ]', '- [x]', 1)
+            block = re.sub(r'(  queued: [^\n]+)', r'\1\n  completed: ' + stamp, block)
     result.append(block)
 
 open(path, 'w').write(''.join(result))
