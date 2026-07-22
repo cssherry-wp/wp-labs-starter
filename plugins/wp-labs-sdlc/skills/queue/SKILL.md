@@ -44,6 +44,7 @@ Cancelled items:
 ```
 - [-] <the ask, verbatim>
   queued: ...
+  cancelled: <YYYY-MM-DD HH:MM:SS>
   reason: Moved after clear | Moved after exit | <other>
   moved-to: <uuid | pending>
 ```
@@ -81,6 +82,7 @@ task batch is complete (that is the "run after current work" promise).
      showing ask + priority badge. Users can attach per-item notes.
    - **> 4 open items**: the numbered list from step 3 is already printed. Ask:
      "Which items to run? Reply with numbers (e.g. 1 3 5) and any per-item notes."
+     **Never use `AskUserQuestion` for > 4 items — not even for a subset of them. Always use plain text.**
 5. Run chosen items in order. A per-item note overrides the original wording.
    Treat each as its own task (own commit if it touches code, per the commit policy).
 6. Mark completed: `~/.claude/queue/q mark-done <session-id> <n1> <n2> ...`
@@ -103,5 +105,8 @@ Print the output. Done — produce or write no interpretations.
 ~/.claude/queue/q clear <session-id>
 ```
 
-Print the output. Done. The SessionStart hook renames `pending.md` to the new
-session's UUID automatically on next session start.
+Print the output. Done. Open items are marked `[-]` with `cancelled: <timestamp>` and
+`reason: Moved after clear`, then written as fresh `- [ ]` blocks to
+`~/.claude/queue/pending.md`. The SessionStart hook automatically renames `pending.md`
+to the new session's UUID on the next session start — no user confirmation needed.
+This is the preferred exit path; items migrate silently into the next session.
