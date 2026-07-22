@@ -100,8 +100,13 @@ data — do not re-run `q list` or `q needs-interpretation`.
        2. label `"Keep in queue"`, description `"Leave it for a later session"`
        3. label `"Cancel"`, description `"Drop it"`
      User may attach notes to any selection; a note on **Implement** overrides the item wording.
-   - **> 4 open items**: print the list (already in context) and ask:
-     "For each item reply: `<n> implement|queue|cancel [note]`. E.g. `1 implement 2 cancel`."
+   - **> 4 open items**: render a markdown table, then ask for disposition.
+     Table columns: `#` | `Item / Intent` | `Group` | `Priority`
+     - `#`: item number
+     - `Item / Intent`: first line of the ask + `—` + the interpretation (one cell, kept brief)
+     - `Group`: infer a short thematic label from the item content (e.g. "dashboard", "ci/cd", "queue-bug", "sdlc")
+     - `Priority`: the item's `priority` field if set, otherwise blank
+     After the table ask: "For each item reply: `<n> implement|queue|cancel [note]`. E.g. `1 implement 2 cancel`."
 
 3. For all items marked **Implement**, run them in order.
    A per-item note overrides the original wording.
