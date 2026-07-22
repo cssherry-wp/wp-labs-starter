@@ -26,15 +26,32 @@ fi
 # pending.md is handled separately (auto-renamed, no user prompt needed).
 _pending_file=""
 [ -f "${_queue_dir}/pending.md" ] && _pending_file="${_queue_dir}/pending.md"
-_open_queue_files=()
+_open_queue_summary=""
 if [ -d "$_queue_dir" ]; then
-  while IFS= read -r -d '' _qf; do
-    [ "$(basename "$_qf")" = "pending.md" ] && continue
-    _n=$(grep -c '^\- \[ \]' "$_qf" 2>/dev/null || true)
-    if [ "${_n:-0}" -gt 0 ]; then
-      _open_queue_files+=("$(basename "$_qf" .md): ${_n} open item(s)")
-    fi
-  done < <(find "$_queue_dir" -maxdepth 1 -type f -name '*.md' -print0 2>/dev/null)
+  _open_queue_summary=$(python3 - "$_queue_dir" <<'PY'
+import sys, re, os
+
+queue_dir = sys.argv[1]
+output = []
+for fname in sorted(os.listdir(queue_dir)):
+    if not fname.endswith('.md') or fname == 'pending.md':
+        continue
+    path = os.path.join(queue_dir, fname)
+    try:
+        text = open(path).read()
+    except OSError:
+        continue
+    blocks = re.split(r'(?=^- \[)', text, flags=re.MULTILINE)
+    titles = [b.split('\n')[0][6:] for b in blocks if b.startswith('- [ ]')]
+    if titles:
+        sid = fname[:-3]
+        output.append(f'  - {sid}: {len(titles)} open item(s)')
+        for t in titles:
+            output.append(f'      • {t[:80]}')
+if output:
+    print('\n'.join(output))
+PY
+  )
 fi
 
 [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] || exit 0
@@ -76,7 +93,7 @@ if [ -f "$TMPL/settings.json" ] && [ -f "$CLAUDE_DIR/settings.json" ]; then
   [ "$merged" != "$current" ] && drift_files+=("settings.json")
 fi
 
-[ ${#drift_files[@]} -eq 0 ] && [ ${#_open_queue_files[@]} -eq 0 ] && [ -z "$_pending_file" ] && exit 0
+[ ${#drift_files[@]} -eq 0 ] && [ -z "$_open_queue_summary" ] && [ -z "$_pending_file" ] && exit 0
 
 msg=""
 
@@ -100,11 +117,10 @@ IMPORTANT: Immediately rename ${_pending_file} to ${_queue_dir}/<current-session
 }$pending_msg"
 fi
 
-if [ ${#_open_queue_files[@]} -gt 0 ]; then
-  queue_list=$(printf '  - %s\n' "${_open_queue_files[@]}")
+if [ -n "$_open_queue_summary" ]; then
   queue_msg="Open queue backlog from previous sessions (grouped by session UUID):
-${queue_list}
-IMPORTANT: Tell the user about these open items and ask if they want to migrate them to this session. If yes, for each listed file: (1) read its open '- [ ]' items; (2) in the source file, mark each '- [ ]' as '- [-]' and insert '  reason: Moved after exit' after the queued: line; (3) append the items as fresh '- [ ]' blocks to ~/.claude/queue/<current-session-id>.md with a comment '# migrated from <uuid> <date>' before the group."
+${_open_queue_summary}
+IMPORTANT: Tell the user about these open items and ask if they want to migrate them to this session. If yes, for each listed file: (1) read its open '- [ ]' items; (2) in the source file, mark each '- [ ]' as '- [-]' and insert '  cancelled: <timestamp>' then '  reason: Moved after exit' after the queued: line; (3) append the items as fresh '- [ ]' blocks to ~/.claude/queue/<current-session-id>.md with a comment '# migrated from <uuid> <date>' before the group."
   msg="${msg:+$msg
 
 }$queue_msg"
