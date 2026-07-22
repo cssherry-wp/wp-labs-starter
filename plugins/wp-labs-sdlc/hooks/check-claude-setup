@@ -42,17 +42,20 @@ if [ -f "${_queue_dir}/pending.md" ] && [ -n "$_session_id" ]; then
   "$_q" rename-pending "$_session_id" >&2 || true
 fi
 
-# Detect open items across all sessions (no migration yet — Claude will prompt the user)
+# Detect open items in other sessions (no migration yet — Claude will prompt the user)
 _migrate_output=""
-if [ -f "$_q" ]; then
-  _pending=$("$_q" list --oneline 2>/dev/null || true)
+if [ -f "$_q" ] && [ -n "$_session_id" ]; then
+  _pending=$("$_q" list-other "$_session_id" --oneline 2>/dev/null || true)
   if [ -n "$_pending" ]; then
-    _migrate_output="Open items exist across sessions. IMPORTANT: before doing anything else, show the list below and ask the user which sessions they want to migrate into this one. Do not migrate without their confirmation.
+    _migrate_output="Open items exist in other sessions. IMPORTANT: before doing anything else, show the list below and ask the user which items to bring into this session. Do not migrate without confirmation.
 
 ${_pending}
 
-To migrate all: \`q migrate <session-id>\`
-To migrate specific sessions: \`q migrate <session-id> <src-session-id> [...]\`"
+Each item is labelled [sid8:n]. To migrate selected items:
+  \`q migrate-items ${_session_id} <sid8:n> [<sid8:n> ...]\`
+To migrate all items from a session:
+  \`q migrate ${_session_id} <src-session-id>\`
+To see full details: \`q list-other ${_session_id}\`"
   fi
 fi
 
