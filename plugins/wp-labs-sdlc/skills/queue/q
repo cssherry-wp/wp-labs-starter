@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # queue helper — deterministic file I/O for the /queue skill
-# usage: q <add|list|needs-interpretation|write-interpretation|mark-done|mark-cancelled|clear|rename-pending|list-migrateable|migrate> ...
+# usage: q <add|list|needs-interpretation|write-interpretation|mark-done|mark-cancelled|clear|rename-pending|migrate> ...
 set -euo pipefail
 
 QUEUE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue"
@@ -40,49 +40,79 @@ add)
   ;;
 
 list)
-  # q list <session-id>  — prints open items numbered with metadata; exits 1 if none
-  SID="$1"; FILE="$QUEUE_DIR/$SID.md"
-  [ -f "$FILE" ] || { echo "No queue file: $FILE"; exit 1; }
-  python3 - "$FILE" <<'PY'
-import sys, re
+  # q list [--oneline] [session-id]
+  # --oneline: one line per item (sid prefix when no session-id given)
+  # no session-id: all .md files in queue dir
+  ONELINE=0
+  [ "${1:-}" = "--oneline" ] && { ONELINE=1; shift; }
+  SID="${1:-}"
 
-path = sys.argv[1]
-text = open(path).read()
-blocks = re.split(r'(?=^- \[)', text, flags=re.MULTILINE)
+  if [ -n "$SID" ]; then
+    FILE="$QUEUE_DIR/$SID.md"
+    [ -f "$FILE" ] || { echo "No queue file: $FILE"; exit 1; }
+    FILES=("$FILE")
+  else
+    shopt -s nullglob; FILES=("$QUEUE_DIR"/*.md); shopt -u nullglob
+    [ ${#FILES[@]} -eq 0 ] && { echo "No queue files."; exit 0; }
+  fi
+
+  python3 - "$ONELINE" "$SID" "${FILES[@]}" <<'PY'
+import sys, re, os
+
+oneline = sys.argv[1] == '1'
+single = sys.argv[2]  # non-empty = single-session mode (preserve numbered output)
+files = [f for f in sys.argv[3:] if os.path.isfile(f)]
 
 n = 0
-for block in blocks:
-    if not block.startswith('- [ ]'):
+for path in files:
+    sid = os.path.basename(path)[:-3]
+    if sid == 'pending':
         continue
-    n += 1
-    lines = block.strip().split('\n')
-    ask = lines[0][6:]
-    meta, sub, interp_lines, in_interp = {}, [], [], False
-    for line in lines[1:]:
-        s = line.strip()
-        if in_interp:
-            if line.startswith('    '):
-                interp_lines.append(s)
-            else:
-                in_interp = False
-        if s.startswith('- '):
-            sub.append(s[2:])
-        elif s.startswith('interpretation:'):
-            interp_lines.append(s[len('interpretation:'):].strip())
-            in_interp = True
-        elif ': ' in s and not in_interp:
-            k, v = s.split(': ', 1)
-            meta[k] = v
+    text = open(path).read()
+    blocks = re.split(r'(?=^- \[)', text, flags=re.MULTILINE)
+    open_blocks = [b for b in blocks if b.startswith('- [ ]')]
+    if not open_blocks:
+        continue
 
-    badge = {'high': '[H]', 'med': '[M]', 'low': '[L]'}.get(meta.get('priority', ''), '')
-    prefix = f'{badge} ' if badge else ''
-    print(f'{n}. {prefix}{ask}')
-    for s in sub:
-        print(f'   • {s}')
-    print(f'   queued: {meta.get("queued", "?")}')
-    if interp_lines:
-        print(f'   interpretation: {" ".join(interp_lines)}')
-    print()
+    if not oneline and not single:
+        print(f'## {sid}\n')
+
+    for block in open_blocks:
+        n += 1
+        lines = block.strip().split('\n')
+        ask = lines[0][6:]
+
+        if oneline:
+            pfx = f'{sid[:8]}: ' if not single else ''
+            print(f'{pfx}{ask}')
+            continue
+
+        meta, sub, interp_lines, in_interp = {}, [], [], False
+        for line in lines[1:]:
+            s = line.strip()
+            if in_interp:
+                if line.startswith('    '):
+                    interp_lines.append(s)
+                else:
+                    in_interp = False
+            if s.startswith('- '):
+                sub.append(s[2:])
+            elif s.startswith('interpretation:'):
+                interp_lines.append(s[len('interpretation:'):].strip())
+                in_interp = True
+            elif ': ' in s and not in_interp:
+                k, v = s.split(': ', 1)
+                meta[k] = v
+
+        badge = {'high': '[H]', 'med': '[M]', 'low': '[L]'}.get(meta.get('priority', ''), '')
+        pfx = f'{badge} ' if badge else ''
+        print(f'{n}. {pfx}{ask}')
+        for s in sub:
+            print(f'   • {s}')
+        print(f'   queued: {meta.get("queued", "?")}')
+        if interp_lines:
+            print(f'   interpretation: {" ".join(interp_lines)}')
+        print()
 
 if n == 0:
     print('No open items.')
@@ -249,18 +279,6 @@ rename-pending)
   fi
   ;;
 
-list-migrateable)
-  # q list-migrateable <session-id>  — list sessions with open items, no mutations
-  SID="$1"
-  for src_file in "$QUEUE_DIR"/*.md; do
-    [ -f "$src_file" ] || continue
-    base=$(basename "$src_file" .md)
-    [ "$base" = "$SID" ] && continue
-    [ "$base" = "pending" ] && continue
-    n=$(grep -c '^- \[ \]' "$src_file" 2>/dev/null || echo 0)
-    [ "${n:-0}" -gt 0 ] && printf '%d open item(s) in session %s\n' "$n" "$base"
-  done
-  ;;
 
 migrate)
   # q migrate <session-id> [src-session-id ...]  — cancel open items in other sessions, append fresh copies here
@@ -335,7 +353,7 @@ PY
   ;;
 
 *)
-  echo "Usage: q <add|list|needs-interpretation|write-interpretation|mark-done|mark-cancelled|clear|rename-pending|list-migrateable|migrate> ..." >&2
+  echo "Usage: q <add|list|needs-interpretation|write-interpretation|mark-done|mark-cancelled|clear|rename-pending|migrate> ..." >&2
   exit 1
   ;;
 esac
