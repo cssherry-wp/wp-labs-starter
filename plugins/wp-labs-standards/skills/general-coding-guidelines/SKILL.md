@@ -87,6 +87,15 @@ Keep the test file next to the source file in every language:
 ### Test Invalid Input
 Always include tests for edge cases and invalid input, not just the happy path.
 
+### Mocking Policy
+Minimize mocks — use them only at true system boundaries: databases, HTTP clients, filesystems,
+clocks, and external processes. Mock the I/O boundary, not the logic above it.
+
+- Unit tests: cover all edge cases and error paths, not just the happy path.
+- e2e / integration tests: cover all golden-path use cases end to end.
+
+See `wp-labs-superpowers:test-driven-development` and its `testing-anti-patterns.md` reference.
+
 ## Documentation
 
 ### Keep README and Docs Updated
