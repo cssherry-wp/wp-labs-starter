@@ -88,23 +88,26 @@ data — do not re-run `q list` or `q needs-interpretation`.
    `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q write-interpretation <session-id> <n> "<interpretation>"`
    If no items are listed there, skip this step.
 
-2. Count open items from the injected list and select which to run:
-   - **≤ 4 open items**: use `AskUserQuestion` (**single-select**, NOT multiSelect — preview
-     requires single-select). One option per item plus a final "All of the above" option:
-     - `header`: item number + priority badge (e.g. `"#3 [H]"`, max 12 chars); header for
-       the last option is `"All"`
-     - `label`: first line of the ask (≤ 5 words, trimmed); last option label is `"Run all"`
-     - `description`: queued timestamp; last option: `"Run all N items in order"`
-     - `preview`: full ask text, then `Queued: <time>`, then `Intent: <interpretation>`;
-       last option preview lists all items as a numbered summary
-     User selects one item (or "Run all") and may add notes via the built-in notes field.
-     A note on a single item overrides that item's wording when it runs.
+2. Count open items from the injected list and triage them:
+   - **≤ 4 open items**: use `AskUserQuestion` — one **question per item**, all batched into a
+     single call (AskUserQuestion supports 1–4 questions). Per-item fields:
+     - `header`: `"#N"` + priority badge if set (e.g. `"#3 [H]"`, max 12 chars)
+     - `question`: first line of the ask, then `Queued: <time>`, then `Intent: <interpretation>`
+     - `multiSelect`: false
+     - `options` (3 choices):
+       - **Implement** — run this item now
+       - **Keep in queue** — leave it for a later session
+       - **Cancel** — drop it
+     User may attach notes to any selection; a note on **Implement** overrides the item wording.
    - **> 4 open items**: print the list (already in context) and ask:
-     "Which items to run? Reply with numbers (e.g. 1 3 5) and any per-item notes."
-     **Never use `AskUserQuestion` for > 4 items.**
+     "For each item reply: `<n> implement|queue|cancel [note]`. E.g. `1 implement 2 cancel`."
 
-3. Run chosen items in order. A per-item note overrides the original wording.
+3. For all items marked **Implement**, run them in order.
+   A per-item note overrides the original wording.
    Treat each as its own task (own commit if it touches code, per the commit policy).
+   For items marked **Cancel**, call `q mark-cancelled <session-id> <n> "<reason>"` if a reason
+   was given; otherwise `q mark-cancelled <session-id> <n> "user cancelled at drain"`.
+   Items marked **Keep in queue** are left untouched.
 
 4. Mark completed: `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q mark-done <session-id> <n1> <n2> ...`
    Close with one line: what ran, what was skipped, what was dropped.
