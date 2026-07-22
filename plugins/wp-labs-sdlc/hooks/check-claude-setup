@@ -23,9 +23,13 @@ fi
 
 # Queue migration check: collect queue files with open items from other sessions.
 # Runs before early exits so the data is available for the combined output below.
+# pending.md is handled separately (auto-renamed, no user prompt needed).
+_pending_file=""
+[ -f "${_queue_dir}/pending.md" ] && _pending_file="${_queue_dir}/pending.md"
 _open_queue_files=()
 if [ -d "$_queue_dir" ]; then
   while IFS= read -r -d '' _qf; do
+    [ "$(basename "$_qf")" = "pending.md" ] && continue
     _n=$(grep -c '^\- \[ \]' "$_qf" 2>/dev/null || true)
     if [ "${_n:-0}" -gt 0 ]; then
       _open_queue_files+=("$(basename "$_qf" .md): ${_n} open item(s)")
@@ -72,7 +76,7 @@ if [ -f "$TMPL/settings.json" ] && [ -f "$CLAUDE_DIR/settings.json" ]; then
   [ "$merged" != "$current" ] && drift_files+=("settings.json")
 fi
 
-[ ${#drift_files[@]} -eq 0 ] && [ ${#_open_queue_files[@]} -eq 0 ] && exit 0
+[ ${#drift_files[@]} -eq 0 ] && [ ${#_open_queue_files[@]} -eq 0 ] && [ -z "$_pending_file" ] && exit 0
 
 msg=""
 
@@ -88,11 +92,19 @@ IMPORTANT: At the start of this session, proactively tell the user their local C
   msg="$drift_msg"
 fi
 
+if [ -n "$_pending_file" ]; then
+  pending_msg="Cleared queue items pending pickup: ${_pending_file} exists (parked by /queue clear in a previous session).
+IMPORTANT: Immediately rename ${_pending_file} to ${_queue_dir}/<current-session-uuid>.md where <current-session-uuid> is derived from your scratchpad path (same method as the queue skill: parent directory name of the scratchpad path). No user prompt needed — this rename is automatic."
+  msg="${msg:+$msg
+
+}$pending_msg"
+fi
+
 if [ ${#_open_queue_files[@]} -gt 0 ]; then
   queue_list=$(printf '  - %s\n' "${_open_queue_files[@]}")
-  queue_msg="Open queue backlog from previous session(s):
+  queue_msg="Open queue backlog from previous sessions (grouped by session UUID):
 ${queue_list}
-IMPORTANT: Ask the user if they want to migrate these open items to the current session. If yes, read each listed file, extract the open '- [ ]' items, and append them to ~/.claude/queue/<current-session-id>.md with a comment '# migrated from <uuid> <date>' before the block."
+IMPORTANT: Tell the user about these open items and ask if they want to migrate them to this session. If yes, for each listed file: (1) read its open '- [ ]' items; (2) in the source file, mark each '- [ ]' as '- [-]' and insert '  reason: Moved after exit' after the queued: line; (3) append the items as fresh '- [ ]' blocks to ~/.claude/queue/<current-session-id>.md with a comment '# migrated from <uuid> <date>' before the group."
   msg="${msg:+$msg
 
 }$queue_msg"
