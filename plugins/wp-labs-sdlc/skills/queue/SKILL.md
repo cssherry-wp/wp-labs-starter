@@ -33,7 +33,8 @@ Item format (for reference only):
 - [ ] <the ask, verbatim — first line>
   - <sub-bullet if ask was multi-line>
   queued: <YYYY-MM-DD HH:MM:SS>
-  priority: high|med|low   ← optional
+  completed: <YYYY-MM-DD HH:MM:SS>   ← added by mark-done; open items omit this
+  priority: high|med|low             ← optional
   ctx: <pwd basename at capture time>
   interpretation: <added at drain time>
 ```
