@@ -346,6 +346,7 @@ Can't check all boxes? You skipped TDD. Start over.
 | Don't know how to test | Write wished-for API. Write assertion first. Ask your human partner. |
 | Test too complicated | Design too complicated. Simplify interface. |
 | Must mock everything | Code too coupled. Use dependency injection. |
+| External call flaky/rate-limited in tests | Use manual exponential backoff with jitter in test setup; log each retry attempt. |
 | Test setup huge | Extract helpers. Still complex? Simplify design. |
 
 ## Debugging Integration

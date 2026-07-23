@@ -1,6 +1,6 @@
 {
   "name": "wp-labs-standards",
-  "version": "0.8.2",
+  "version": "0.9.0",
   "description": "Team coding-standard skills (auto-load by language) + the docs-path convention, plus common-task workflows: /commit, github-pr-prepare, and github-pr-review.",
   "author": {
     "name": "Sherry Zhou",

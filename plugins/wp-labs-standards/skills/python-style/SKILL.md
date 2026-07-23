@@ -42,5 +42,5 @@ def process_data(input: str, limit: int = 10) -> list[dict]:
 
 ## Testing
 
-- **Co-locate tests with source**: `test_foo.py` next to `foo.py` (see `general-coding-guidelines`).
+- **Co-locate tests with source**: `test_foo.py` next to `foo.py` (see `wp-labs-superpowers:test-driven-development`).
 - Cover happy path, edge cases, and failure modes.
