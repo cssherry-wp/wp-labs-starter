@@ -2,7 +2,7 @@
 set -euo pipefail
 # Claude Code status bar: git context | ponytail mode | active model | config directory
 
-pt=$(bash "$(ls -d "$HOME"/.claude/plugins/cache/ponytail/ponytail/*/hooks/ponytail-statusline.sh 2>/dev/null | sort -V | tail -1)" 2>/dev/null || true)
+pt=$(bash "$(ls -d "$HOME"/.claude/plugins/cache/ponytail/ponytail/*/hooks/ponytail-statusline.sh 2>/dev/null | sort | tail -1)" 2>/dev/null || true)
 cfg="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 git_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
 # Precedence: env var → project settings → user settings
