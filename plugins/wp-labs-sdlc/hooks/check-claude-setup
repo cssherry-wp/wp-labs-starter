@@ -40,7 +40,6 @@ check_text_file() {
   fi
 }
 
-check_text_file "CLAUDE.md"
 check_text_file "statusline.sh"
 
 if [ -d "$TMPL/rules" ]; then
