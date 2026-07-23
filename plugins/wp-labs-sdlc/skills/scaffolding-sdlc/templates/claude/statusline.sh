@@ -5,7 +5,7 @@
 set -uo pipefail
 
 R=$'\033[0m'   CY=$'\033[36m'  GR=$'\033[32m'
-YL=$'\033[33m' RD=$'\033[31m'  DM=$'\033[2m'
+YL=$'\033[33m' RD=$'\033[31m'  DM=$'\033[38;5;245m'
 
 # Parse stdin JSON from Claude Code statusLine hook
 _raw=$(cat)
@@ -15,22 +15,36 @@ try:
     d = json.load(sys.stdin)
     tp = d.get('transcript_path', '')
     sid = os.path.splitext(os.path.basename(tp))[0][:8] if tp else ''
-    print(d.get('model', ''))
-    print(tp)
-    print(d.get('context_window', 200000))
-    print(sid)
+    m = d.get('model', '')
+    if isinstance(m, dict): m = m.get('id', '') or m.get('display_name', '')
+    cw = d.get('context_window', {})
+    pct = cw.get('used_percentage', 0) if isinstance(cw, dict) else 0
+    cost = d.get('cost', {})
+    usd = cost.get('total_cost_usd', 0) if isinstance(cost, dict) else 0
+    ms  = int(cost.get('total_duration_ms', 0)) if isinstance(cost, dict) else 0
+    s = ms // 1000
+    if s < 60:      dur = f'{s}s'
+    elif s < 3600:  dur = f'{s//60}m'
+    elif s < 86400: h,r=divmod(s,3600); dur=f'{h}h{r//60}m' if r//60 else f'{h}h'
+    else:           dv,r=divmod(s,86400); h=r//3600; dur=f'{dv}d{h}h' if h else f'{dv}d'
+    print(m); print(tp); print(sid); print(pct)
+    print(f'\${usd:.2f}'); print(dur)
 except Exception:
-    print(''); print(''); print(200000); print('')
-" 2>/dev/null || printf '\n\n200000\n')
+    print(''); print(''); print(''); print(0); print(''); print('')
+" 2>/dev/null || printf '\n\n\n0\n\n')
 model=$(echo "$_parsed"           | awk 'NR==1')
 transcript_path=$(echo "$_parsed" | awk 'NR==2')
-context_window=$(echo "$_parsed"  | awk 'NR==3')
-session_id=$(echo "$_parsed"      | awk 'NR==4')
+session_id=$(echo "$_parsed"      | awk 'NR==3')
+token_pct=$(echo "$_parsed"       | awk 'NR==4')
+cost_str=$(echo "$_parsed"        | awk 'NR==5')
+dur_str=$(echo "$_parsed"         | awk 'NR==6')
+token_pct=${token_pct:-0}
 
-# Single-pass transcript: token usage + first/last user messages
-token_pct=0; first_msg=''; last_msg=''
-if [[ -f "${transcript_path:-}" && "${context_window:-0}" -gt 0 ]]; then
-  _td=$(python3 - "$transcript_path" "$context_window" 2>/dev/null <<'PY'
+# Read first/last user messages from transcript
+first_msg=''; last_msg=''
+if [[ -f "${transcript_path:-}" ]]; then
+  _py=$(mktemp)
+  cat > "$_py" << 'PY'
 import json, sys
 
 def txt(content):
@@ -39,17 +53,13 @@ def txt(content):
         return ' '.join(b.get('text','') for b in content if b.get('type')=='text').strip()
     return ''
 
-tp, cw = sys.argv[1], int(sys.argv[2])
-max_tok = 0; first_msg = ''; last_msg = ''
+first_msg = ''; last_msg = ''
 try:
-    with open(tp) as f:
+    with open(sys.argv[1]) as f:
         for line in f:
             try:
                 d = json.loads(line)
                 msg = d.get('message') or d
-                u = msg.get('usage') or {}
-                t = (u.get('input_tokens') or 0) + (u.get('cache_read_input_tokens') or 0) + (u.get('cache_creation_input_tokens') or 0)
-                if t > max_tok: max_tok = t
                 if msg.get('role') == 'user':
                     s = txt(msg.get('content', '')).split('\n')[0][:120]
                     if s:
@@ -57,14 +67,13 @@ try:
                         last_msg = s
             except Exception: pass
 except Exception: pass
-print(min(100, int(max_tok * 100 / cw)))
 print(first_msg)
 print(last_msg)
 PY
-) || _td=$(printf '0\n\n')
-  token_pct=$(echo "$_td" | awk 'NR==1')
-  first_msg=$(echo "$_td" | awk 'NR==2')
-  last_msg=$(echo "$_td"  | awk 'NR==3')
+  _td=$(python3 "$_py" "$transcript_path" 2>/dev/null) || true
+  rm -f "$_py"
+  first_msg=$(echo "${_td:-}" | awk 'NR==1')
+  last_msg=$(echo "${_td:-}"  | awk 'NR==2')
 fi
 
 # Render 10-char token bar
@@ -100,7 +109,7 @@ cfg="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 # --- Line 1 ---
 out="${CY}${folder}${branch:+ [$branch]}${R}"
 [[ -n "$sync" ]] && out+=" | ${YL}${sync}${R}"
-out+=" | ${bar_c}${token_pct}% ${bar}${R}"
+out+=" | ${bar_c}${token_pct}% ${bar}${R}${cost_str:+ ${DM}${cost_str}${R}}${dur_str:+ ${DM}${dur_str}${R}}"
 [[ -n "$pt" ]] && out+=" | ${YL}${pt}${R}"
 [[ -n "$model" ]] && out+=" | ${model}"
 [[ -n "$session_id" ]] && out+=" | ${DM}${session_id}${R}"
