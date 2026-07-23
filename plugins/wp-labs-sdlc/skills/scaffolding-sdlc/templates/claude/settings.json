@@ -26,8 +26,7 @@
       "source": { "source": "github", "repo": "DietrichGebert/ponytail" }
     },
     "playwright-skill": {
-      "source": { "source": "github", "repo": "lackeyjb/playwright-skill" },
-      "autoUpdate": true
+      "source": { "source": "github", "repo": "lackeyjb/playwright-skill" }
     }
   },
   "enabledPlugins": {
