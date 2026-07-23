@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # queue helper — deterministic file I/O for the /queue skill
-# usage: q <add|list|list-other|needs-interpretation|write-interpretation|mark-done|mark-done-refs|mark-cancelled|clear|rename-pending|migrate|migrate-items> ...
+# usage: q <add|list|list-other|needs-interpretation|write-interpretation|mark-done|mark-cancelled|clear|rename-pending|migrate|migrate-items> ...
 set -euo pipefail
 
 QUEUE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue"
@@ -301,30 +301,63 @@ PY
   ;;
 
 mark-done)
-  # q mark-done <session-id> <n> [<n> ...]
+  # q mark-done <session-id> <n|sid8:n> [...]
+  # bare numbers → mark done in own session; sid8:n refs → mark done in source session
   SID="$1"; shift; FILE="$QUEUE_DIR/$SID.md"
-  [ -f "$FILE" ] || { echo "No queue file: $FILE"; exit 0; }
-  python3 - "$FILE" "$@" <<'PY'
-import sys, re
+  python3 - "$FILE" "$QUEUE_DIR" "$@" <<'PY'
+import sys, re, os
 from datetime import datetime
 
-path = sys.argv[1]
-nums = set(int(x) for x in sys.argv[2:])
+path, queue_dir = sys.argv[1], sys.argv[2]
+args = sys.argv[3:]
 stamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-text = open(path).read()
-blocks = re.split(r'(?=^- \[)', text, flags=re.MULTILINE)
 
-n, result = 0, []
-for block in blocks:
-    if block.startswith('- [ ]'):
-        n += 1
-        if n in nums:
-            block = block.replace('- [ ]', '- [x]', 1)
-            block = re.sub(r'^  queued: [^\n]+', lambda m: m.group() + '\n  completed: ' + stamp, block, count=1, flags=re.MULTILINE)
-    result.append(block)
+local_nums, by_sid = set(), {}
+for arg in args:
+    if ':' in arg:
+        parts = arg.split(':')
+        if len(parts) == 2:
+            try:
+                by_sid.setdefault(parts[0], set()).add(int(parts[1]))
+            except ValueError:
+                print(f'Invalid ref: {arg}', file=sys.stderr)
+        else:
+            print(f'Invalid ref (expected sid8:n): {arg}', file=sys.stderr)
+    else:
+        try:
+            local_nums.add(int(arg))
+        except ValueError:
+            print(f'Invalid item number: {arg}', file=sys.stderr)
 
-open(path, 'w').write(''.join(result))
-print(f'Marked done: {sorted(nums)}')
+def mark_done_in(file_path, item_nums):
+    if not os.path.isfile(file_path):
+        print(f'No queue file: {file_path}'); return 0
+    text = open(file_path).read()
+    blocks = re.split(r'(?=^- \[)', text, flags=re.MULTILINE)
+    n, result, count = 0, [], 0
+    for block in blocks:
+        if block.startswith('- [ ]'):
+            n += 1
+            if n in item_nums:
+                block = block.replace('- [ ]', '- [x]', 1)
+                block = re.sub(r'^  queued: [^\n]+', lambda m: m.group() + '\n  completed: ' + stamp, block, count=1, flags=re.MULTILINE)
+                count += 1
+        result.append(block)
+    open(file_path, 'w').write(''.join(result))
+    return count
+
+total = 0
+if local_nums:
+    total += mark_done_in(path, local_nums)
+for sid_prefix, item_nums in by_sid.items():
+    matching = [f for f in os.listdir(queue_dir)
+                if f.endswith('.md') and f != 'pending.md'
+                and (f[:-3] == sid_prefix or f[:len(sid_prefix)] == sid_prefix)]
+    if not matching:
+        print(f'Session not found: {sid_prefix}'); continue
+    total += mark_done_in(os.path.join(queue_dir, matching[0]), item_nums)
+
+print(f'Marked done: {total} item(s).')
 PY
   ;;
 
@@ -420,57 +453,6 @@ rename-pending)
   ;;
 
 
-mark-done-refs)
-  # q mark-done-refs <dst-session-id> <sid8:n> [<sid8:n> ...]
-  # Mark items done in their source session by ref (sid8-prefix:local-n)
-  [ $# -lt 2 ] && { echo "Usage: q mark-done-refs <session-id> <sid8:n> [...]" >&2; exit 1; }
-  shift  # session-id unused; refs identify sources directly
-
-  python3 - "$QUEUE_DIR" "$@" <<'PY'
-import sys, re, os
-from datetime import datetime
-
-queue_dir = sys.argv[1]
-refs = sys.argv[2:]
-stamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-by_sid = {}
-for ref in refs:
-    parts = ref.split(':')
-    if len(parts) != 2:
-        print(f'Invalid ref (expected sid8:n): {ref}', file=sys.stderr); continue
-    sid_prefix, n_str = parts
-    try:
-        by_sid.setdefault(sid_prefix, set()).add(int(n_str))
-    except ValueError:
-        print(f'Invalid item number in ref: {ref}', file=sys.stderr)
-
-total = 0
-for sid_prefix, item_nums in by_sid.items():
-    matching = [f for f in os.listdir(queue_dir)
-                if f.endswith('.md') and f != 'pending.md'
-                and (f[:-3] == sid_prefix or f[:len(sid_prefix)] == sid_prefix)]
-    if not matching:
-        print(f'Session not found: {sid_prefix}'); continue
-    src_path = os.path.join(queue_dir, matching[0])
-
-    text = open(src_path).read()
-    blocks = re.split(r'(?=^- \[)', text, flags=re.MULTILINE)
-    local_n, result = 0, []
-    for block in blocks:
-        if block.startswith('- [ ]'):
-            local_n += 1
-            if local_n in item_nums:
-                block = block.replace('- [ ]', '- [x]', 1)
-                block = re.sub(r'^  queued: [^\n]+', lambda m: m.group() + '\n  completed: ' + stamp, block, count=1, flags=re.MULTILINE)
-                total += 1
-        result.append(block)
-    open(src_path, 'w').write(''.join(result))
-
-print(f'Marked done: {total} item(s).')
-PY
-  ;;
-
 migrate)
   # q migrate <session-id> [src-session-id ...]  — cancel open items in other sessions, append fresh copies here
   # If source session IDs are given, only migrate those; otherwise migrate all
@@ -530,7 +512,7 @@ PY
   ;;
 
 *)
-  echo "Usage: q <add|list|list-other|needs-interpretation|write-interpretation|mark-done|mark-done-refs|mark-cancelled|clear|rename-pending|migrate|migrate-items> ..." >&2
+  echo "Usage: q <add|list|list-other|needs-interpretation|write-interpretation|mark-done|mark-cancelled|clear|rename-pending|migrate|migrate-items> ..." >&2
   exit 1
   ;;
 esac
