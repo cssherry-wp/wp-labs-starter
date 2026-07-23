@@ -641,7 +641,7 @@ function applyFilters(){
     if(activeQueueStatus==='cancelled'&&!s.queueItems.some(i=>i.cancelled&&(!i.reason||!/moved/i.test(i.reason))))return false;
     if(activeToolFilters.size&&![...activeToolFilters].some(f=>s.tools.includes(f)||s.skills.includes(f)))return false;
     if(!q)return true;
-    return(s.title||'').toLowerCase().includes(q)||(s.projectNorm||'').toLowerCase().includes(q)||(s.name||'').toLowerCase().includes(q)||s.userTurns.some(t=>t.text.toLowerCase().includes(q))||s.commands.some(c=>c.name.toLowerCase().includes(q))||s.queueItems.some(i=>i.text.toLowerCase().includes(q))||s.claudeTasks.some(t=>t.subject.toLowerCase().includes(q));
+    return(s.title||'').toLowerCase().includes(q)||(s.projectNorm||'').toLowerCase().includes(q)||(s.name||'').toLowerCase().includes(q)||s.uuid.toLowerCase().includes(q)||s.userTurns.some(t=>t.text.toLowerCase().includes(q))||s.commands.some(c=>c.name.toLowerCase().includes(q))||s.queueItems.some(i=>i.text.toLowerCase().includes(q))||s.claudeTasks.some(t=>t.subject.toLowerCase().includes(q));
   });
   tableFilteredSessions=activeSessionFilter?filteredSessions.filter(s=>s.uuid===activeSessionFilter):filteredSessions;
   filteredSessions.sort((a,b)=>{
@@ -851,7 +851,7 @@ function renderTable(){
   document.getElementById('tblLabel').textContent=label;
   document.getElementById('tblHead').style.display='flex';
   const tq=tableSearch.toLowerCase();
-  const displaySessions=tq?tableFilteredSessions.filter(s=>(s.title||'').toLowerCase().includes(tq)||(s.projectNorm||'').toLowerCase().includes(tq)||(s.name||'').toLowerCase().includes(tq)||s.userTurns.some(t=>t.text.toLowerCase().includes(tq))||s.queueItems.some(i=>i.text.toLowerCase().includes(tq))||s.claudeTasks.some(t=>t.subject.toLowerCase().includes(tq))):tableFilteredSessions;
+  const displaySessions=tq?tableFilteredSessions.filter(s=>(s.title||'').toLowerCase().includes(tq)||(s.projectNorm||'').toLowerCase().includes(tq)||(s.name||'').toLowerCase().includes(tq)||s.uuid.toLowerCase().includes(tq)||s.userTurns.some(t=>t.text.toLowerCase().includes(tq))||s.queueItems.some(i=>i.text.toLowerCase().includes(tq))||s.claudeTasks.some(t=>t.subject.toLowerCase().includes(tq))):tableFilteredSessions;
   sec.innerHTML=`<div class="tbl-wrap"><table id="mainTable"><thead><tr>${thead}</tr></thead><tbody>${displaySessions.map(s=>sessionRow(s)).join('')}</tbody></table></div>`;
   sec.querySelectorAll('th[data-col]').forEach(th=>th.addEventListener('click',()=>{if(sortCol===th.dataset.col)sortAsc=!sortAsc;else{sortCol=th.dataset.col;sortAsc=th.dataset.col!=='date';}syncUrl();render();}));
   sec.querySelectorAll('tr.srow').forEach(tr=>tr.addEventListener('click',()=>toggleRow(tr.dataset.uuid)));
