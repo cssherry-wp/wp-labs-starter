@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # queue helper — deterministic file I/O for the /queue skill
-# usage: q <add|list|needs-interpretation|write-interpretation|mark-done|mark-cancelled|clear|rename-pending|migrate> ...
+# usage: q <add|list|list-other|needs-interpretation|write-interpretation|mark-done|mark-done-refs|mark-cancelled|clear|rename-pending|migrate|migrate-items> ...
 set -euo pipefail
 
 QUEUE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue"
@@ -116,7 +116,6 @@ for path in files:
 
 if n == 0:
     print('No open items.')
-    sys.exit(1)
 PY
   ;;
 
@@ -143,8 +142,6 @@ for path in files:
         continue
     text = open(path).read()
     blocks = re.split(r'(?=^- \[)', text, flags=re.MULTILINE)
-    open_blocks = [(i+1, b) for i, b in enumerate(b for b in blocks if b.startswith('- [ ]'))]
-    # recount with correct local numbering
     local_open = [b for b in blocks if b.startswith('- [ ]')]
     if not local_open:
         continue
@@ -184,7 +181,6 @@ for path in files:
 
 if total == 0:
     print('No open items in other sessions.')
-    sys.exit(1)
 PY
   ;;
 
@@ -193,7 +189,6 @@ migrate-items)
   # Migrates specific items (by per-session number, full or 8-char UUID prefix) into dst
   [ $# -lt 2 ] && { echo "Usage: q migrate-items <session-id> <sid8:n> [...]" >&2; exit 1; }
   SID="$1"; shift
-  DST="$QUEUE_DIR/$SID.md"
 
   python3 - "$SID" "$QUEUE_DIR" "$@" <<'PY'
 import sys, re, os
@@ -281,6 +276,7 @@ PY
 write-interpretation)
   # q write-interpretation <session-id> <item-n> "<interpretation text>"
   SID="$1"; NUM="$2"; INTERP="$3"; FILE="$QUEUE_DIR/$SID.md"
+  [ -f "$FILE" ] || { echo "No queue file: $FILE"; exit 0; }
   python3 - "$FILE" "$NUM" "$INTERP" <<'PY'
 import sys, re
 
@@ -307,6 +303,7 @@ PY
 mark-done)
   # q mark-done <session-id> <n> [<n> ...]
   SID="$1"; shift; FILE="$QUEUE_DIR/$SID.md"
+  [ -f "$FILE" ] || { echo "No queue file: $FILE"; exit 0; }
   python3 - "$FILE" "$@" <<'PY'
 import sys, re
 from datetime import datetime
@@ -334,6 +331,7 @@ PY
 mark-cancelled)
   # q mark-cancelled <session-id> [--reason <text>] <n> [<n> ...]
   SID="$1"; shift; FILE="$QUEUE_DIR/$SID.md"
+  [ -f "$FILE" ] || { echo "No queue file: $FILE"; exit 0; }
   REASON="Cancelled"
   if [ "${1:-}" = "--reason" ]; then REASON="$2"; shift 2; fi
   python3 - "$FILE" "$REASON" "$@" <<'PY'
@@ -415,6 +413,57 @@ rename-pending)
   ;;
 
 
+mark-done-refs)
+  # q mark-done-refs <dst-session-id> <sid8:n> [<sid8:n> ...]
+  # Mark items done in their source session by ref (sid8-prefix:local-n)
+  [ $# -lt 2 ] && { echo "Usage: q mark-done-refs <session-id> <sid8:n> [...]" >&2; exit 1; }
+  shift  # session-id unused; refs identify sources directly
+
+  python3 - "$QUEUE_DIR" "$@" <<'PY'
+import sys, re, os
+from datetime import datetime
+
+queue_dir = sys.argv[1]
+refs = sys.argv[2:]
+stamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+by_sid = {}
+for ref in refs:
+    parts = ref.split(':')
+    if len(parts) != 2:
+        print(f'Invalid ref (expected sid8:n): {ref}', file=sys.stderr); continue
+    sid_prefix, n_str = parts
+    try:
+        by_sid.setdefault(sid_prefix, set()).add(int(n_str))
+    except ValueError:
+        print(f'Invalid item number in ref: {ref}', file=sys.stderr)
+
+total = 0
+for sid_prefix, item_nums in by_sid.items():
+    matching = [f for f in os.listdir(queue_dir)
+                if f.endswith('.md') and f != 'pending.md'
+                and (f[:-3] == sid_prefix or f[:len(sid_prefix)] == sid_prefix)]
+    if not matching:
+        print(f'Session not found: {sid_prefix}'); continue
+    src_path = os.path.join(queue_dir, matching[0])
+
+    text = open(src_path).read()
+    blocks = re.split(r'(?=^- \[)', text, flags=re.MULTILINE)
+    local_n, result = 0, []
+    for block in blocks:
+        if block.startswith('- [ ]'):
+            local_n += 1
+            if local_n in item_nums:
+                block = block.replace('- [ ]', '- [x]', 1)
+                block = re.sub(r'^  queued: [^\n]+', lambda m: m.group() + '\n  completed: ' + stamp, block, count=1, flags=re.MULTILINE)
+                total += 1
+        result.append(block)
+    open(src_path, 'w').write(''.join(result))
+
+print(f'Marked done: {total} item(s).')
+PY
+  ;;
+
 migrate)
   # q migrate <session-id> [src-session-id ...]  — cancel open items in other sessions, append fresh copies here
   # If source session IDs are given, only migrate those; otherwise migrate all
@@ -474,7 +523,7 @@ PY
   ;;
 
 *)
-  echo "Usage: q <add|list|list-other|needs-interpretation|write-interpretation|mark-done|mark-cancelled|clear|rename-pending|migrate|migrate-items> ..." >&2
+  echo "Usage: q <add|list|list-other|needs-interpretation|write-interpretation|mark-done|mark-done-refs|mark-cancelled|clear|rename-pending|migrate|migrate-items> ..." >&2
   exit 1
   ;;
 esac
