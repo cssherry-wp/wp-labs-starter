@@ -22,8 +22,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-mkdir -p "$CLAUDE_DIR/rules"
-
 ask() {
   local prompt="$1"
   local yn
@@ -70,30 +68,6 @@ else
   cp "$TMPL/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md"
   echo "CLAUDE.md: created"
 fi
-
-# --- rules/ ---
-shopt -s nullglob
-for src in "$TMPL/rules/"*; do
-  name=$(basename "$src")
-  dst="$CLAUDE_DIR/rules/$name"
-  if [ -f "$dst" ]; then
-    if diff -q "$src" "$dst" > /dev/null 2>&1; then
-      echo "rules/$name: already up to date"
-    else
-      echo "rules/$name diff (existing -> template):"
-      diff "$dst" "$src" || true
-      if ask "Overwrite rules/$name?"; then
-        cp "$src" "$dst"
-        echo "rules/$name: updated"
-      else
-        echo "rules/$name: skipped"
-      fi
-    fi
-  else
-    cp "$src" "$dst"
-    echo "rules/$name: created"
-  fi
-done
 
 # --- statusline.sh ---
 src="$TMPL/statusline.sh"
