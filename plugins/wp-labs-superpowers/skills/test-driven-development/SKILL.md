@@ -354,6 +354,23 @@ Bug found? Write failing test reproducing it. Follow TDD cycle. Test proves fix 
 
 Never fix bugs without a test.
 
+## Test Conventions
+
+### Co-locate Tests With Source
+Keep the test file next to the source file in every language:
+- JavaScript/React: `Button.test.jsx` next to `Button.jsx`
+- Go: `foo_test.go` next to `foo.go`
+- Python: `test_foo.py` next to `foo.py`
+
+### Cover Invalid Input
+Always include tests for edge cases and invalid input, not just the happy path.
+
+### Mocking Policy
+Minimize mocks — use them only at true system boundaries: databases, HTTP clients, filesystems, clocks, and external processes. Mock the I/O boundary, not the logic above it.
+
+- Unit tests: cover all edge cases and error paths.
+- e2e / integration tests: cover all golden-path use cases end to end.
+
 ## Testing Anti-Patterns
 
 When adding mocks or test utilities, read [testing-anti-patterns.md](testing-anti-patterns.md) to avoid common pitfalls:

@@ -78,23 +78,7 @@ Start projects in safe languages like Go (preferred for backend), TypeScript (pr
 ### Always Add Tests
 For every feature added or bug fixed, add unit tests covering the core logic and functional/integration tests covering the end-to-end behavior.
 
-### Co-locate Tests With Source
-Keep the test file next to the source file in every language:
-- JavaScript/React: `Button.test.jsx` next to `Button.jsx`
-- Go: `foo_test.go` next to `foo.go`
-- Python: `test_foo.py` next to `foo.py`
-
-### Test Invalid Input
-Always include tests for edge cases and invalid input, not just the happy path.
-
-### Mocking Policy
-Minimize mocks — use them only at true system boundaries: databases, HTTP clients, filesystems,
-clocks, and external processes. Mock the I/O boundary, not the logic above it.
-
-- Unit tests: cover all edge cases and error paths, not just the happy path.
-- e2e / integration tests: cover all golden-path use cases end to end.
-
-See `wp-labs-superpowers:test-driven-development` and its `testing-anti-patterns.md` reference.
+See `wp-labs-superpowers:test-driven-development` for test structure, mocking policy, and coverage expectations.
 
 ## Documentation
 
