@@ -1,33 +1,86 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Queue housekeeping: move /queue backlog files untouched for >30 days to the
-# trash. Runs on every startup, before (and independent of) the drift check
-# below. Each trashed file is logged to STDERR (its last edit + new location);
-# stdout stays reserved for the JSON payload below.
-# ponytail: mtime-based; CLAUDE_QUEUE_TRASH_DIR override exists only so the test
-# can redirect the trash away from the real ~/.Trash. `date -r <file>` reads the
-# mtime portably on both BSD (macOS) and GNU coreutils.
+# UserPromptSubmit hook: runs setup checks on the first prompt of each session.
+# Reads {"session_id":"...","prompt":"...",...} from stdin.
+
+# jq required for stdin parsing and JSON output
+command -v jq > /dev/null 2>&1 || exit 0
+
+_input=$(cat)
+_session_id=$(printf '%s' "$_input" | jq -r '.session_id // empty' 2>/dev/null || true)
+_prompt=$(printf '%s' "$_input" | jq -r '.prompt // empty' 2>/dev/null || true)
+
 _queue_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue"
 _trash_dir="${CLAUDE_QUEUE_TRASH_DIR:-$HOME/.Trash}"
+
+# First-run-only: skip subsequent prompts in the same session
+if [ -n "$_session_id" ]; then
+  mkdir -p "$_queue_dir"
+  _sentinel="${_queue_dir}/.setup-${_session_id}"
+  [ -f "$_sentinel" ] && exit 0
+  touch "$_sentinel"
+fi
+
+# Queue housekeeping: trash stale files (>30 days untouched)
+# ponytail: mtime-based; CLAUDE_QUEUE_TRASH_DIR override lets tests redirect trash.
 if [ -d "$_queue_dir" ]; then
-  mkdir -p "$_trash_dir" 2> /dev/null || true
+  mkdir -p "$_trash_dir" 2>/dev/null || true
   while IFS= read -r -d '' _qf; do
-    _last_edit=$(date -r "$_qf" '+%Y-%m-%d %H:%M:%S' 2> /dev/null || echo "unknown")
+    _last_edit=$(date -r "$_qf" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "unknown")
     _dest="$_trash_dir/$(basename "$_qf")"
-    if mv "$_qf" "$_dest" 2> /dev/null; then
-      echo "queue housekeeping: trashed $(basename "$_qf") (last edit ${_last_edit}) -> ${_dest}" >&2
-    fi
-  done < <(find "$_queue_dir" -maxdepth 1 -type f -name '*.md' -mtime +30 -print0 2> /dev/null)
+    mv "$_qf" "$_dest" 2>/dev/null && \
+      echo "queue housekeeping: trashed $(basename "$_qf") (last edit ${_last_edit}) -> ${_dest}" >&2 || true
+  done < <(find "$_queue_dir" -maxdepth 1 -type f -name '*.md' -mtime +30 -print0 2>/dev/null)
 fi
 
 [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] || exit 0
-# ponytail: jq required for JSON output; silently skips when absent
-command -v jq > /dev/null 2>&1 || exit 0
 
+_q="${CLAUDE_PLUGIN_ROOT}/skills/queue/q"
+
+# Keep stable q symlink pointing at the active plugin version.
+# Runs once per session (sentinel above guards frequency); cheap and keeps the
+# symlink current when the plugin upgrades, without requiring /queue setup.
+_stable_q="${_queue_dir}/q"
+[ -f "$_q" ] && ln -sf "$_q" "$_stable_q" 2>/dev/null || true
+
+# Rename pending.md → <session-id>.md (left by /queue clear in a prior session)
+if [ -f "${_queue_dir}/pending.md" ] && [ -n "$_session_id" ]; then
+  "$_q" rename-pending "$_session_id" >&2 || true
+fi
+
+# Detect open items in other sessions (no migration yet — Claude will prompt the user).
+# Skip if prompt is already a /queue command — the queue/hook handles that path.
+_migrate_output=""
+_is_queue_cmd=false
+case "$_prompt" in /queue|"/queue "*) _is_queue_cmd=true ;; esac
+if [ "$_is_queue_cmd" = false ] && [ -f "$_q" ] && [ -n "$_session_id" ]; then
+  _pending=$("$_q" list-other "$_session_id" --oneline 2>/dev/null || true)
+  if [ -n "$_pending" ]; then
+    _item_count=$(printf '%s\n' "$_pending" | grep -c '^[0-9]' || true)
+    if [ "$_item_count" -le 4 ]; then
+      _interaction="Use AskUserQuestion — one question per item, all batched in a single call (max 4 questions). Per-item: header = [sid8:n] ref, question = item text, multiSelect: false, options: 'Migrate to this session' / 'Mark as done' / 'Skip'."
+    else
+      _interaction="Show the items above and ask (plain text — AskUserQuestion has a 4-option max, cannot list all items): 'For each item, reply migrate|done|skip <n>. E.g., migrate 1 3, done 5. Items not mentioned are skipped.'"
+    fi
+    _migrate_output="Open items exist from other sessions. BEFORE responding to the user's request, ask the user what to do with each item. Do not act without confirmation. Do not proceed with the user's task until the user answers.
+
+Items (each labelled [sid8:n]):
+${_pending}
+
+${_interaction}
+
+After user responds:
+- To migrate items: \`${_q} migrate-items ${_session_id} <sid8:n> [<sid8:n> ...]\`
+- To mark items done in their source session: \`${_q} mark-done-refs <sid8:n> [<sid8:n> ...]\`
+- Skipped items: leave untouched.
+- THEN run the user's original request."
+  fi
+fi
+
+# Check for claude setup drift vs. plugin templates
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 TMPL="${CLAUDE_PLUGIN_ROOT}/skills/scaffolding-sdlc/templates/claude"
-
 drift_files=()
 
 check_text_file() {
@@ -52,7 +105,6 @@ fi
 
 # settings.json: merge template into local (template wins), compare to current.
 # Excludes .hooks to avoid false positives from hook ordering/duplication.
-# Uses jq -S (sorted keys) for deterministic string comparison.
 if [ -f "$TMPL/settings.json" ] && [ -f "$CLAUDE_DIR/settings.json" ]; then
   merged=$(jq -sS '(.[0] | del(.hooks)) * (.[1] | del(.hooks))' \
     "$CLAUDE_DIR/settings.json" "$TMPL/settings.json" 2>/dev/null || true)
@@ -60,16 +112,25 @@ if [ -f "$TMPL/settings.json" ] && [ -f "$CLAUDE_DIR/settings.json" ]; then
   [ "$merged" != "$current" ] && drift_files+=("settings.json")
 fi
 
-[ ${#drift_files[@]} -eq 0 ] && exit 0
+[ ${#drift_files[@]} -eq 0 ] && [ -z "$_migrate_output" ] && exit 0
 
-drift_list=$(printf '  - %s\n' "${drift_files[@]}")
+msg=""
 
-msg="Your ~/.claude/ setup is out of sync with the wp-labs-sdlc plugin templates.
+if [ ${#drift_files[@]} -gt 0 ]; then
+  drift_list=$(printf '  - %s\n' "${drift_files[@]}")
+  msg="Your ~/.claude/ setup is out of sync with the wp-labs-sdlc plugin templates.
 
 Drifted files:
 ${drift_list}
 IMPORTANT: At the start of this session, proactively tell the user their local Claude setup is out of sync and offer to apply the updates now — no additional command from them required. If they agree, apply each drifted file:
 - Text files (CLAUDE.md, statusline.sh, rules/*): read from ${TMPL}/<file> and write to ${CLAUDE_DIR}/<file>
 - settings.json: run jq -sS '.[0] as \$a | .[1] as \$b | (\$a * \$b) | .hooks = (((\$a.hooks // {} | keys) + (\$b.hooks // {} | keys) | unique) as \$keys | reduce \$keys[] as \$k ({}; . + {(\$k): ([\$a.hooks[\$k] // [], \$b.hooks[\$k] // []] | add)}))' ${CLAUDE_DIR}/settings.json ${TMPL}/settings.json and write the result to ${CLAUDE_DIR}/settings.json"
+fi
 
-jq -n --arg v "$msg" '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":$v}}'
+if [ -n "$_migrate_output" ]; then
+  msg="${msg:+$msg
+
+}${_migrate_output}"
+fi
+
+jq -n --arg v "$msg" '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":$v}}'

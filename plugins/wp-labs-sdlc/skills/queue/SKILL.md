@@ -3,12 +3,11 @@ name: queue
 description: >-
   Session follow-up backlog. Invoked ONLY by the explicit /queue command — never
   auto-run: `/queue <ask>` captures a follow-up without derailing current work,
-  `/queue` (no args) reviews and runs the backlog after the current task, and
-  `/queue list` shows it. The point is non-disruptive capture now, deferred
-  execution later.
+  `/queue` (no args / empty args) reviews and runs the backlog after the current task,
+  `/queue list` shows it, `/queue migrate` cherry-picks from other sessions.
 user-invocable: true
 disable-model-invocation: true
-argument-hint: "[<ask> | list]"
+argument-hint: "[<ask> | list | migrate | (empty → drain backlog)]"
 allowed-tools: Read, Write, Edit, Bash
 ---
 
@@ -18,78 +17,121 @@ Capture follow-up asks or behavior changes mid-task and defer them until the
 current work is done, so they never derail the flow in progress. The backlog is
 scoped to THIS session (terminal), so parallel sessions keep separate lists.
 
-## Backlog file (per session)
+## Backlog file and helper script
 
-Use `~/.claude/queue/<session-id>.md`. Derive `<session-id>` from this session's
-scratchpad path in your system prompt — it ends in `.../<session-id>/scratchpad`,
-so the id is that path's parent-directory name (a UUID). Reading the id from the
-scratchpad path keeps the backlog scoped to THIS session/terminal, while storing
-the file under `~/.claude` (persistent config) rather than the OS temp dir. Run
-`mkdir -p ~/.claude/queue` and create the file if it doesn't exist.
+File: `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/<session-id>.md`. Derive `<session-id>` from the scratchpad
+path in your system prompt (parent-directory name of the scratchpad path, which ends
+in `.../<session-id>/scratchpad`).
 
-<!-- ponytail: the session id still comes from the scratchpad path, but the file
-     lives in ~/.claude, so it survives /private/tmp cleanup and reboots that
-     would eventually reap the scratchpad. Per-session isolation is unchanged. -->
+All file I/O goes through `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q`. Never read or write the queue file
+directly — always call the script so format stays consistent.
 
-Each item is one block. Capture writes only the first three lines; the
-`interpretation` line is added later, at drain/list time (see Mode B/C):
+Item format (for reference only):
 
 ```
-- [ ] <the ask, verbatim>
+- [ ] <the ask, verbatim — first line>
+  - <sub-bullet if ask was multi-line>
   queued: <YYYY-MM-DD HH:MM:SS>
-  ctx: <one line on what was being worked on when it was added>
-  interpretation: <added at drain/list — your detailed reading of the ask:
-    what it requires, the scope, the files/areas it will touch, open questions>
+  completed: <YYYY-MM-DD HH:MM:SS>   ← added by mark-done; open items omit this
+  priority: high|med|low             ← optional
+  ctx: <pwd basename at capture time>
+  interpretation: <added at drain time>
 ```
 
-## Mode A — Capture: `/queue <ask>` (arguments present)
+Cancelled items:
 
-Keep this near-instant so it does not disrupt the current flow:
+```
+- [-] <the ask, verbatim>
+  queued: ...
+  cancelled: <YYYY-MM-DD HH:MM:SS>
+  reason: Moved after clear | Moved after exit | <other>
+  moved-to: <uuid | pending>
+```
 
-1. Get the real timestamp: run `date '+%Y-%m-%d %H:%M:%S'` via Bash. (This is
-   a skill you execute, so `date` is available — record the actual time, do not
-   guess or omit it.)
-2. Append a new `- [ ] ` item preserving the user's wording, with the `queued`
-   timestamp and a one-line `ctx`. Do **not** write an `interpretation` now —
-   reading scope/files/open-questions is the mid-task disruption this skill
-   avoids; it is produced later at drain/list time.
-3. Acknowledge in ONE line: `Queued (N in backlog) — continuing current task.`
-4. Do NOT start the ask, and do NOT re-plan current work around it. Return
-   immediately to what you were doing.
+## Mode A — Capture: `/queue [--high|--med|--low] <ask>` (arguments present)
 
-If nothing is currently in progress, say so and offer to run the item now
-instead of queueing it.
+Single Bash call — no other steps:
 
-## Mode B — Drain (review + run): `/queue` with no arguments
+```bash
+${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q add <session-id> [--high|--med|--low] "<ask verbatim, flag stripped>" "$(pwd)"
+```
 
-Trigger this when the user runs it explicitly, or **proactively the moment the
-current task batch is complete** (that is the "run after current work" promise).
+- Strip `--high`/`--med`/`--low` from ARGUMENTS before passing the ask.
+- If the ask spans multiple lines, pass it quoted with literal newlines — the script
+  puts the first line as the item and remaining lines as `  - ` sub-bullets.
+- The script prints the acknowledgment. Output nothing else.
+- Do NOT start the ask. Return immediately to the current task.
 
-1. Read the backlog. If there are no open items, say so and stop.
-2. For each open item, produce its **detailed `interpretation`** now (this is
-   the point where reading scope/files/open-questions is appropriate) and write
-   it back into the item block if not already present. List every open item,
-   numbered, showing its **verbatim ask, its `queued` date-time, and its
-   `interpretation`**.
-3. Ask the user which to proceed with. They can pick any subset, skip the rest,
-   and attach a note to any item — a changed instruction, "just tell me about
-   it, don't change anything", or "drop this one". Use `AskUserQuestion`
-   (multiSelect) when there are ≤ 4 items; for more, list them in prose and ask
-   the user to reply with the numbers to run plus any per-item notes.
-4. Run the chosen items in listed order. A per-item note **overrides** the
-   original wording. An item flagged as information-only gets an answer, not a
-   code change. Treat each as its own task (own commit if it touches code, per
-   the commit policy).
-5. Update the backlog:
-   - Run items → mark `- [x]` (keep their `queued`/`interpretation`).
-   - **Un-selected (skipped) items STAY on the queue, open and unchanged** —
-     skipping is not dropping.
-   - Remove an item only when the user explicitly says to drop it.
-   Close with one line: what ran, what was skipped (still queued), what was
-   dropped.
+If nothing is currently in progress, say so and offer to run the item now instead.
+
+## Mode B — Drain: bare `/queue` (no arguments)
+
+1. Fetch queue state:
+   ```bash
+   ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q list <session-id>
+   ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q needs-interpretation <session-id>
+   ```
+
+2. From the `needs-interpretation` output, generate a detailed `interpretation`
+   for each listed item and write it:
+   `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q write-interpretation <session-id> <n> "<interpretation>"`
+   If no items are listed, skip this step.
+
+3. Count open items from the list and triage them:
+   - **≤ 4 open items**: use `AskUserQuestion` — one **question per item**, all batched into a
+     single call (AskUserQuestion supports 1–4 questions). Per-item fields:
+     - `header`: `"#N"` + priority badge if set (e.g. `"#3 [H]"`, max 12 chars)
+     - `question`: first line of the ask, then `Queued: <time>`, then `Intent: <interpretation>`
+     - `multiSelect`: false
+     - `options`: **always exactly these 3, in this order** (the tool rejects questions with
+       fewer than 2 options — never omit or merge any):
+       1. label `"Implement"`, description `"Run this item now"`
+       2. label `"Keep in queue"`, description `"Leave it for a later session"`
+       3. label `"Cancel"`, description `"Drop it"`
+     User may attach notes to any selection; a note on **Implement** overrides the item wording.
+   - **> 4 open items**: render a markdown table, then ask for disposition.
+     Table columns: `#` | `Item / Intent` | `Group` | `Priority`
+     - `#`: item number
+     - `Item / Intent`: first line of the ask + `—` + the interpretation (one cell, kept brief)
+     - `Group`: infer a short thematic label from the item content (e.g. "dashboard", "ci/cd", "queue-bug", "sdlc")
+     - `Priority`: the item's `priority` field if set, otherwise blank
+     After the table ask: "For each item reply: `<n> implement|queue|cancel [note]`. E.g. `1 implement 2 cancel`."
+
+4. For all items marked **Implement**, run them in order.
+   A per-item note overrides the original wording.
+   Treat each as its own task (own commit if it touches code, per the commit policy).
+   For items marked **Cancel**, call `q mark-cancelled <session-id> --reason "<reason>" <n>` if
+   a reason was given; otherwise `q mark-cancelled <session-id> <n>` (default reason "Cancelled").
+   Items marked **Keep in queue** are left untouched.
+
+5. Mark completed: `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q mark-done <session-id> <n1> <n2> ...`
+   Close with one line: what ran, what was skipped, what was dropped.
+
+6. **Ralph loop**: if open items remain, re-run `q list` and `q needs-interpretation`.
+   Loop until no open items or user replies "stop" / "done" / "exit".
 
 ## Mode C — List only: `/queue list`
 
-Print the open backlog items, numbered, each with its `queued` date-time and a
-detailed `interpretation` (produce it now if the item has none yet, and write it
-back). Change nothing else.
+```bash
+${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q list <session-id>
+```
+
+Print the output. Done — produce or write no interpretations.
+
+## Mode D — Migrate: `/queue migrate [<src-session-id>]`
+
+1. Fetch other-session items:
+   ```bash
+   ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q list-other <session-id>
+   ```
+   Display the output (each item labelled `[sid8:n]`).
+   If a `<src-session-id>` was given in ARGUMENTS, filter the display to that session prefix.
+
+2. Ask: "Which items to migrate? Reply with numbers (e.g. `1 3 5`) or `[sid8:n]` refs.
+   `none` or empty to abort."
+
+3. Map plain numbers to the `[sid8:n]` refs from the displayed list.
+
+4. `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q migrate-items <session-id> <sid8:n> [<sid8:n> ...]`
+
+5. Print the output. Done — do NOT auto-drain the backlog afterward.
