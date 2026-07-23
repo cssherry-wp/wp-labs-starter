@@ -105,6 +105,12 @@ Cover all seven points. Be specific: cite `file:line` and quote the relevant cod
 0–100 confidence score to every finding** (see section 5). Prefer high-signal findings over volume;
 if a point has nothing to report, say "No issues" rather than padding.
 
+**Finding IDs:** maintain a single counter starting at 1 for the entire report. Every finding —
+across all seven checklist points, including those folded in from `/code-review`,
+`/security-review`, and `/ponytail-review` — gets the next ID as `[CR-NNN]` (zero-padded to 3
+digits). IDs are assigned in the order findings appear in the report (section 1 → section 7). They
+reset each run; the output file (section 7) is the stable reference.
+
 **(1) Summary of the changes.** A short, faithful description grouped by theme/area — not a
 file-by-file restatement. Lead with the primary intent.
 
@@ -125,7 +131,11 @@ worktree for PR targets), scoped to these changes, and fold its findings into th
 `--comment`/effort; security findings are generally not auto-fixable.
 **Deep over-engineering hand-off:** always run `/ponytail-review` against the same working diff to
 hunt reinvented stdlib, unneeded dependencies, speculative abstractions, and dead flexibility; fold
-its findings into this point. Report-only (no `--fix`/effort flags); forward `--comment`.
+its findings into this point. Forward `--fix` and `--comment`. Normalize ponytail's output into the
+same format as other findings — `[SEV] file:line — description (confidence N) [CR-NNN]` — before
+folding in; assign IDs from the shared counter (section 4). Since ponytail-review lists fixes but
+does not apply them, `--fix` means change-review applies mechanically-fixable ponytail findings
+(confidence ≥ 80) itself, same as for correctness findings.
 
 **(4) Lint/style on new files.** For every **newly added** file, verify it matches the repo's
 linting/formatting and local conventions. Prefer running the real tools, scoped to the new files:
@@ -205,14 +215,14 @@ When `--ci` is passed (read-only mode), write findings as JSON, not prose — re
   "meta": { "target": "PR #123: feat/foo → main", "files_changed": 12 },
   "report_markdown": "## Change review — PR #123\n\n### 1. Summary\n…\n\n### Verdict\n…",
   "findings": [
-    { "path": "src/foo.ts", "line": 42, "side": "RIGHT", "severity": "med", "confidence": 85,
+    { "id": "CR-001", "path": "src/foo.ts", "line": 42, "side": "RIGHT", "severity": "med", "confidence": 85,
       "status": "fixed",
       "summary": "Unused import left after refactor.",
       "detail": "`os` is no longer referenced once readFile moved to fs/promises.",
       "suggestion": "Remove the `import os` line." }
   ],
   "unanchored": [
-    { "category": "tests", "confidence": 70,
+    { "id": "CR-002", "category": "tests", "confidence": 70,
       "summary": "No test covers the new error path.",
       "detail": "throwOnMissingConfig has no test asserting it throws.",
       "suggestion": "Add a case in tests/foo.test.ts." }
@@ -229,32 +239,32 @@ When `--ci` is passed (read-only mode), write findings as JSON, not prose — re
 <grouped prose>
 
 ### 2. Outlying changes
-- <file:line> — <why surprising> (confidence N)   (or: None)
+- [CR-NNN] <file:line> — <why surprising> (confidence N)   (or: None)
 
 ### 3. Architecture / security / structure
-- [HIGH/MED/LOW] <file:line> — <risk> → <direction> (confidence N)   (or: None)
-  <deep security via /security-review folded in>
-  <deep over-engineering via /ponytail-review folded in>
+- [CR-NNN] [HIGH/MED/LOW] <file:line> — <risk> → <direction> (confidence N)   (or: None)
+  <deep security via /security-review folded in, same format>
+  <deep over-engineering via /ponytail-review folded in, same format>
 
 ### 4. Lint & style (new files)
-- <file> — <tool result / deviation + fix> (confidence N)   (or: All new files conform)
+- [CR-NNN] <file> — <tool result / deviation + fix> (confidence N)   (or: All new files conform)
 
 ### 5. Docs
-- <doc path> — <what needs updating> (confidence N)   (or: Up to date)
+- [CR-NNN] <doc path> — <what needs updating> (confidence N)   (or: Up to date)
 
 ### 6. Correctness
-- <file:line> — <bug + failure scenario> (confidence N)   (or: No obvious defects)
-  <deep correctness via /code-review folded in>
+- [CR-NNN] <file:line> — <bug + failure scenario> (confidence N)   (or: No obvious defects)
+  <deep correctness via /code-review folded in, same format>
 
 ### 7. Tests
-- <test file / area> — <missing or stale coverage> (confidence N)   (or: Adequate / N/A)
+- [CR-NNN] <test file / area> — <missing or stale coverage> (confidence N)   (or: Adequate / N/A)
 
 ### Verdict
 **Blockers (fix before merge):**
-- <ordered by severity>   (or: None)
+- <ordered by severity, include CR-NNN>   (or: None)
 
 **Nits (optional):**
-- <minor items>   (or: None)
+- <minor items, include CR-NNN>   (or: None)
 
 <if --fix: what was auto-fixed vs left as a suggestion>
 <one line: safe to merge as-is, or address blockers first>
@@ -262,15 +272,21 @@ When `--ci` is passed (read-only mode), write findings as JSON, not prose — re
 
 Keep it tight. End with the verdict, blockers first.
 
+**Persist the report:** after printing (or writing `--ci` JSON), save the prose report to
+`<repo-root>/.superpowers/03-review/<YYYY-MM-DD>-<slug>.md` where `slug` is `uncommitted`,
+`pr-<N>`, or derived from the branch name. Create the directory if absent. Derive the repo root
+with `git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel` — this resolves to
+the main repo even when called from inside a throwaway worktree. Skip this step under `--ci`
+when the JSON file is the deliverable.
+
 ## 8. Interactive triage (non-`--ci` only)
 
-After printing the report, collect all **unfixed** findings from sections 2–7 and assign
-sequential IDs — `#1`, `#2`, … — in section-reading order. (Section 1 is summary only; skip it.)
-Skip this step entirely under `--ci`.
+After printing the report, collect all **unfixed** findings from sections 2–7. Use their `CR-NNN`
+IDs (assigned during the report — section 4). Skip this step entirely under `--ci`.
 
 **≤ 4 unfixed findings**: use `AskUserQuestion` — one question per finding, all in a single call.
 
-- **`header`**: `"#N"` (+ section label if helpful, e.g. `"#3 Tests"`, max 12 chars)
+- **`header`**: `"CR-NNN"` (+ section label if helpful, e.g. `"CR-007 Tests"`, max 12 chars)
 - **`question`**: the finding's impact (what breaks or degrades if left as-is) and the trade-off
   of each choice, so the user can decide without re-reading the report.
 - **`options`** — always exactly these 4, in this order (the tool rejects <2 — never omit any):
@@ -281,13 +297,13 @@ Skip this step entirely under `--ci`.
 
 **> 4 unfixed findings**: render a markdown table instead, then prompt for dispositions as text:
 
-| # | Section | Finding | Confidence |
-|---|---------|---------|-----------|
-| 1 | Correctness | `foo.ts:42` unused import | 85 |
+| ID | Section | Finding | Confidence |
+|----|---------|---------|-----------|
+| CR-001 | Correctness | `foo.ts:42` unused import | 85 |
 | … | … | … | … |
 
-Then ask: "For each finding reply: `<n> fix|queue|issue|ignore [note]`.
-E.g. `1 fix 3 queue 5 ignore`."
+Then ask: "For each finding reply: `<CR-NNN> fix|queue|issue|ignore [note]`.
+E.g. `CR-001 fix CR-003 queue CR-005 ignore`."
 
 The user may attach a free-text note to any choice; read it from `annotations[].notes`
 (≤ 4 findings path) or inline in the text reply (> 4 findings path) and carry it into the
