@@ -57,14 +57,23 @@ case "$_prompt" in /queue|"/queue "*) _is_queue_cmd=true ;; esac
 if [ "$_is_queue_cmd" = false ] && [ -f "$_q" ] && [ -n "$_session_id" ]; then
   _pending=$("$_q" list-other "$_session_id" --oneline 2>/dev/null || true)
   if [ -n "$_pending" ]; then
-    _migrate_output="Open items exist from other sessions. BEFORE responding to the user's request, use AskUserQuestion with multiSelect:true to ask which items to bring into this session. Do not migrate without confirmation. Do not proceed with the user's task until the user answers.
+    _item_count=$(printf '%s\n' "$_pending" | grep -c '^[0-9]' || true)
+    if [ "$_item_count" -le 4 ]; then
+      _interaction="Use AskUserQuestion — one question per item, all batched in a single call (max 4 questions). Per-item: header = [sid8:n] ref, question = item text, multiSelect: false, options: 'Migrate to this session' / 'Mark as done' / 'Skip'."
+    else
+      _interaction="Show the items above and ask (plain text — AskUserQuestion has a 4-option max, cannot list all items): 'For each item, reply migrate|done|skip <n>. E.g., migrate 1 3, done 5. Items not mentioned are skipped.'"
+    fi
+    _migrate_output="Open items exist from other sessions. BEFORE responding to the user's request, ask the user what to do with each item. Do not act without confirmation. Do not proceed with the user's task until the user answers.
 
 Items (each labelled [sid8:n]):
 ${_pending}
 
+${_interaction}
+
 After user responds:
-- To migrate chosen items: \`${_q} migrate-items ${_session_id} <sid8:n> [<sid8:n> ...]\`
-- To skip all: proceed with the user's original request.
+- To migrate items: \`${_q} migrate-items ${_session_id} <sid8:n> [<sid8:n> ...]\`
+- To mark items done in their source session: \`${_q} mark-done-refs <sid8:n> [<sid8:n> ...]\`
+- Skipped items: leave untouched.
 - THEN run the user's original request."
   fi
 fi
