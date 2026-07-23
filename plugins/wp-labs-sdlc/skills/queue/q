@@ -235,11 +235,7 @@ for sid_prefix, item_nums in by_sid.items():
             local_n += 1
             if local_n in item_nums:
                 cancelled = block.replace('- [ ]', '- [-]', 1)
-                cancelled = re.sub(
-                    r'(  queued: [^\n]+)',
-                    r'\1\n  cancelled: ' + stamp + r'\n  reason: Moved after exit\n  moved-to: ' + cur_sid,
-                    cancelled, count=1
-                )
+                cancelled = re.sub(r'^  queued: [^\n]+', lambda m: f'{m.group()}\n  cancelled: {stamp}\n  reason: Moved after exit\n  moved-to: {cur_sid}', cancelled, count=1, flags=re.MULTILINE)
                 new_src.append(cancelled)
                 fresh_items.append(block.rstrip())
                 total += 1
@@ -297,6 +293,10 @@ for block in blocks:
     if block.startswith('- [ ]'):
         n += 1
         if n == num and 'interpretation:' not in block:
+            interp = interp.strip()
+            if '\n' in interp:
+                first, *rest = interp.split('\n')
+                interp = first + ''.join(f'\n    {l}' for l in rest if l.strip())
             block = block.rstrip() + f'\n  interpretation: {interp}\n\n'
     result.append(block)
 
@@ -323,7 +323,7 @@ for block in blocks:
         n += 1
         if n in nums:
             block = block.replace('- [ ]', '- [x]', 1)
-            block = re.sub(r'(  queued: [^\n]+)', r'\1\n  completed: ' + stamp, block)
+            block = re.sub(r'^  queued: [^\n]+', lambda m: m.group() + '\n  completed: ' + stamp, block, count=1, flags=re.MULTILINE)
     result.append(block)
 
 open(path, 'w').write(''.join(result))
@@ -352,9 +352,7 @@ for block in blocks:
         n += 1
         if n in nums:
             block = block.replace('- [ ]', '- [-]', 1)
-            block = re.sub(r'(  queued: [^\n]+)',
-                           r'\1\n  cancelled: ' + stamp + r'\n  reason: ' + reason,
-                           block)
+            block = re.sub(r'^  queued: [^\n]+', lambda m: f'{m.group()}\n  cancelled: {stamp}\n  reason: {reason}', block, count=1, flags=re.MULTILINE)
     result.append(block)
 
 open(path, 'w').write(''.join(result))
@@ -379,9 +377,7 @@ new_src, pending_items = [], []
 for block in blocks:
     if block.startswith('- [ ]'):
         cancelled = block.replace('- [ ]', '- [-]', 1)
-        cancelled = re.sub(r'(  queued: [^\n]+)',
-                           r'\1\n  cancelled: ' + stamp + r'\n  reason: Moved after clear\n  moved-to: pending',
-                           cancelled)
+        cancelled = re.sub(r'^  queued: [^\n]+', lambda m: f'{m.group()}\n  cancelled: {stamp}\n  reason: Moved after clear\n  moved-to: pending', cancelled, count=1, flags=re.MULTILINE)
         new_src.append(cancelled)
         # fresh copy: keep ask/sub-bullets/queued/priority/ctx, drop interpretation
         fresh, skip = [], False
@@ -452,11 +448,7 @@ new_src, fresh_items = [], []
 for block in blocks:
     if block.startswith('- [ ]'):
         cancelled = block.replace('- [ ]', '- [-]', 1)
-        cancelled = re.sub(
-            r'(  queued: [^\n]+)',
-            r'\1\n  cancelled: ' + stamp + r'\n  reason: Moved after exit\n  moved-to: ' + cur_sid,
-            cancelled, count=1
-        )
+        cancelled = re.sub(r'^  queued: [^\n]+', lambda m: f'{m.group()}\n  cancelled: {stamp}\n  reason: Moved after exit\n  moved-to: {cur_sid}', cancelled, count=1, flags=re.MULTILINE)
         new_src.append(cancelled)
         fresh_items.append(block.rstrip())
     else:
