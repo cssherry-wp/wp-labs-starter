@@ -30,7 +30,7 @@ session_id=$(echo "$_parsed"      | awk 'NR==4')
 # Single-pass transcript: token usage + first/last user messages
 token_pct=0; first_msg=''; last_msg=''
 if [[ -f "${transcript_path:-}" && "${context_window:-0}" -gt 0 ]]; then
-  _td=$(python3 - "$transcript_path" "$context_window" 2>/dev/null <<'PY' || printf '0\n\n')
+  _td=$(python3 - "$transcript_path" "$context_window" 2>/dev/null <<'PY'
 import json, sys
 
 def txt(content):
@@ -61,6 +61,7 @@ print(min(100, int(max_tok * 100 / cw)))
 print(first_msg)
 print(last_msg)
 PY
+) || _td=$(printf '0\n\n')
   token_pct=$(echo "$_td" | awk 'NR==1')
   first_msg=$(echo "$_td" | awk 'NR==2')
   last_msg=$(echo "$_td"  | awk 'NR==3')
@@ -106,13 +107,12 @@ out+=" | ${bar_c}${token_pct}% ${bar}${R}"
 out+=" | ${DM}${cfg/$HOME/~}${R}"
 echo "$out"
 
-# --- Line 2: first → last user message (if space) ---
-cols=$(tput cols 2>/dev/null || echo 120)
+# --- Line 2: first → last user message ---
 if [[ -n "$first_msg" || -n "$last_msg" ]]; then
+  cols=$(tput cols 2>/dev/null || echo 120)
   if [[ "$first_msg" == "$last_msg" ]]; then
     msg_line="\"${first_msg}\""
   else
-    # Allocate roughly half width to each, leaving room for arrow
     half=$(( (cols - 6) / 2 ))
     f="${first_msg:0:$half}"; l="${last_msg:0:$half}"
     [[ "${#first_msg}" -gt $half ]] && f+='…'
