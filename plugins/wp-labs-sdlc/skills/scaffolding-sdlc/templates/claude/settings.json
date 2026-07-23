@@ -20,7 +20,8 @@
   },
   "extraKnownMarketplaces": {
     "wp-labs-starter": {
-      "source": { "source": "github", "repo": "cssherry-wp/wp-labs-starter" }
+      "source": { "source": "github", "repo": "cssherry-wp/wp-labs-starter" },
+      "autoUpdate": true
     },
     "ponytail": {
       "source": { "source": "github", "repo": "DietrichGebert/ponytail" }
