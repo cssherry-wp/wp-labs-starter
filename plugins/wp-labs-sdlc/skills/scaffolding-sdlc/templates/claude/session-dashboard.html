@@ -200,7 +200,8 @@ tr.detail-row td{padding:0;border-bottom:1px solid var(--border)}
   <h1>Claude Sessions</h1>
   <button class="hbtn" id="openBtn">Open ~/.claude</button>
   <button class="hbtn" id="reloadBtn" style="display:none">↻ Reload</button>
-  <button class="hbtn" id="clearCacheBtn" style="display:none" title="Clear localStorage cache and force full reload">⊘ Cache</button>
+  <button class="hbtn" id="clearCacheBtn" style="display:none" title="Force full re-scan (merges into persistent cache)">↺ Rescan</button>
+  <button class="hbtn" id="analyticsBtn" style="display:none" title="Set ~/ClaudeAnalytics folder for persistent file cache">⊕ Analytics</button>
   <button class="hbtn" id="addDirBtn" style="display:none">+ Add folder</button>
   <span id="dirPills" style="display:inline-flex;gap:4px;flex-wrap:wrap"></span>
   <div id="prog-wrap"><div id="prog-bar"></div></div>
@@ -238,7 +239,7 @@ const SKIP_WORDS=['Users','sherryzhou','code','Notes','private','tmp','home'];
 const FUNNEL='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 4h18l-7 8v7l-4 2v-9z"/></svg>';
 
 // ─── State ──────────────────────────────────────────────────────────────────
-let rootHandles=[], uuidToName={}, allSessions=[], filteredSessions=[], tableFilteredSessions=[];
+let rootHandles=[], analyticsHandle=null, uuidToName={}, allSessions=[], filteredSessions=[], tableFilteredSessions=[];
 let activeProject='all', activeDateFilter='all', activeTaskType='all';
 let activeToolFilters=new Set(), activeSessionFilter='', activeQueueStatus='';
 let customDateFrom=null, customDateTo=null;
@@ -263,6 +264,30 @@ function tipOn(el,text){el.addEventListener('mouseenter',e=>showTip(text,e));el.
 function idbOpen(){return new Promise((ok,err)=>{const r=indexedDB.open('claude-dash',1);r.onupgradeneeded=e=>e.target.result.createObjectStore('kv');r.onsuccess=e=>ok(e.target.result);r.onerror=err;});}
 async function idbGet(key){const db=await idbOpen();return new Promise((ok,err)=>{const tx=db.transaction('kv','readonly');const q=tx.objectStore('kv').get(key);q.onsuccess=()=>ok(q.result);q.onerror=err;});}
 async function idbSet(key,val){const db=await idbOpen();return new Promise((ok,err)=>{const tx=db.transaction('kv','readwrite');tx.objectStore('kv').put(val,key);tx.oncomplete=ok;tx.onerror=err;});}
+
+// ─── Analytics dir ──────────────────────────────────────────────────────────
+async function getAnalyticsHandle(){
+  if(analyticsHandle)return analyticsHandle;
+  try{
+    const h=await idbGet('analytics-dir-handle');
+    if(!h)return null;
+    const perm=await h.queryPermission({mode:'readwrite'});
+    if(perm==='granted'){analyticsHandle=h;return h;}
+    const perm2=await h.requestPermission({mode:'readwrite'});
+    if(perm2==='granted'){analyticsHandle=h;return h;}
+  }catch{}
+  return null;
+}
+async function setupAnalyticsDir(){
+  try{
+    const h=await window.showDirectoryPicker({id:'claude-analytics',mode:'readwrite',startIn:'documents'});
+    await idbSet('analytics-dir-handle',h);
+    analyticsHandle=h;
+    document.getElementById('analyticsBtn').style.display='none';
+    document.getElementById('clearCacheBtn').style.display='';
+    return h;
+  }catch(e){if(e.name!=='AbortError')setStatus('Analytics dir setup failed: '+e.message,true);return null;}
+}
 
 // ─── Open dir ───────────────────────────────────────────────────────────────
 const fileInput=document.getElementById('fileInput');
@@ -329,7 +354,7 @@ async function tryAutoLoad(){
       setStatus('Click "Allow access" to reload.');showLanding(true);return;
     }
     rootHandles=permed;
-    const cached=loadCache();
+    const cached=await loadCache();
     if(cached){
       allSessions=deserializeCache(cached.data);
       document.getElementById('addDirBtn').style.display='';
@@ -1038,15 +1063,46 @@ async function hasNewerFiles(handles,cacheTs){
   }
   return false;
 }
-function saveCache(sessions){
-  try{localStorage.setItem(cacheKey(),JSON.stringify({ts:Date.now(),data:serializeCache(sessions)}));}catch{}
+async function saveCache(sessions){
+  const h=await getAnalyticsHandle();
+  if(!h){
+    try{localStorage.setItem(cacheKey(),JSON.stringify({ts:Date.now(),data:serializeCache(sessions)}));}catch{}
+    return;
+  }
+  try{
+    let existing={};
+    try{
+      const fh=await h.getFileHandle('session-cache.json');
+      const raw=await(await fh.getFile()).text();
+      const c=JSON.parse(raw);
+      existing=c.sessions||{};
+    }catch{}
+    // Merge: current data wins per UUID; old UUIDs are preserved (additive only)
+    const serialized=serializeCache(sessions);
+    for(const s of serialized)existing[s.uuid]=s;
+    const fh=await h.getFileHandle('session-cache.json',{create:true});
+    const w=await fh.createWritable();
+    await w.write(JSON.stringify({ts:Date.now(),sessions:existing}));
+    await w.close();
+  }catch(e){console.warn('saveCache',e);}
 }
-function loadCache(){
-  try{const raw=localStorage.getItem(cacheKey());if(!raw)return null;const c=JSON.parse(raw);return c?.ts&&c?.data?c:null;}catch{return null;}
+async function loadCache(){
+  const h=await getAnalyticsHandle();
+  if(!h){
+    try{const raw=localStorage.getItem(cacheKey());if(!raw)return null;const c=JSON.parse(raw);return c?.ts&&c?.data?c:null;}catch{return null;}
+  }
+  try{
+    const fh=await h.getFileHandle('session-cache.json');
+    const raw=await(await fh.getFile()).text();
+    const c=JSON.parse(raw);
+    if(!c?.ts||!c?.sessions)return null;
+    return{ts:c.ts,data:Object.values(c.sessions)};
+  }catch{return null;}
 }
 
 // ─── Event wiring ─────────────────────────────────────────────────────────────
-document.getElementById('clearCacheBtn').addEventListener('click',()=>{try{localStorage.removeItem(cacheKey());}catch{}load();});
+document.getElementById('clearCacheBtn').addEventListener('click',()=>load());
+document.getElementById('analyticsBtn').addEventListener('click',async()=>{await setupAnalyticsDir();if(analyticsHandle)load();});
 document.getElementById('search').addEventListener('input',e=>{searchQuery=e.target.value.trim();syncUrl();render();});
 document.getElementById('tableSearchInp').addEventListener('input',e=>{tableSearch=e.target.value;syncUrl();renderTable();renderFilterInfo();});
 
@@ -1073,6 +1129,7 @@ document.addEventListener('mouseup',e=>{
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 readUrl();
+getAnalyticsHandle().then(h=>{if(!h)document.getElementById('analyticsBtn').style.display='';});
 tryAutoLoad();
 </script>
 </body>
