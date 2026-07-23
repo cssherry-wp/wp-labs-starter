@@ -74,7 +74,7 @@ ${_interaction}
 
 After user responds:
 - To migrate items: \`${_q} migrate-items ${_session_id} <sid8:n> [<sid8:n> ...]\`
-- To mark items done in their source session: \`${_q} mark-done-refs <sid8:n> [<sid8:n> ...]\`
+- To mark items done in their source session: \`${_q} mark-done <current-session-id> <sid8:n> [<sid8:n> ...]\`
 - Skipped items: leave untouched.
 - THEN run the user's original request."
   fi
