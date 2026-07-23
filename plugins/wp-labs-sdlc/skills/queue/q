@@ -241,16 +241,7 @@ for sid_prefix, item_nums in by_sid.items():
                     cancelled, count=1
                 )
                 new_src.append(cancelled)
-                fresh, skip = [], False
-                for line in block.split('\n'):
-                    s = line.lstrip()
-                    if s.startswith('interpretation:'):
-                        skip = True; continue
-                    if skip and line.startswith('    '):
-                        continue
-                    skip = False
-                    fresh.append(line)
-                fresh_items.append('\n'.join(fresh).rstrip())
+                fresh_items.append(block.rstrip())
                 total += 1
             else:
                 new_src.append(block)
@@ -467,17 +458,7 @@ for block in blocks:
             cancelled, count=1
         )
         new_src.append(cancelled)
-        fresh = []
-        skip = False
-        for line in block.split('\n'):
-            s = line.lstrip()
-            if s.startswith('interpretation:'):
-                skip = True; continue
-            if skip and line.startswith('    '):
-                continue
-            skip = False
-            fresh.append(line)
-        fresh_items.append('\n'.join(fresh).rstrip())
+        fresh_items.append(block.rstrip())
     else:
         new_src.append(block)
 
