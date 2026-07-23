@@ -11,10 +11,10 @@ allowed-tools: Bash
 
 # /session-dashboard — open the session dashboard
 
-Open `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/session-dashboard.html` in the browser.
+Open `$HOME/ClaudeAnalytics/session-dashboard.html` in the browser.
 
 ```bash
-DASH="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/session-dashboard.html"
+DASH="$HOME/ClaudeAnalytics/session-dashboard.html"
 if [ ! -f "$DASH" ]; then
   echo "Dashboard not found at $DASH — run setup-claude to install it."
   exit 1
