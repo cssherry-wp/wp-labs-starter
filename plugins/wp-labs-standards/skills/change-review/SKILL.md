@@ -264,26 +264,42 @@ Keep it tight. End with the verdict, blockers first.
 
 ## 8. Interactive triage (non-`--ci` only)
 
-After printing the report, if there are **unfixed** findings (everything not applied under
-`--fix`), present them for the user to decide on with the `AskUserQuestion` tool — one question
-per finding (batch up to 4 per call, iterate until all are triaged). Skip this entirely under
-`--ci` (machine mode writes JSON and never prompts).
+After printing the report, collect all **unfixed** findings from sections 2–7 and assign
+sequential IDs — `#1`, `#2`, … — in section-reading order. (Section 1 is summary only; skip it.)
+Skip this step entirely under `--ci`.
 
-- **`header`**: `<file>:<line>` or short finding slug.
-- **`question`**: the finding's impact (what breaks or degrades if left as-is) plus the pro/con of
-  each choice, so the trade-offs live in the text.
-- **`options`** — the action label only, no pro/con in the descriptions:
-  - **Make the change** — apply the fix now.
-  - **Log as new issue** — create a tracker issue (repo convention: `gh issue create`, else Jira
-    via `acli`) capturing the finding, and link it back.
-  - **Ignore** — drop it.
+**≤ 4 unfixed findings**: use `AskUserQuestion` — one question per finding, all in a single call.
 
-The user can press **`n`** to attach a free-text note to any choice; read it from the answer's
-`annotations[].notes` and carry it into the action (append to the issue body, or record alongside
-an ignored finding).
+- **`header`**: `"#N"` (+ section label if helpful, e.g. `"#3 Tests"`, max 12 chars)
+- **`question`**: the finding's impact (what breaks or degrades if left as-is) and the trade-off
+  of each choice, so the user can decide without re-reading the report.
+- **`options`** — always exactly these 4, in this order (the tool rejects <2 — never omit any):
+  1. label `"Fix it"`, description `"Apply the change now"`
+  2. label `"Add to queue"`, description `"Defer to /queue for a later session"`
+  3. label `"Log as issue"`, description `"Create a tracker issue and link it"`
+  4. label `"Ignore"`, description `"Drop it"`
 
-Act on each selection: apply the edit, create the issue, or record it as acknowledged. Report a
-one-line summary of what was changed, logged, and ignored.
+**> 4 unfixed findings**: render a markdown table instead, then prompt for dispositions as text:
+
+| # | Section | Finding | Confidence |
+|---|---------|---------|-----------|
+| 1 | Correctness | `foo.ts:42` unused import | 85 |
+| … | … | … | … |
+
+Then ask: "For each finding reply: `<n> fix|queue|issue|ignore [note]`.
+E.g. `1 fix 3 queue 5 ignore`."
+
+The user may attach a free-text note to any choice; read it from `annotations[].notes`
+(≤ 4 findings path) or inline in the text reply (> 4 findings path) and carry it into the
+action (append to the issue body, prefix the queue item, or record alongside an ignored finding).
+
+Act on each selection:
+- **Fix it**: apply the edit now.
+- **Add to queue**: call `/queue <finding summary>` to defer to this session's backlog.
+- **Log as issue**: `gh issue create` (or Jira via `acli`) capturing the finding; link it back.
+- **Ignore**: record it as acknowledged.
+
+Report a one-line summary: what was fixed, queued, logged, and ignored.
 
 ## Notes
 
