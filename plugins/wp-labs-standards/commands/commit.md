@@ -60,3 +60,8 @@ Prefer one commit per task — each task's work is its own commit. Keep a comple
 **single** commit: if a follow-up modifies an already-committed task (a fix, review correction, or
 amendment for that same task), squash it into that task's original commit rather than leaving a
 separate fixup commit. A finished task should show up as exactly one commit in the log.
+
+## After the final commit
+
+Always push after the final commit: `git push` (or `git push -u origin <branch>` for a new branch).
+Do not leave finished work only in local history.
