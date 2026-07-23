@@ -168,8 +168,8 @@ tr.detail-row td{padding:0;border-bottom:1px solid var(--border)}
 .uf-sep{color:var(--border)}
 .uf-cost{color:var(--ink);font-weight:600}
 .session-uuid{font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.copy-btn{font-size:11px;padding:1px 5px;border-radius:4px;border:1px solid var(--border);cursor:pointer;background:var(--panel3)}
-.copy-btn:hover{border-color:var(--accent);color:var(--accent)}
+.copy-btn{font-size:12px;padding:1px 3px;border-radius:4px;border:1px solid transparent;cursor:pointer;background:none;opacity:.3;line-height:1}
+.copy-btn:hover{border-color:var(--border);background:var(--panel3);opacity:1;color:var(--accent)}
 
 /* ── Tool chips ── */
 .tool-chip{display:inline-flex;align-items:center;gap:3px;border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-size:11px;cursor:pointer;background:var(--panel2);font-family:var(--mono);white-space:nowrap}
@@ -894,7 +894,7 @@ function sessionRow(s){
       ${worktree?`<div class="t-sub" style="margin-top:2px" data-tip="${esc(s.projectLabel)}">${esc(worktree)}</div>`:''}
     </td>
     <td class="title">
-      <div class="t-name">${sessionColor?`<span class="cdot" style="background:${sessionColor}"></span>`:''} ${esc(title.slice(0,80))}${title.length>80?'…':''} <button class="copy-btn" data-copy="${esc(s.name||title)}" style="margin-left:4px;vertical-align:middle" title="Copy name">copy</button></div>
+      <div class="t-name">${sessionColor?`<span class="cdot" style="background:${sessionColor}"></span>`:''} ${esc(title.slice(0,80))}${title.length>80?'…':''} <button class="copy-btn" data-copy="${esc(s.name||title)}" data-tip="Copy to search" style="margin-left:3px;vertical-align:middle">⧉</button></div>
       ${s.name&&s.name!==s.title?`<div class="t-sname">${esc(s.name)}</div>`:''}
       ${lastReply?`<div class="t-sub" data-tip="${esc(s.lastAssistantText||'')}">${esc(lastReply)}${(s.lastAssistantText||'').length>100?'…':''}</div>`:''}
       <div class="t-sub" style="opacity:.6" data-tip="${esc(s.uuid)}">${s.uuid.slice(0,8)}…</div>
@@ -949,7 +949,7 @@ function insertDetailRow(tr,s){
   const toolTags=s.tools.filter(t=>t!=='Skill');
   const toolsHtml=(toolTags.length||s.skills.length)?`<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:3px">${[...s.skills.map(sk=>`<span class="tool-chip skill" data-tool="${esc(sk)}" data-tip="${esc('Skill: '+sk)}" style="cursor:pointer">${esc(sk)}</span>`),...toolTags.map(t=>`<span class="tool-chip" data-tool="${esc(t)}" data-tip="${esc(TOOL_DESC[t]||'Built-in tool')}" style="cursor:pointer">${esc(t)}</span>`)].join('')}</div>`:'';
   const worktreeHtml=worktree?`<div style="margin-bottom:6px;font-size:11px;color:var(--muted)">worktree: <span style="font-family:var(--mono)">${esc(worktree)}</span></div>`:'';
-  detail.innerHTML=`<td colspan="10"><div class="detail-inner"><div class="ds">${s.name&&s.name!==s.title?`<div style="margin-bottom:8px;font-size:11px;color:var(--muted)">name: ${esc(s.name)}</div>`:''}<h3>Turns · ${s.userTurns.length+s.commands.length}</h3>${lastReplyHtml}${turnsHtml}</div><div class="ds">${worktreeHtml}${prHtml}${usageHtml}${toolsHtml}<div class="session-uuid">${s.uuid}<button class="copy-btn" data-copy="${s.uuid}">copy id</button></div><h3 style="margin-top:10px">Tasks · ${s.claudeTasks.length+s.queueItems.length}</h3>${qHtml}</div></div></td>`;
+  detail.innerHTML=`<td colspan="10"><div class="detail-inner"><div class="ds">${s.name&&s.name!==s.title?`<div style="margin-bottom:8px;font-size:11px;color:var(--muted)">name: ${esc(s.name)}</div>`:''}<h3>Turns · ${s.userTurns.length+s.commands.length}</h3>${lastReplyHtml}${turnsHtml}</div><div class="ds">${worktreeHtml}${prHtml}${usageHtml}${toolsHtml}<div class="session-uuid">${s.uuid}<button class="copy-btn" data-copy="${s.uuid}" data-tip="Copy session ID">⧉</button></div><h3 style="margin-top:10px">Tasks · ${s.claudeTasks.length+s.queueItems.length}</h3>${qHtml}</div></div></td>`;
   tr.after(detail);
   detail.querySelectorAll('.q-moved[data-uuid]').forEach(el=>{
     el.addEventListener('click',e=>{e.stopPropagation();activeSessionFilter=el.dataset.uuid;syncUrl();render();});
