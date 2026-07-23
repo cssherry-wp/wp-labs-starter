@@ -200,6 +200,7 @@ tr.detail-row td{padding:0;border-bottom:1px solid var(--border)}
   <h1>Claude Sessions</h1>
   <button class="hbtn" id="openBtn">Open ~/.claude</button>
   <button class="hbtn" id="reloadBtn" style="display:none">↻ Reload</button>
+  <button class="hbtn" id="clearCacheBtn" style="display:none" title="Clear localStorage cache and force full reload">⊘ Cache</button>
   <button class="hbtn" id="addDirBtn" style="display:none">+ Add folder</button>
   <span id="dirPills" style="display:inline-flex;gap:4px;flex-wrap:wrap"></span>
   <div id="prog-wrap"><div id="prog-bar"></div></div>
@@ -342,7 +343,7 @@ async function tryAutoLoad(){
     }
   }catch{setStatus('Open your ~/.claude folder.');showLanding(true);}
 }
-function showReloadAs(label,fn){const b=document.getElementById('reloadBtn');b.style.display='';b.textContent=label;b.onclick=fn;}
+function showReloadAs(label,fn){const b=document.getElementById('reloadBtn');b.style.display='';b.textContent=label;b.onclick=fn;if(rootHandles.length)document.getElementById('clearCacheBtn').style.display='';}
 fileInput.addEventListener('change',async function(){if(!this.files.length)return;rootHandles=[];await loadFromFileList(this.files);});
 document.getElementById('openBtn').addEventListener('click',openDir);
 document.getElementById('openMain').addEventListener('click',openDir);
@@ -398,7 +399,7 @@ async function load(){
               const subH=await fh.getDirectoryHandle('subagents');
               const subEntries=[];for await(const e of subH)subEntries.push(e);
               const metaMap=new Map();
-              for(const[sfn,sfh]of subEntries){if(sfh.kind==='file'&&sfn.endsWith('.meta.json')){try{const m=JSON.parse(await(await sfh.getFile()).text());if(m.agentId)metaMap.set(m.agentId,m);}catch{}}}
+              for(const[sfn,sfh]of subEntries){if(sfh.kind==='file'&&sfn.endsWith('.meta.json')){try{const m=JSON.parse(await(await sfh.getFile()).text());metaMap.set(sfn.replace(/^agent-/,'').replace(/\.meta\.json$/,''),m);}catch{}}}
               for(const[sfn,sfh]of subEntries){
                 if(sfh.kind!=='file'||!sfn.endsWith('.jsonl'))continue;
                 const agentId=sfn.replace(/^agent-/,'').slice(0,-6);
@@ -455,7 +456,7 @@ async function loadFromFileList(fileList){
   }
   for(const[f,uuid]of queueFiles){try{const items=parseQueueMD(await f.text());if(!sessions.has(uuid))sessions.set(uuid,mkSession(uuid,'queue-only'));sessions.get(uuid).queueItems=items;}catch{}}
   const metaMaps=new Map();
-  for(const[f,,parentUuid,fn]of agentMetaFiles){try{const m=JSON.parse(await f.text());if(!m.agentId)continue;if(!metaMaps.has(parentUuid))metaMaps.set(parentUuid,new Map());metaMaps.get(parentUuid).set(m.agentId,m);}catch{}}
+  for(const[f,,parentUuid,fn]of agentMetaFiles){try{const m=JSON.parse(await f.text());const aid=fn.replace(/^agent-/,'').replace(/\.meta\.json$/,'');if(!metaMaps.has(parentUuid))metaMaps.set(parentUuid,new Map());metaMaps.get(parentUuid).set(aid,m);}catch{}}
   for(const[f,,parentUuid,fn]of agentJsonlFiles){if(!sessions.has(parentUuid))continue;const agentId=fn.replace(/^agent-/,'').slice(0,-6);try{const p=parseJSONL(await f.text());const meta=(metaMaps.get(parentUuid)||new Map()).get(agentId)||{};sessions.get(parentUuid).agents.push({agentId,agentType:meta.agentType||'agent',description:meta.description||null,toolUseId:meta.toolUseId||null,spawnDepth:meta.spawnDepth||1,parentAgentId:meta.parentAgentId||null,usage:p.usage,model:p.model});}catch{}}
   allSessions=[...sessions.values()].sort((a,b)=>(b.lastActivityAt?.getTime()||b.startedAt?.getTime()||0)-(a.lastActivityAt?.getTime()||a.startedAt?.getTime()||0));
   showProgress(false);render();
@@ -1038,6 +1039,7 @@ function loadCache(){
 }
 
 // ─── Event wiring ─────────────────────────────────────────────────────────────
+document.getElementById('clearCacheBtn').addEventListener('click',()=>{try{localStorage.removeItem(cacheKey());}catch{}load();});
 document.getElementById('search').addEventListener('input',e=>{searchQuery=e.target.value.trim();syncUrl();render();});
 document.getElementById('tableSearchInp').addEventListener('input',e=>{tableSearch=e.target.value;syncUrl();renderTable();renderFilterInfo();});
 
