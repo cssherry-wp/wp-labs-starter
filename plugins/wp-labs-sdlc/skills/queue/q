@@ -405,8 +405,15 @@ rename-pending)
   # q rename-pending <session-id>  — mv pending.md → <session-id>.md
   SID="$1"; PENDING="$QUEUE_DIR/pending.md"
   if [ -f "$PENDING" ]; then
-    mv "$PENDING" "$QUEUE_DIR/$SID.md"
-    echo "Renamed pending.md → $SID.md"
+    if [ -f "$QUEUE_DIR/$SID.md" ]; then
+      # Session file already exists — append items (skip pending.md header line + blank)
+      tail -n +3 "$PENDING" >> "$QUEUE_DIR/$SID.md"
+      rm "$PENDING"
+      echo "Merged pending.md → $SID.md"
+    else
+      mv "$PENDING" "$QUEUE_DIR/$SID.md"
+      echo "Renamed pending.md → $SID.md"
+    fi
   else
     echo "No pending.md."
   fi
