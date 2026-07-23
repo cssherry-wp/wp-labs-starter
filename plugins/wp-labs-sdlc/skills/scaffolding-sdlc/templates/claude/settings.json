@@ -21,18 +21,24 @@
   "extraKnownMarketplaces": {
     "wp-labs-starter": {
       "source": { "source": "github", "repo": "cssherry-wp/wp-labs-starter" }
+    },
+    "ponytail": {
+      "source": { "source": "github", "repo": "DietrichGebert/ponytail" }
     }
   },
   "enabledPlugins": {
     "wp-labs-standards@wp-labs-starter": true,
     "wp-labs-sdlc@wp-labs-starter": true,
     "wp-labs-superpowers@wp-labs-starter": true,
-    "code-review@claude-plugins-official": true,
+    "ponytail@ponytail": true,
     "security-guidance@claude-plugins-official": true,
     "context7@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
     "chrome-devtools-mcp@claude-plugins-official": true,
-    "playwright@claude-plugins-official": true
+    "playwright@claude-plugins-official": true,
+    "ralph-loop@claude-plugins-official": false,
+    "claude-md-management@claude-plugins-official": false,
+    "frontend-design@claude-plugins-official": false
   },
   "statusLine": {
     "type": "command",
