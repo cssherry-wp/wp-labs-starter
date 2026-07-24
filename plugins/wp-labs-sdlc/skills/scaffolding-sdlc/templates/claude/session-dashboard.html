@@ -192,6 +192,12 @@ tr.detail-row td{padding:0;border-bottom:1px solid var(--border)}
 #landing h2{font-size:18px;font-weight:700}
 #landing p{font-size:13px;color:var(--muted);max-width:400px;line-height:1.6}
 #landing .note{font-size:11.5px;color:var(--dim)}
+/* ── Cost bar chart ── */
+#chartSection{padding:10px 14px 6px;border-bottom:1px solid var(--border);display:none}
+#chartSection>h2{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px}
+#chartWrap{overflow-x:auto}
+.cbar{cursor:default;transition:opacity .1s}
+.cbar:hover{opacity:.72}
 </style>
 </head>
 <body>
@@ -216,6 +222,7 @@ tr.detail-row td{padding:0;border-bottom:1px solid var(--border)}
 <div id="filterBar"></div>
 <div id="kpiSection" style="display:none"></div>
 <section id="tlSection"></section>
+<section id="chartSection"><h2>Cost per day · by project</h2><div id="chartWrap"></div></section>
 <div id="tblHead"><span id="tblLabel"></span><input id="tableSearchInp" type="text" placeholder="Search sessions…" autocomplete="off"></div>
 <section id="tableSection"></section>
 
@@ -832,7 +839,7 @@ function render(){
   renderFilters();renderProjectKPIs();renderFilterInfo();
   document.getElementById('tlSection').style.display='block';
   document.getElementById('tableSection').style.display='block';
-  renderTimeline();renderTable();
+  renderTimeline();renderCostBarChart();renderTable();
 }
 
 // ─── Timeline ─────────────────────────────────────────────────────────────────
@@ -901,6 +908,87 @@ function renderTimeline(){
     canvas.appendChild(drag);
     tlDragState={canvas,startFrac,drag,tMin,tSpan};
   });
+}
+
+// ─── Cost bar chart ───────────────────────────────────────────────────────────
+function niceNumber(x){if(x<=0)return 1;const m=Math.pow(10,Math.floor(Math.log10(x)));const f=x/m;return(f<=1?1:f<=2?2:f<=5?5:10)*m;}
+function renderCostBarChart(){
+  const sec=document.getElementById('chartSection');
+  const wrap=document.getElementById('chartWrap');
+  // Aggregate: dayMap[localDate][proj] = totalCost
+  const dayMap={};
+  for(const s of filteredSessions){
+    if(!s.startedAt)continue;
+    const cost=calcCost(s.model,s.usage);
+    if(!cost)continue;
+    const d=s.startedAt;
+    const day=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    const proj=s.projectNorm||s.projectLabel;
+    if(!dayMap[day])dayMap[day]={};
+    dayMap[day][proj]=(dayMap[day][proj]||0)+cost;
+  }
+  const days=Object.keys(dayMap).sort();
+  if(!days.length){sec.style.display='none';return;}
+  // Top 8 projects by total cost across visible days
+  const projTot={};
+  for(const day of days)for(const[p,c]of Object.entries(dayMap[day]))projTot[p]=(projTot[p]||0)+c;
+  const projs=Object.entries(projTot).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([p])=>p);
+  const nP=projs.length,nD=days.length;
+  // Layout dims — bar width 4–20px, group gap ensures at least 6px air
+  const pL=52,pR=12,pT=8,pH=160,pB=32;
+  const targetSlotW=Math.min(72,Math.max(28,600/nD));
+  const barW=Math.max(4,Math.min(20,Math.floor((targetSlotW-(nP-1)*2)/nP)));
+  const groupW=nP*barW+(nP-1)*2;
+  const slotW=Math.max(groupW+6,targetSlotW);
+  const plotW=Math.max(380,nD*slotW);
+  const svgW=pL+plotW+pR,svgH=pT+pH+pB;
+  // Y scale: nice ceiling, 5 gridlines at 0/25/50/75/100 %
+  let yMax=0;
+  for(const day of days)for(const p of projs)yMax=Math.max(yMax,dayMap[day][p]||0);
+  const yTop=niceNumber(yMax*1.12||0.01);
+  const yTicks=[0,.25,.5,.75,1].map(f=>f*yTop);
+  const yp=v=>(pT+pH-(v/yTop)*pH).toFixed(1);
+  const parts=[];
+  // Gridlines + y-axis labels
+  for(const t of yTicks){
+    const y=yp(t);
+    const lbl=t===0?'$0':t>=1?'$'+t.toFixed(t%1<0.001?0:2):'$'+t.toFixed(t<0.01?4:t<0.1?3:2);
+    parts.push(`<line x1="${pL}" y1="${y}" x2="${(pL+plotW).toFixed(1)}" y2="${y}" stroke="var(--border2)" stroke-width="1"/>`);
+    parts.push(`<text x="${pL-5}" y="${(+y+4).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--dim)" font-family="-apple-system,system-ui,sans-serif">${lbl}</text>`);
+  }
+  // Baseline + y-axis rule
+  const bly=(pT+pH).toFixed(1);
+  parts.push(`<line x1="${pL}" y1="${bly}" x2="${(pL+plotW).toFixed(1)}" y2="${bly}" stroke="var(--border)" stroke-width="1"/>`);
+  parts.push(`<line x1="${pL}" y1="${pT}" x2="${pL}" y2="${bly}" stroke="var(--border2)" stroke-width="1"/>`);
+  // Bars + x-axis labels (thin label density when many days)
+  const everyN=nD>20?Math.ceil(nD/14):1;
+  for(let di=0;di<nD;di++){
+    const day=days[di];
+    const gx=pL+di*slotW;
+    if(di%everyN===0||di===nD-1){
+      const[yr,mo,da]=day.split('-');
+      const lbl=new Date(+yr,+mo-1,+da).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      parts.push(`<text x="${(gx+groupW/2).toFixed(1)}" y="${(pT+pH+18).toFixed(1)}" text-anchor="middle" font-size="10" fill="var(--dim)" font-family="-apple-system,system-ui,sans-serif">${lbl}</text>`);
+    }
+    for(let pi=0;pi<nP;pi++){
+      const p=projs[pi];
+      const c=dayMap[day][p]||0;
+      if(!c)continue;
+      const color=projColorHex(p);
+      const bh=Math.max(2,(c/yTop)*pH);
+      const bx=(gx+pi*(barW+2)).toFixed(1);
+      const tip=`${day}  ·  ${p}\n$${c<0.01?c.toFixed(4):c.toFixed(2)}`;
+      // ponytail: 4px top radius, square at baseline per mark spec
+      parts.push(`<rect x="${bx}" y="${(pT+pH-bh).toFixed(1)}" width="${barW}" height="${bh.toFixed(1)}" rx="${Math.min(4,barW/2)}" fill="${color}" class="cbar" data-tip="${esc(tip)}"/>`);
+    }
+  }
+  // Legend (secondary encoding — required: existing PROJ_COLORS fail CVD floor)
+  const legend=nP>1
+    ?`<div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:6px;padding-left:${pL}px">${projs.map(p=>`<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--muted)"><span style="width:10px;height:10px;border-radius:2px;background:${projColorHex(p)};flex-shrink:0;display:inline-block"></span>${esc(p)}</span>`).join('')}</div>`
+    :'';
+  sec.style.display='block';
+  wrap.innerHTML=`<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" style="display:block">${parts.join('')}</svg>${legend}`;
+  wrap.querySelectorAll('.cbar[data-tip]').forEach(el=>tipOn(el,el.dataset.tip));
 }
 
 // ─── Table ────────────────────────────────────────────────────────────────────
