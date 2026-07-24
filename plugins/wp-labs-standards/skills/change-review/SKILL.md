@@ -281,12 +281,13 @@ Keep it tight. End with the verdict, blockers first.
 
 **Persist the report:** after printing (or writing `--ci` JSON), save the prose report to
 `<repo-root>/.superpowers/03-review/<YYYY-MM-DD>-<slug>.md` where `slug` is `uncommitted`,
-`pr-<N>`, or derived from the branch name. Create the directory if absent (it is already
-gitignored at the repo root via `.gitignore`):
+`pr-<N>`, or derived from the branch name. Create the directory if absent and ensure it
+self-ignores (add the `.gitignore` if it is missing, even when the folder already exists):
 
 ```bash
 repo_top=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
 mkdir -p "$repo_top/.superpowers/03-review"
+[ -f "$repo_top/.superpowers/03-review/.gitignore" ] || printf '*\n' > "$repo_top/.superpowers/03-review/.gitignore"
 ```
 
 Derive the repo root with `git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel`
