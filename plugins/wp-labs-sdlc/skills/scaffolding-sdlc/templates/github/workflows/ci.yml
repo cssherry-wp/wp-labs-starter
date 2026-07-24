@@ -74,6 +74,10 @@ jobs:
         run: make test
       - if: steps.detect.outputs.present == 'true'
         run: make coverage
+      - if: steps.detect.outputs.present == 'true'
+        run: pip install --quiet diff-cover
+      - if: steps.detect.outputs.present == 'true'
+        run: make diff-cover
 
   # Nested app/frontend/ npm project (fullstack: Django at root of app/, React in app/frontend/).
   frontend:
@@ -108,6 +112,10 @@ jobs:
         run: npm test
       - if: steps.detect.outputs.present == 'true'
         run: npm run coverage
+      - if: steps.detect.outputs.present == 'true'
+        run: pip install --quiet diff-cover
+      - if: steps.detect.outputs.present == 'true'
+        run: diff-cover coverage/lcov.info --compare-branch=origin/main --fail-under=90
 
   python:
     needs: changes
@@ -136,6 +144,8 @@ jobs:
         run: make test-python
       - if: steps.detect.outputs.present == 'true'
         run: make coverage-python
+      - if: steps.detect.outputs.present == 'true'
+        run: make diff-cover-python
 
   # CSS/SCSS/Sass linting — runs independently of the JS/TS build.
   stylelint:

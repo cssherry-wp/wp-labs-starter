@@ -9,7 +9,7 @@
     "start": "node dist/cli.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "coverage": "vitest run --coverage --coverage.thresholds.lines=80",
+    "coverage": "vitest run --coverage --coverage.reporter=text --coverage.reporter=lcov --coverage.thresholds.lines=90",
     "lint": "biome check .",
     "format": "biome format --write .",
     "typecheck": "tsc -b --pretty"

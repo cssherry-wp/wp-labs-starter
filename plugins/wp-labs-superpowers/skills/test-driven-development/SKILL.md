@@ -339,6 +339,26 @@ Before marking work complete:
 
 Can't check all boxes? You skipped TDD. Start over.
 
+## Diff Coverage Check
+
+After all tests pass, run the coverage gap report and share the output with the user:
+
+```bash
+make diff-cover         # TypeScript
+make diff-cover-python  # Python
+```
+
+For each uncovered line in the output, show the user the file, line number, and the code, then ask:
+**"Should this line be tested?"**
+
+| Situation | Action |
+|-----------|--------|
+| Logic that can fail | Write a failing test for it, follow the TDD cycle |
+| Defensive guard / truly unreachable | Note "unreachable by design", move on |
+| Covered by an e2e test | Note "e2e covers this", move on |
+
+Do not skip this step. Every gap needs a decision — silence is not an answer.
+
 ## When Stuck
 
 | Problem | Solution |

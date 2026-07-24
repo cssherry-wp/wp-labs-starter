@@ -1,6 +1,6 @@
 # Backend (Django + uv) + frontend (Vite) SDLC targets.
 # The frontend is a self-contained npm project under frontend/.
-.PHONY: install lint lint-python lint-js lint-css format check check-python check-js check-css typecheck typecheck-python test test-python test-js test-e2e coverage coverage-python coverage-js install-hooks
+.PHONY: install lint lint-python lint-js lint-css format check check-python check-js check-css typecheck typecheck-python test test-python test-js test-e2e coverage coverage-python coverage-js diff-cover diff-cover-python diff-cover-js install-hooks
 
 install:
 	uv sync --extra dev
@@ -38,8 +38,14 @@ test-e2e: ; cd frontend && npm run test:e2e
 
 coverage: coverage-python coverage-js
 coverage-python:
-	uv run --extra dev pytest --cov --cov-fail-under=80 --cov-report=term-missing
+	uv run --extra dev pytest --cov --cov-fail-under=90 --cov-report=term-missing --cov-report=xml
 coverage-js: ; cd frontend && npm run coverage
+
+diff-cover: diff-cover-python diff-cover-js
+diff-cover-python:
+	uv run --extra dev diff-cover coverage.xml --compare-branch=origin/main --fail-under=90
+diff-cover-js:
+	cd frontend && diff-cover coverage/lcov.info --compare-branch=origin/main --fail-under=90
 
 install-hooks:
 	@if [ -d ../.git ]; then ln -sf ../../.sdlc-hooks/pre-commit ../.git/hooks/pre-commit && echo "pre-commit installed"; else echo "not a git repo"; fi
