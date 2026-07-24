@@ -611,11 +611,12 @@ def parse_llm_response(text: str) -> dict[str, Any]:
     raise ValueError(f"No JSON object found in response: {text[:200]!r}")
 
 
-def call_claude(prompt: str) -> tuple[str, dict[str, Any]]:
+def call_claude(prompt: str, model: str = "claude-sonnet-4-6") -> tuple[str, dict[str, Any]]:
     """Invoke `claude -p --output-format json` and return (text, usage).
 
     Args:
         prompt: The full prompt to pass to the claude CLI.
+        model: Claude model ID to use.
 
     Returns:
         Tuple of (response text, usage dict with normalized token/cost keys).
@@ -624,7 +625,7 @@ def call_claude(prompt: str) -> tuple[str, dict[str, Any]]:
         RuntimeError: If claude exits with a non-zero code.
     """
     result = subprocess.run(
-        ["claude", "-p", "--output-format", "json"],
+        ["claude", "-p", "--output-format", "json", "--model", model],
         input=prompt,
         capture_output=True, text=True, timeout=300, check=False,
     )
@@ -661,6 +662,7 @@ def summarize_batch(
     queue_dir: Path | str,
     full_uuids: set[str] | None = None,
     archive_dir: Path | None = None,
+    model: str = "claude-sonnet-4-6",
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Summarize a batch of sessions with one claude -p call.
 
@@ -670,6 +672,7 @@ def summarize_batch(
         full_uuids: UUIDs that should receive the full transcript (not truncated).
         archive_dir: If set, write each session block to archive_dir/<uuid>.txt
             before sending to the LLM.
+        model: Claude model ID to use.
 
     Returns:
         Tuple of (parsed LLM response dict, usage dict).
@@ -684,7 +687,7 @@ def summarize_batch(
         blocks.append(block)
     prompt = LLM_PROMPT_HEADER + "\n\n---\n\n".join(blocks)
     print(f"  Calling claude -p for {len(batch)} session(s)...", flush=True)
-    text, usage = call_claude(prompt)
+    text, usage = call_claude(prompt, model=model)
     return parse_llm_response(text), usage
 
 
@@ -948,12 +951,12 @@ def apply_improvements(
     workspace: str | None,
     claude_dir: Path,
     now_iso: str,
-    dry_run: bool,
+    apply_changes: bool,
 ) -> tuple[list[dict], list[dict]]:
     """Write high-confidence findings to files; update applied/unapplied DB columns.
 
-    Findings with confidence > 75 are attempted; the rest stay unapplied.
-    Both DB columns store full finding objects (not index references).
+    Findings with confidence > 75 are attempted when apply_changes is True;
+    all others stay unapplied. Both DB columns store full finding objects.
 
     Args:
         con: Open database connection.
@@ -963,7 +966,7 @@ def apply_improvements(
         workspace: Actual cwd path from the session, or None.
         claude_dir: ~/.claude directory path.
         now_iso: ISO timestamp string for applied_at records.
-        dry_run: If True, print what would be written but skip file writes.
+        apply_changes: If False, skip file writes (findings stay unapplied).
 
     Returns:
         Tuple of (applied findings, unapplied findings).
@@ -974,7 +977,7 @@ def apply_improvements(
     project_root = _find_project_root(workspace, project)
 
     for finding in suggestions:
-        if (finding.get("confidence") or 0) <= 75:
+        if not apply_changes or (finding.get("confidence") or 0) <= 75:
             unapplied.append(finding)
             continue
 
@@ -989,12 +992,6 @@ def apply_improvements(
             continue
 
         marker = f"\n<!-- session-summarize: {desc[:80]} -->\n" if action == "CLAUDE.md" else ""
-
-        if dry_run:
-            print(f"  [dry-run] Would write to {dest}")
-            applied.append({**finding, "applied_at": now_iso, "result": "dry-run"})
-            continue
-
         dest.parent.mkdir(parents=True, exist_ok=True)
         _write_improvement_file(dest, marker, content)
 
@@ -1008,7 +1005,7 @@ def apply_improvements(
         applied.append({**finding, "applied_at": now_iso, "result": "written"})
         print(f"  ✅ {finding.get('category')}: {desc} → [{action}] {target}")
 
-    if not dry_run and files_changed:
+    if files_changed:
         _git_commit_improvements(files_changed)
 
     con.execute(
@@ -1019,13 +1016,28 @@ def apply_improvements(
     return applied, unapplied
 
 
-def print_findings_report(applied: list[dict], unapplied: list[dict]) -> None:
-    """Print a human-readable summary of improvement findings.
+def print_findings_report(
+    applied: list[dict],
+    unapplied: list[dict],
+    completed: list[str] | None = None,
+    incomplete: list[str] | None = None,
+) -> None:
+    """Print a human-readable summary of tasks and improvement findings.
 
     Args:
         applied: Findings that were written to files.
         unapplied: Findings that were not applied (low confidence or skipped).
+        completed: Completed task/queue strings from the LLM response.
+        incomplete: Incomplete task/queue strings from the LLM response.
     """
+    if completed:
+        print("  Completed:")
+        for item in completed:
+            print(f"    • {item}")
+    if incomplete:
+        print("  Incomplete:")
+        for item in incomplete:
+            print(f"    • {item}")
     if applied:
         print("\nFindings (applied):")
         for i, f in enumerate(applied, 1):
@@ -1050,7 +1062,8 @@ def _run_second_pass(
     workspace: str | None,
     claude_dir: Path,
     now_iso: str,
-    dry_run: bool,
+    apply_changes: bool,
+    model: str,
     archive_dir: Path | None = None,
 ) -> None:
     """Run a second claude -p call for sessions that need their full transcript.
@@ -1065,7 +1078,8 @@ def _run_second_pass(
         workspace: Actual cwd path from the session, or None.
         claude_dir: ~/.claude directory path.
         now_iso: ISO timestamp string.
-        dry_run: Skip file writes when True.
+        apply_changes: Write files when True; store findings as unapplied otherwise.
+        model: Claude model ID to use.
         archive_dir: If set, write each session block to archive_dir/<uuid>.txt.
     """
     full_items = [item for item in batch if item[0].stem in needs_full]
@@ -1074,12 +1088,16 @@ def _run_second_pass(
     full_set = {item[0].stem for item in full_items}
     print(f"  Second pass: {len(full_items)} session(s) need full context...", flush=True)
     try:
-        result2, usage2 = summarize_batch(full_items, queue_dir, full_uuids=full_set, archive_dir=archive_dir)
+        result2, usage2 = summarize_batch(full_items, queue_dir, full_uuids=full_set, archive_dir=archive_dir, model=model)
         full_ids = [session_ids[uuid] for uuid in full_set if uuid in session_ids]
         summary_id2, suggestions2 = write_summary(con, full_ids, result2, usage2, now_iso)
         con.commit()
-        applied2, unapplied2 = apply_improvements(con, summary_id2, suggestions2, project, workspace, claude_dir, now_iso, dry_run)
-        print_findings_report(applied2, unapplied2)
+        applied2, unapplied2 = apply_improvements(con, summary_id2, suggestions2, project, workspace, claude_dir, now_iso, apply_changes)
+        print_findings_report(
+            applied2, unapplied2,
+            completed=result2.get("completed_tasks") or [],
+            incomplete=result2.get("incomplete_tasks") or [],
+        )
     except Exception as e:
         print(f"  ⚠ Second pass failed: {e}", file=sys.stderr)
 
@@ -1090,7 +1108,8 @@ def _process_batch(
     con: sqlite3.Connection,
     claude_dir: Path,
     now_iso: str,
-    dry_run: bool,
+    apply_changes: bool,
+    model: str,
     archive_dir: Path | None = None,
 ) -> None:
     """Upsert sessions, call the LLM, write summaries, apply improvements.
@@ -1101,7 +1120,8 @@ def _process_batch(
         con: Open database connection.
         claude_dir: ~/.claude directory path.
         now_iso: ISO timestamp string.
-        dry_run: Skip file writes when True.
+        apply_changes: Write files when True; store findings as unapplied otherwise.
+        model: Claude model ID to use.
         archive_dir: If set, write each session block to archive_dir/<uuid>.txt.
     """
     project = batch[0][2]
@@ -1115,7 +1135,7 @@ def _process_batch(
         session_ids[jsonl_path.stem] = sid
 
     try:
-        result, usage = summarize_batch(batch, queue_dir, archive_dir=archive_dir)
+        result, usage = summarize_batch(batch, queue_dir, archive_dir=archive_dir, model=model)
     except Exception as e:
         print(f"  ⚠ LLM summarization failed: {e}", file=sys.stderr)
         return
@@ -1125,10 +1145,14 @@ def _process_batch(
     con.commit()  # sessions + summary committed atomically; LLM failure above leaves both uncommitted
 
     if needs_full:
-        _run_second_pass(batch, session_ids, needs_full, queue_dir, con, project, workspace, claude_dir, now_iso, dry_run, archive_dir=archive_dir)
+        _run_second_pass(batch, session_ids, needs_full, queue_dir, con, project, workspace, claude_dir, now_iso, apply_changes, model, archive_dir=archive_dir)
 
-    applied, unapplied = apply_improvements(con, summary_id, suggestions, project, workspace, claude_dir, now_iso, dry_run)
-    print_findings_report(applied, unapplied)
+    applied, unapplied = apply_improvements(con, summary_id, suggestions, project, workspace, claude_dir, now_iso, apply_changes)
+    print_findings_report(
+        applied, unapplied,
+        completed=result.get("completed_tasks") or [],
+        incomplete=result.get("incomplete_tasks") or [],
+    )
 
 
 def main() -> None:
@@ -1140,7 +1164,10 @@ def main() -> None:
                     help="Session projects directory (default: <claude-dir>/projects)")
     ap.add_argument("--output", default=os.path.expanduser("~/ClaudeAnalytics/session_summaries.db"),
                     help="SQLite output path")
-    ap.add_argument("--dry-run", action="store_true", help="Skip file writes; DB is still updated")
+    ap.add_argument("--apply-changes", action="store_true",
+                    help="Write improvement findings to files (default: store as unapplied only)")
+    ap.add_argument("--model", default="claude-sonnet-4-6",
+                    help="Claude model for summarization (default: claude-sonnet-4-6)")
     ap.add_argument("--since-hours", type=float, default=None, metavar="N",
                     help="Only process sessions whose file was modified in the last N hours")
     args = ap.parse_args()
@@ -1169,7 +1196,7 @@ def main() -> None:
 
     for i, batch in enumerate(batches, 1):
         print(f"\nBatch {i}/{len(batches)}: {batch[0][2]} [{len(batch)} session(s)]")
-        _process_batch(batch, queue_dir, con, claude_dir, now_iso, args.dry_run, archive_dir=archive_dir)
+        _process_batch(batch, queue_dir, con, claude_dir, now_iso, args.apply_changes, args.model, archive_dir=archive_dir)
 
     con.close()
     print("\nDone.")
