@@ -74,6 +74,8 @@ CREATE TABLE IF NOT EXISTS agents (
 CREATE TABLE IF NOT EXISTS summaries (
     id INTEGER PRIMARY KEY,
     created_at TEXT NOT NULL,
+    first_start TEXT,
+    last_end TEXT,
     summary_text TEXT,
     completed_tasks TEXT,
     incomplete_tasks TEXT,
@@ -115,6 +117,8 @@ def init_db(db_path: Path | str) -> sqlite3.Connection:
         ("summaries", "cost_usd", "REAL"),
         ("summaries", "unapplied_improvements", "TEXT DEFAULT '[]'"),
         ("sessions", "away_summary", "TEXT"),
+        ("summaries", "first_start", "TEXT"),
+        ("summaries", "last_end", "TEXT"),
     ]
     for table, col, ddl in migrations:
         try:
@@ -776,14 +780,24 @@ def write_summary(
     """
     suggestions = result.get("improvement_suggestions") or []
 
+    if session_ids:
+        placeholders = ",".join("?" * len(session_ids))
+        row = con.execute(
+            f"SELECT MIN(started_at), MAX(last_activity_at) FROM sessions WHERE id IN ({placeholders})",
+            session_ids,
+        ).fetchone()
+        first_start, last_end = row if row else (None, None)
+    else:
+        first_start, last_end = None, None
+
     cur = con.execute(
         """INSERT INTO summaries
-           (created_at,summary_text,completed_tasks,incomplete_tasks,
+           (created_at,first_start,last_end,summary_text,completed_tasks,incomplete_tasks,
             unusual_flags,unapplied_improvements,applied_improvements,
             input_tokens,output_tokens,cache_write_tokens,cache_read_tokens,cost_usd)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
-            now_iso, result.get("summary_text", ""),
+            now_iso, first_start, last_end, result.get("summary_text", ""),
             json.dumps(result.get("completed_tasks") or []),
             json.dumps(result.get("incomplete_tasks") or []),
             json.dumps(result.get("unusual_flags") or []),

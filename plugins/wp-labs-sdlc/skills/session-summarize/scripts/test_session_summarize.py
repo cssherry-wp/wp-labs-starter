@@ -418,6 +418,37 @@ class TestDBWrites(unittest.TestCase):
             summary = con.execute("SELECT summary_text FROM summaries").fetchone()
             self.assertEqual(summary[0], "Did some work.")
 
+    def test_first_start_last_end_populated(self) -> None:
+        """first_start and last_end on summaries match the linked sessions."""
+        con = _mem_db()
+        sid = con.execute(
+            """INSERT INTO sessions
+               (path,file_hash,project,workspace,started_at,last_activity_at)
+               VALUES (?,?,?,?,?,?)""",
+            ("/s/f.jsonl", "h", "-p", "/w", "2026-01-01T09:00:00+00:00", "2026-01-01T11:00:00+00:00"),
+        ).lastrowid
+        con.commit()
+        write_summary(con, [sid], {
+            "summary_text": "x", "completed_tasks": [], "incomplete_tasks": [],
+            "improvement_suggestions": [], "unusual_flags": [],
+        }, {}, "2026-01-01T12:00:00+00:00")
+        con.commit()
+        row = con.execute("SELECT first_start, last_end FROM summaries").fetchone()
+        self.assertEqual(row[0], "2026-01-01T09:00:00+00:00")
+        self.assertEqual(row[1], "2026-01-01T11:00:00+00:00")
+
+    def test_first_start_last_end_null_when_no_sessions(self) -> None:
+        """first_start and last_end are NULL when session_ids is empty."""
+        con = _mem_db()
+        write_summary(con, [], {
+            "summary_text": "", "completed_tasks": [], "incomplete_tasks": [],
+            "improvement_suggestions": [], "unusual_flags": [],
+        }, {}, "2026-01-01T00:00:00+00:00")
+        con.commit()
+        row = con.execute("SELECT first_start, last_end FROM summaries").fetchone()
+        self.assertIsNone(row[0])
+        self.assertIsNone(row[1])
+
 
 class TestApplyEachActionType(unittest.TestCase):
     """Each of the 5 action_type values writes to the correct path."""
