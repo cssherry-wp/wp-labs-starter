@@ -11,9 +11,18 @@ user-invocable: false
 Add entry/exit logs to every meaningful operation:
 
 ```
-==== START: <operation_name>
+==== START: <operation_name> ====
 ...
-==== END: <operation_name> latency_ms=129
+==== END: <operation_name> ====
+```
+
+Log structured fields (including `latency_ms`) on the final result line between the markers, not on the END line itself:
+
+```
+==== START: sync_orders ====
+INFO  fetching orders count=142 source=shopify
+INFO  sync_complete inserted=139 skipped=3 latency_ms=412
+==== END: sync_orders ====
 ```
 
 Use for background jobs, CLI commands, scheduled tasks, and any multi-step process worth auditing.
@@ -58,6 +67,28 @@ ERROR  connection error
 
 - Secrets, tokens, API keys, or passwords
 - PII (email, phone, full name) unless explicitly required and compliance-reviewed
+
+## OpenTelemetry
+
+Use OTEL (traces + metrics) instead of, or in addition to, plain logs when:
+
+- You need distributed tracing across services (follow a request through API → worker → DB).
+- You need latency histograms, error-rate counters, or SLO dashboards (metrics that aggregate across requests).
+- Your platform already has an OTEL collector or APM (Datadog, Honeycomb, Jaeger, etc.).
+
+Plain structured logs are sufficient for single-service operations, CLI tools, and batch jobs where a trace context isn't meaningful.
+
+When using OTEL, follow the [OpenTelemetry semantic conventions](https://opentelemetry.io/docs/specs/semconv/) for attribute names:
+
+| Domain | Key attributes |
+|--------|----------------|
+| HTTP server | `http.request.method`, `http.response.status_code`, `url.path` |
+| DB | `db.system`, `db.name`, `db.operation.name` |
+| Messaging | `messaging.system`, `messaging.destination.name`, `messaging.operation.type` |
+| Errors | `exception.type`, `exception.message`, `exception.stacktrace` |
+| General | `service.name`, `service.version` |
+
+Never invent attribute names that shadow a semantic convention name with a different meaning.
 
 ## Hot Paths
 

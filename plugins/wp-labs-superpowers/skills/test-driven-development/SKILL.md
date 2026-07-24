@@ -348,14 +348,18 @@ make diff-cover         # TypeScript
 make diff-cover-python  # Python
 ```
 
-For each uncovered line in the output, show the user the file, line number, and the code, then ask:
-**"Should this line be tested?"**
+For each uncovered line, triage by whether the gap is obvious:
 
-| Situation | Action |
-|-----------|--------|
-| Logic that can fail | Write a failing test for it, follow the TDD cycle |
-| Defensive guard / truly unreachable | Note "unreachable by design", move on |
-| Covered by an e2e test | Note "e2e covers this", move on |
+**Obvious gap (fix without asking):** logic that can clearly fail — a conditional branch, data validation, error path, or business rule. Write the failing test and follow the TDD cycle.
+
+**Non-obvious gap (ask the user):** show the file, line number, and code, then explain *why it may not have been covered* and ask whether to add a test. Common reasons:
+
+| Reason | Typical lines |
+|--------|---------------|
+| Reachable only via untested input combination | Guards with multiple conditions |
+| Defensive safety net, likely unreachable | `raise RuntimeError("unreachable")`, exhaustive `else` |
+| Covered by the e2e suite | UI-layer error paths |
+| Generated / boilerplate | Auto-generated serializers, scaffolded migrations |
 
 Do not skip this step. Every gap needs a decision — silence is not an answer.
 
@@ -384,7 +388,9 @@ Keep the test file next to the source file in every language:
 - Python: `test_foo.py` next to `foo.py`
 
 ### Cover Invalid Input
-Always include tests for edge cases and invalid input, not just the happy path.
+
+- **Unit tests:** cover all edge cases and invalid input — empty strings, nulls, boundary values, invalid formats, and unexpected types.
+- **e2e tests:** verify that error scenarios display and are captured correctly, not to retest business logic. Confirm the UI surfaces the right error state; the unit layer owns the logic underneath.
 
 ### Mocking Policy
 Minimize mocks — use them only at true system boundaries: databases, HTTP clients, filesystems, clocks, and external processes. Mock the I/O boundary, not the logic above it.

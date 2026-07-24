@@ -39,11 +39,7 @@
     "context7@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
     "chrome-devtools-mcp@claude-plugins-official": true,
-    "playwright@claude-plugins-official": true,
-    "playwright-skill@playwright-skill": false,
-    "ralph-loop@claude-plugins-official": false,
-    "claude-md-management@claude-plugins-official": false,
-    "frontend-design@claude-plugins-official": false
+    "playwright@claude-plugins-official": true
   },
   "statusLine": {
     "type": "command",
