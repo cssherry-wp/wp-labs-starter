@@ -35,11 +35,11 @@
     "wp-labs-sdlc@wp-labs-starter": true,
     "wp-labs-superpowers@wp-labs-starter": true,
     "ponytail@ponytail": true,
+    "playwright@claude-plugins-official": true,
     "security-guidance@claude-plugins-official": true,
-    "context7@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
     "chrome-devtools-mcp@claude-plugins-official": true,
-    "playwright@claude-plugins-official": true
+    "context7@claude-plugins-official": true
   },
   "statusLine": {
     "type": "command",
