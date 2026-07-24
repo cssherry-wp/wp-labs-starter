@@ -469,7 +469,7 @@ def call_claude(prompt: str) -> str:
     Raises:
         RuntimeError: If claude exits with a non-zero code.
     """
-    result = subprocess.run(["claude", "-p", prompt], capture_output=True, text=True, timeout=300)
+    result = subprocess.run(["claude", "-p", prompt], capture_output=True, text=True, timeout=300, check=False)
     if result.returncode != 0:
         raise RuntimeError(f"claude -p exited {result.returncode}: {result.stderr[:500]}")
     return result.stdout.strip()
@@ -588,8 +588,8 @@ def write_summary(
     cur = con.execute(
         """INSERT INTO summaries
            (created_at,summary_text,completed_tasks,incomplete_tasks,
-            improvement_suggestions,unusual_flags,unapplied_improvements)
-           VALUES (?,?,?,?,?,?,?)""",
+            improvement_suggestions,unusual_flags,unapplied_improvements,applied_improvements)
+           VALUES (?,?,?,?,?,?,?,?)""",
         (
             now_iso, result.get("summary_text", ""),
             json.dumps(result.get("completed_tasks") or []),
@@ -597,6 +597,7 @@ def write_summary(
             json.dumps(auto_apply),
             json.dumps(result.get("unusual_flags") or []),
             json.dumps(unapplied),
+            json.dumps([]),
         ),
     )
     summary_id = cur.lastrowid
@@ -651,6 +652,8 @@ def _resolve_improvement_dest(
     Returns:
         Destination Path, or None if the action should be skipped.
     """
+    # ponytail: strip path components from LLM-supplied target to prevent ../traversal
+    target = Path(target).name
     if action == "CLAUDE.md":
         return (Path(project_root) / "CLAUDE.md") if project_root else (claude_dir / "CLAUDE.md")
     if action == "Rules":
