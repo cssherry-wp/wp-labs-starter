@@ -279,10 +279,17 @@ Keep it tight. End with the verdict, blockers first.
 
 **Persist the report:** after printing (or writing `--ci` JSON), save the prose report to
 `<repo-root>/.superpowers/03-review/<YYYY-MM-DD>-<slug>.md` where `slug` is `uncommitted`,
-`pr-<N>`, or derived from the branch name. Create the directory if absent. Derive the repo root
-with `git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel` — this resolves to
-the main repo even when called from inside a throwaway worktree. Skip this step under `--ci`
-when the JSON file is the deliverable.
+`pr-<N>`, or derived from the branch name. Create the directory if absent (it is already
+gitignored at the repo root via `.gitignore`):
+
+```bash
+repo_top=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
+mkdir -p "$repo_top/.superpowers/03-review"
+```
+
+Derive the repo root with `git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel`
+— this resolves to the main repo even when called from inside a throwaway worktree. Skip this step
+under `--ci` when the JSON file is the deliverable.
 
 ## 8. Interactive triage (non-`--ci` only)
 
