@@ -372,7 +372,7 @@ class TestSecondPassTriggered(unittest.TestCase):
             _write_jsonl(f, [_USER, _ASSISTANT])
             con = _mem_db()
 
-            with patch("session_summarize.call_claude", side_effect=[first_response, second_response]) as mock_call:
+            with patch("session_summarize.call_claude", side_effect=[(first_response, {}), (second_response, {})]) as mock_call:
                 _process_batch(
                     [(f, f"{f.parent.name}/{f.name}", "-proj", "hash", extract_metadata(f))],
                     queue_dir, con, Path(tmp) / "claude", "2026-01-01T00:00:00+00:00", False,
@@ -394,7 +394,7 @@ class TestDBWrites(unittest.TestCase):
             _write_jsonl(f, [_USER, _ASSISTANT])
             con = _mem_db()
 
-            with patch("session_summarize.call_claude", return_value=_GOOD_LLM_JSON):
+            with patch("session_summarize.call_claude", return_value=(_GOOD_LLM_JSON, {})):
                 _process_batch(
                     [(f, f"-proj/{f.name}", "-proj", "hash", extract_metadata(f))],
                     queue_dir, con, Path(tmp) / "claude", "2026-01-01T00:00:00+00:00", True,
@@ -439,10 +439,10 @@ class TestApplyEachActionType(unittest.TestCase):
             ]
 
             con = _mem_db()
-            _, _, _ = write_summary(con, [], {
+            _, _ = write_summary(con, [], {
                 "summary_text": "", "completed_tasks": [], "incomplete_tasks": [],
                 "improvement_suggestions": findings, "unusual_flags": [],
-            }, "2026-01-01T00:00:00+00:00")
+            }, {}, "2026-01-01T00:00:00+00:00")
             con.commit()
             summary_id = con.execute("SELECT id FROM summaries").fetchone()[0]
 
@@ -472,7 +472,7 @@ class TestDryRun(unittest.TestCase):
             _write_jsonl(f, [_USER, _ASSISTANT])
             con = _mem_db()
 
-            with patch("session_summarize.call_claude", return_value=_GOOD_LLM_JSON):
+            with patch("session_summarize.call_claude", return_value=(_GOOD_LLM_JSON, {})):
                 _process_batch(
                     [(f, f"-proj/{f.name}", "-proj", "hash", extract_metadata(f))],
                     queue_dir, con, claude_dir, "2026-01-01T00:00:00+00:00", dry_run=True,
