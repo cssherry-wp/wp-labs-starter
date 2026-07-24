@@ -232,9 +232,10 @@ def extract_metadata(jsonl_path: Path | str) -> dict[str, Any]:
 
             if t == "ai-title":
                 ai_title = obj.get("aiTitle")
+            elif t == "custom-title":
+                user_title = obj.get("customTitle")
             elif t == "user":
                 user_turns += 1
-                user_title = user_title or obj.get("title")
             elif t == "assistant":
                 assistant_turns += 1
                 msg = obj.get("message") or {}
