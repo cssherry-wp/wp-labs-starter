@@ -15,8 +15,8 @@ jobs:
       bash-tests: ${{ steps.filter.outputs.bash-tests }}
       python: ${{ steps.filter.outputs.python }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
@@ -38,8 +38,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions: { contents: read }
     steps:
-      - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
       - name: Lint & typecheck all Python projects
         run: |
           find . -name pyproject.toml \
@@ -61,8 +61,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions: { contents: read }
     steps:
-      - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
       - name: Test all non-Playwright Python projects
         run: |
           find . -name pyproject.toml \
@@ -88,8 +88,8 @@ jobs:
       run:
         working-directory: plugins/wp-labs-sdlc/skills
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '20'
           cache: npm
@@ -107,8 +107,8 @@ jobs:
       run:
         working-directory: plugins/wp-labs-sdlc/skills/session-dashboard/tests
     steps:
-      - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
       - run: uv sync --locked
       - run: uv run playwright install chromium --with-deps
       - run: uv run pytest
@@ -120,7 +120,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions: { contents: read }
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Run all bash test scripts
         run: |
           find . \( -name '*.test.sh' -o -name 'test-*' \) \
