@@ -22,13 +22,13 @@ jobs:
       # the BASE ref, not the PR head, so untrusted PR code never lands on disk in
       # this write-token job. Do NOT add steps here that execute PR code.
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.base.ref }}
 
       - name: Fetch Dependabot metadata
         id: metadata
-        uses: dependabot/fetch-metadata@v2
+        uses: dependabot/fetch-metadata@v3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
