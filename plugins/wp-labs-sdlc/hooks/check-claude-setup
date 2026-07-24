@@ -42,7 +42,8 @@ _q="${CLAUDE_PLUGIN_ROOT}/skills/queue/q"
 # Runs once per session (sentinel above guards frequency); cheap and keeps the
 # symlink current when the plugin upgrades, without requiring /queue setup.
 _stable_q="${_queue_dir}/q"
-[ -f "$_q" ] && ln -sf "$_q" "$_stable_q" 2>/dev/null || true
+[[ "$_q" == */wp-labs-sdlc/skills/queue/q ]] && \
+  [ -f "$_q" ] && ln -sf "$_q" "$_stable_q" 2>/dev/null || true
 
 # Rename pending.md → <session-id>.md (left by /queue clear in a prior session)
 if [ -f "${_queue_dir}/pending.md" ] && [ -n "$_session_id" ]; then
