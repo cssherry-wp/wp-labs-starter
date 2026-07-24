@@ -20,10 +20,18 @@ cmd="${1:-}"; shift || true
 case "$cmd" in
 
 add)
-  # q add <session-id> [--high|--med|--low] "<ask>" "<ctx>"
+  # q add <session-id> [--group <name>] [--high|--med|--low] "<ask>" "<ctx>"
   SID="$1"; shift; _validate_sid "$SID"
-  PRI=""
-  case "${1:-}" in --high) PRI=high; shift;; --med) PRI=med; shift;; --low) PRI=low; shift;; esac
+  GROUP="" PRI=""
+  while [[ "${1:-}" == --* ]]; do
+    case "$1" in
+      --high)  PRI=high;   shift   ;;
+      --med)   PRI=med;    shift   ;;
+      --low)   PRI=low;    shift   ;;
+      --group) GROUP="$2"; shift 2 ;;
+      *)       break               ;;
+    esac
+  done
   ASK="${1:-}"; CTX="${2:-$(pwd)}"
   FILE="$QUEUE_DIR/$SID.md"
   STAMP=$(date '+%Y-%m-%d %H:%M:%S')
@@ -39,7 +47,8 @@ add)
       done <<< "$REST"
     fi
     printf '  queued: %s\n' "$STAMP"
-    [ -n "$PRI" ] && printf '  priority: %s\n' "$PRI"
+    [ -n "$PRI" ]   && printf '  priority: %s\n' "$PRI"
+    [ -n "$GROUP" ] && printf '  group: %s\n' "$GROUP"
     printf '  ctx: %s\n' "$(basename "$CTX")"
     printf '\n'
   } >> "$FILE"
@@ -53,7 +62,9 @@ list|list-other)
   if [ $OTHER -eq 0 ]; then
     ONELINE=0
     [ "${1:-}" = "--oneline" ] && { ONELINE=1; shift; }
-    SID="${1:-}"
+    SID="${1:-}"; [ -n "$SID" ] && shift
+    GROUP_FILTER=""
+    [ "${1:-}" = "--group" ] && { GROUP_FILTER="$2"; shift 2; }
     if [ -n "$SID" ]; then
       FILE="$QUEUE_DIR/$SID.md"
       [ -f "$FILE" ] || { echo "No queue file: $FILE"; exit 1; }
@@ -66,18 +77,21 @@ list|list-other)
     SID="${1:-}"; shift || true
     ONELINE=0
     [ "${1:-}" = "--oneline" ] && { ONELINE=1; shift; }
+    GROUP_FILTER=""
+    [ "${1:-}" = "--group" ] && { GROUP_FILTER="$2"; shift 2; }
     shopt -s nullglob; FILES=("$QUEUE_DIR"/*.md); shopt -u nullglob
     [ ${#FILES[@]} -eq 0 ] && { echo "No queue files."; exit 0; }
   fi
-  python3 - "$SCRIPT_DIR" "$OTHER" "$ONELINE" "$SID" "${FILES[@]}" <<'PY'
+  python3 - "$SCRIPT_DIR" "$OTHER" "$ONELINE" "$SID" "$GROUP_FILTER" "${FILES[@]}" <<'PY'
 import sys, os
 sys.path.insert(0, sys.argv[1])
 from _qlib import split_blocks, parse_block_meta
 
-other_mode = sys.argv[2] == '1'
-oneline    = sys.argv[3] == '1'
-cur_sid    = sys.argv[4]
-files      = [f for f in sys.argv[5:] if os.path.isfile(f)]
+other_mode   = sys.argv[2] == '1'
+oneline      = sys.argv[3] == '1'
+cur_sid      = sys.argv[4]
+group_filter = sys.argv[5]
+files        = [f for f in sys.argv[6:] if os.path.isfile(f)]
 
 total = 0
 for path in files:
@@ -90,16 +104,22 @@ for path in files:
     open_blocks = [b for b in split_blocks(text) if b.startswith('- [ ]')]
     if not open_blocks: continue
 
-    if not oneline:
-        if other_mode:
-            print(f'## {sid}  ({len(open_blocks)} item{"s" if len(open_blocks)!=1 else ""})\n')
-        elif not cur_sid:
-            print(f'## {sid}\n')
-
+    printed_header = False
     for local_n, block in enumerate(open_blocks, 1):
-        total += 1
         lines = block.strip().split('\n')
         ask = lines[0][6:]
+        meta, sub, interp_lines = parse_block_meta(lines[1:])
+
+        if group_filter and meta.get('group', '') != group_filter:
+            continue
+
+        total += 1
+        if not printed_header and not oneline:
+            if other_mode:
+                print(f'## {sid}  ({len(open_blocks)} item{"s" if len(open_blocks)!=1 else ""})\n')
+            elif not cur_sid:
+                print(f'## {sid}\n')
+            printed_header = True
 
         if oneline:
             if other_mode:
@@ -109,11 +129,11 @@ for path in files:
                 print(f'{pfx}{ask}')
             continue
 
-        meta, sub, interp_lines = parse_block_meta(lines[1:])
         badge = {'high': '[H]', 'med': '[M]', 'low': '[L]'}.get(meta.get('priority', ''), '')
-        pfx = f'{badge} ' if badge else ''
-        ref = f'  [{sid[:8]}:{local_n}]' if other_mode else ''
-        print(f'{total}. {pfx}{ask}{ref}')
+        grp   = f'[{meta["group"]}] ' if meta.get('group') else ''
+        pfx   = f'{badge} ' if badge else ''
+        ref   = f'  [{sid[:8]}:{local_n}]' if other_mode else ''
+        print(f'{total}. {pfx}{grp}{ask}{ref}')
         for s in sub: print(f'   • {s}')
         print(f'   queued: {meta.get("queued", "?")}')
         if interp_lines: print(f'   interpretation: {" ".join(interp_lines)}')
@@ -395,8 +415,20 @@ rename-pending)
   fi
   ;;
 
+write-group)
+  # q write-group <session-id> <item-n> "<group name>"
+  SID="$1"; NUM="$2"; GROUP="$3"; FILE="$QUEUE_DIR/$SID.md"
+  [ -f "$FILE" ] || { echo "No queue file: $FILE" >&2; exit 1; }
+  python3 - "$SCRIPT_DIR" "$FILE" "$NUM" "$GROUP" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+from _qlib import write_group
+write_group(sys.argv[2], int(sys.argv[3]), sys.argv[4])
+PY
+  ;;
+
 *)
-  echo "Usage: q <add|list|list-other|needs-interpretation|write-interpretation|mark-done|mark-cancelled|clear|rename-pending|migrate-items> ..." >&2
+  echo "Usage: q <add|list|list-other|needs-interpretation|write-interpretation|write-group|mark-done|mark-cancelled|clear|rename-pending|migrate-items> ..." >&2
   exit 1
   ;;
 esac
