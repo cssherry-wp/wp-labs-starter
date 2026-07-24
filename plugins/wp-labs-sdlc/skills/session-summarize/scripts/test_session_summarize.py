@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import json
 import sqlite3
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import patch
 
 from session_summarize import (
     MAX_BATCH,
@@ -20,7 +19,6 @@ from session_summarize import (
     compute_cost,
     extract_metadata,
     group_sessions,
-    init_db,
     insert_agents,
     parse_llm_response,
     scan_sessions,
