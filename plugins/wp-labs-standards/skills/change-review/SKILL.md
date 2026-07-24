@@ -184,6 +184,8 @@ applied; everything else is reported as a suggestion.
   the user can review and commit. **With `--ci` the agent is read-only: apply fixes to the working tree only and do NOT commit,
   push, or comment — a separate privileged job stages the edits into an `[autofix]` commit and
   pushes it.** Report what was fixed vs left as a suggestion.
+  **Commit messages for applied fixes must not include `[CR-NNN]` identifiers** — these IDs reset
+  each run and are not stable references. Describe what was fixed in plain language instead.
 - **`--comment`**: post the report's findings as PR comments (use `github-pr-review` plumbing or
   `gh pr comment`), each with its confidence score; un-fixable and lower-confidence items go here.
   **With `--ci` the agent instead writes all findings to `change-review-findings.json` (schema
