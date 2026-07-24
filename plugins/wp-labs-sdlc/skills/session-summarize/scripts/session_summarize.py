@@ -32,8 +32,8 @@ PRICING: dict[str, tuple[float, float, float, float]] = {
 }
 
 MAX_BATCH = 10
-TRANSCRIPT_TOKEN_LIMIT = 6000
-APPROX_CHARS_PER_TOKEN = 4
+_MAX_TOOL_RESULT = 500  # chars; tool_result content trimmed to this (file prints)
+_MAX_ASST_TEXT = 1000   # chars; per assistant text block
 
 # (jsonl_path, rel_path, project_dir, file_hash, metadata)
 SessionItem = tuple[Path, str, str, str, dict[str, Any]]
@@ -60,7 +60,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     cache_read_tokens INTEGER DEFAULT 0,
     user_turns INTEGER DEFAULT 0,
     assistant_turns INTEGER DEFAULT 0,
-    cost_usd REAL
+    cost_usd REAL,
+    away_summary TEXT
 );
 CREATE TABLE IF NOT EXISTS agents (
     id INTEGER PRIMARY KEY,
@@ -106,16 +107,18 @@ def init_db(db_path: Path | str) -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(str(db_path))
     con.executescript(SCHEMA)
-    for col, ddl in [
-        ("input_tokens", "INTEGER DEFAULT 0"),
-        ("output_tokens", "INTEGER DEFAULT 0"),
-        ("cache_write_tokens", "INTEGER DEFAULT 0"),
-        ("cache_read_tokens", "INTEGER DEFAULT 0"),
-        ("cost_usd", "REAL"),
-        ("unapplied_improvements", "TEXT DEFAULT '[]'"),
-    ]:
+    migrations: list[tuple[str, str, str]] = [
+        ("summaries", "input_tokens", "INTEGER DEFAULT 0"),
+        ("summaries", "output_tokens", "INTEGER DEFAULT 0"),
+        ("summaries", "cache_write_tokens", "INTEGER DEFAULT 0"),
+        ("summaries", "cache_read_tokens", "INTEGER DEFAULT 0"),
+        ("summaries", "cost_usd", "REAL"),
+        ("summaries", "unapplied_improvements", "TEXT DEFAULT '[]'"),
+        ("sessions", "away_summary", "TEXT"),
+    ]
+    for table, col, ddl in migrations:
         try:
-            con.execute(f"ALTER TABLE summaries ADD COLUMN {col} {ddl}")
+            con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
         except sqlite3.OperationalError:
             pass  # column already exists
     con.commit()
@@ -375,8 +378,75 @@ Sessions to analyze:
 """
 
 
+def _trim(text: str, limit: int) -> str:
+    """Return text trimmed to limit chars with an ellipsis marker when cut.
+
+    Args:
+        text: Source string.
+        limit: Maximum character count.
+
+    Returns:
+        Original text, or text[:limit] + "…" if longer.
+    """
+    return text if len(text) <= limit else f"{text[:limit]}…"
+
+
+def _user_parts(content: list) -> list[str]:
+    """Extract text and tool_result parts from a user message content list.
+
+    tool_result content (file prints) is trimmed to _MAX_TOOL_RESULT chars;
+    text items (the user's own words) are kept verbatim. Order is preserved
+    so follow-up text after a file print is included.
+
+    Args:
+        content: The message.content array from a user JSONL entry.
+
+    Returns:
+        List of formatted part strings.
+    """
+    parts = []
+    for c in content:
+        if not isinstance(c, dict):
+            continue
+        if c.get("type") == "text" and c.get("text"):
+            parts.append(c["text"])
+        elif c.get("type") == "tool_result":
+            raw = c.get("content") or ""
+            if isinstance(raw, list):
+                raw = " ".join(x.get("text", "") for x in raw if isinstance(x, dict))
+            if raw:
+                parts.append(f"[result: {_trim(str(raw), _MAX_TOOL_RESULT)}]")
+    return parts
+
+
+def _assistant_parts(content: list) -> list[str]:
+    """Extract text and tool_use parts from an assistant message content list.
+
+    Each text block is trimmed independently to _MAX_ASST_TEXT so follow-up
+    text after a tool call is preserved. Order is preserved.
+
+    Args:
+        content: The message.content array from an assistant JSONL entry.
+
+    Returns:
+        List of formatted part strings.
+    """
+    parts = []
+    for c in content:
+        if not isinstance(c, dict):
+            continue
+        if c.get("type") == "text" and c.get("text"):
+            parts.append(_trim(c["text"], _MAX_ASST_TEXT))
+        elif c.get("type") == "tool_use":
+            parts.append(f"[{c.get('name', 'tool')}]")
+    return parts
+
+
 def _extract_turns(jsonl_path: Path | str) -> list[str]:
-    """Extract readable user/assistant turn strings from a session JSONL.
+    """Extract all user/assistant turn strings from a session JSONL.
+
+    Includes tool_result content (trimmed) so file prints are visible but
+    not overwhelming. All turns are returned; callers decide on joining.
 
     Args:
         jsonl_path: Path to the .jsonl session file.
@@ -396,30 +466,13 @@ def _extract_turns(jsonl_path: Path | str) -> list[str]:
                 continue
             t = obj.get("type", "")
             if t == "user":
-                msg = obj.get("message") or {}
-                content = msg.get("content") or []
-                if isinstance(content, list):
-                    text = " ".join(
-                        c.get("text", "") for c in content
-                        if isinstance(c, dict) and c.get("type") == "text"
-                    )
-                else:
-                    text = ""
-                if text:
-                    turns.append(f"User: {text[:2000]}")
+                parts = _user_parts((obj.get("message") or {}).get("content") or [])
+                if parts:
+                    turns.append(f"User: {' '.join(parts)}")
             elif t == "assistant":
-                msg = obj.get("message") or {}
-                content = msg.get("content") or []
-                if not isinstance(content, list):
-                    content = []
-                text = " ".join(
-                    c.get("text", "") for c in content
-                    if isinstance(c, dict) and c.get("type") == "text"
-                )[:500]
-                tools = [c.get("name", "") for c in content if isinstance(c, dict) and c.get("type") == "tool_use"]
-                summary = (text + (f" [tools: {', '.join(tools)}]" if tools else "")).strip()
-                if summary:
-                    turns.append(f"Assistant: {summary}")
+                parts = _assistant_parts((obj.get("message") or {}).get("content") or [])
+                if parts:
+                    turns.append(f"Assistant: {' '.join(parts)}")
     return turns
 
 
@@ -458,25 +511,19 @@ def _extract_refs(jsonl_path: Path | str) -> list[str]:
 
 
 def _build_transcript(jsonl_path: Path | str, full_transcript: bool = False) -> str:
-    """Build a transcript string, truncating long sessions to first+last 2 turns.
+    """Build a full transcript with all turns; large blocks trimmed per-block.
+
+    The full_transcript parameter is kept for call-site compatibility but is
+    unused — all turns are always included; trimming happens inside each block.
 
     Args:
         jsonl_path: Path to the .jsonl session file.
-        full_transcript: If True, always return the full transcript.
+        full_transcript: Unused; retained for backward compatibility.
 
     Returns:
-        Transcript string, possibly with an omission marker.
+        Newline-joined transcript string containing every turn.
     """
-    turns = _extract_turns(jsonl_path)
-    approx_tokens = sum(len(t) for t in turns) // APPROX_CHARS_PER_TOKEN
-
-    if full_transcript or approx_tokens <= TRANSCRIPT_TOKEN_LIMIT:
-        return "\n".join(turns)
-
-    if len(turns) > 4:
-        omitted = len(turns) - 4
-        return "\n".join(turns[:2]) + f"\n[... {omitted} turns omitted ...]\n" + "\n".join(turns[-2:])
-    return "\n".join(turns)
+    return "\n".join(_extract_turns(jsonl_path))
 
 
 def _duration_str(started: str | None, last: str | None) -> str:
@@ -654,6 +701,7 @@ def upsert_session(
         meta.get("input_tokens", 0), meta.get("output_tokens", 0),
         meta.get("cache_write_tokens", 0), meta.get("cache_read_tokens", 0),
         meta.get("user_turns", 0), meta.get("assistant_turns", 0), meta.get("cost_usd"),
+        meta.get("away_summary"),
     )
     row = con.execute("SELECT id FROM sessions WHERE path=?", (rel,)).fetchone()
     if row:
@@ -661,7 +709,8 @@ def upsert_session(
             """UPDATE sessions SET
                file_hash=?,project=?,workspace=?,ai_title=?,user_title=?,
                started_at=?,last_activity_at=?,model=?,input_tokens=?,output_tokens=?,
-               cache_write_tokens=?,cache_read_tokens=?,user_turns=?,assistant_turns=?,cost_usd=?
+               cache_write_tokens=?,cache_read_tokens=?,user_turns=?,assistant_turns=?,
+               cost_usd=?,away_summary=?
                WHERE path=?""",
             fields + (rel,),
         )
@@ -670,8 +719,8 @@ def upsert_session(
         """INSERT INTO sessions
            (path,file_hash,project,workspace,ai_title,user_title,started_at,last_activity_at,
             model,input_tokens,output_tokens,cache_write_tokens,cache_read_tokens,
-            user_turns,assistant_turns,cost_usd)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            user_turns,assistant_turns,cost_usd,away_summary)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (rel,) + fields,
     )
     return cur.lastrowid

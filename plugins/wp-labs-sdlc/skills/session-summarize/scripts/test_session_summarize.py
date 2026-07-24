@@ -11,11 +11,13 @@ from unittest.mock import patch
 
 from session_summarize import (
     MAX_BATCH,
-    TRANSCRIPT_TOKEN_LIMIT,
+    _MAX_TOOL_RESULT,
+    _assistant_parts,
     _build_transcript,
     _extract_turns,
     _find_project_root,
     _process_batch,
+    _user_parts,
     init_db,
     _resolve_improvement_dest,
     apply_improvements,
@@ -286,46 +288,56 @@ class TestGroupSessions(unittest.TestCase):
         self.assertTrue(all(len(b) <= MAX_BATCH for b in batches))
 
 
-class TestTruncateTranscript(unittest.TestCase):
-    """Transcript truncation based on approximate token count."""
+class TestTranscriptExtraction(unittest.TestCase):
+    """Transcript includes all turns; large tool_result blocks are trimmed."""
 
-    def _short_jsonl(self, tmp: str) -> Path:
-        p = Path(tmp) / "short.jsonl"
-        _write_jsonl(p, [_USER, _ASSISTANT])
-        return p
-
-    def _long_jsonl(self, tmp: str) -> Path:
-        long_text = "x" * (TRANSCRIPT_TOKEN_LIMIT * 4 * 3)  # ~3× the limit
-        turns = []
+    def test_all_turns_included(self) -> None:
+        """Every user and assistant turn appears regardless of session length."""
+        entries = []
         for i in range(10):
-            turns.append({"type": "user", "timestamp": f"2026-01-01T{i:02d}:00:00.000Z",
-                          "message": {"content": [{"type": "text", "text": long_text}]}})
-            turns.append({"type": "assistant", "timestamp": f"2026-01-01T{i:02d}:00:05.000Z",
-                          "message": {"model": "m", "content": [{"type": "text", "text": long_text}],
-                                      "usage": {"input_tokens": 0, "output_tokens": 0,
-                                                "cache_creation_input_tokens": 0,
-                                                "cache_read_input_tokens": 0}}})
-        p = Path(tmp) / "long.jsonl"
-        _write_jsonl(p, turns)
-        return p
-
-    def test_short_session_full_text(self) -> None:
-        """Sessions under 6k tokens include the full transcript."""
+            entries.append({"type": "user", "message": {"content": [{"type": "text", "text": f"msg {i}"}]}})
+            entries.append({"type": "assistant", "message": {"model": "m", "usage": {},
+                            "content": [{"type": "text", "text": f"reply {i}"}]}})
         with tempfile.TemporaryDirectory() as tmp:
-            p = self._short_jsonl(tmp)
+            p = Path(tmp) / "s.jsonl"
+            _write_jsonl(p, entries)
             transcript = _build_transcript(p)
-            self.assertNotIn("omitted", transcript)
+        self.assertNotIn("omitted", transcript)
+        for i in range(10):
+            self.assertIn(f"msg {i}", transcript)
+            self.assertIn(f"reply {i}", transcript)
 
-    def test_long_session_truncated(self) -> None:
-        """Sessions over 6k tokens get first 2 + last 2 turns with omission marker."""
-        with tempfile.TemporaryDirectory() as tmp:
-            p = self._long_jsonl(tmp)
-            transcript = _build_transcript(p)
-            self.assertIn("omitted", transcript)
-            turns = _extract_turns(p)
-            # First 2 and last 2 turn texts should appear
-            self.assertIn(turns[0].split(": ", 1)[1][:20], transcript)
-            self.assertIn(turns[-1].split(": ", 1)[1][:20], transcript)
+    def test_tool_result_trimmed(self) -> None:
+        """tool_result content longer than _MAX_TOOL_RESULT is trimmed with ellipsis."""
+        long_content = "x" * (_MAX_TOOL_RESULT * 3)
+        parts = _user_parts([{"type": "tool_result", "tool_use_id": "t1", "content": long_content}])
+        self.assertEqual(len(parts), 1)
+        self.assertIn("…", parts[0])
+        self.assertLessEqual(len(parts[0]), _MAX_TOOL_RESULT + 50)  # trim + "[result: " prefix
+
+    def test_followup_text_after_tool_result(self) -> None:
+        """Text item after a tool_result in the same user turn is preserved."""
+        content = [
+            {"type": "tool_result", "tool_use_id": "t1", "content": "x" * (_MAX_TOOL_RESULT * 2)},
+            {"type": "text", "text": "follow-up note"},
+        ]
+        parts = _user_parts(content)
+        joined = " ".join(parts)
+        self.assertIn("follow-up note", joined)
+
+    def test_assistant_text_blocks_trimmed_independently(self) -> None:
+        """Each assistant text block is trimmed independently; tool names are preserved."""
+        from session_summarize import _MAX_ASST_TEXT
+        content = [
+            {"type": "text", "text": "a" * (_MAX_ASST_TEXT * 2)},
+            {"type": "tool_use", "name": "Read"},
+            {"type": "text", "text": "follow-up after tool"},
+        ]
+        parts = _assistant_parts(content)
+        joined = " ".join(parts)
+        self.assertIn("[Read]", joined)
+        self.assertIn("follow-up after tool", joined)
+        self.assertIn("…", joined)  # first text block was trimmed
 
 
 class TestParseLLMResponse(unittest.TestCase):
