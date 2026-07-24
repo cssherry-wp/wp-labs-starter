@@ -1012,21 +1012,21 @@ function renderCostBarChart(){
   wrap.innerHTML=`<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" style="display:block">${parts.join('')}</svg>${legend}`;
   // Tooltips
   wrap.querySelectorAll('.cbar[data-tip]').forEach(el=>tipOn(el,el.dataset.tip));
-  // Click bar segment → filter by date + project
+  // Click bar segment → filter by date + project (preserve scroll)
   wrap.querySelectorAll('.cbar-seg').forEach(el=>el.addEventListener('click',()=>{
     const[yr,mo,da]=el.dataset.day.split('-').map(Number);
     customDateFrom=new Date(yr,mo-1,da,0,0,0,0).getTime();
     customDateTo=new Date(yr,mo-1,da,23,59,59,999).getTime();
     activeDateFilter='custom';activeProject=el.dataset.proj;
-    syncUrl();render();
+    const sy=window.scrollY;syncUrl();render();requestAnimationFrame(()=>window.scrollTo(0,sy));
   }));
-  // Click date label → filter by that date only (all projects)
+  // Click date label → filter by that date only (all projects, preserve scroll)
   wrap.querySelectorAll('.cbar-date').forEach(el=>el.addEventListener('click',()=>{
     const[yr,mo,da]=el.dataset.day.split('-').map(Number);
     customDateFrom=new Date(yr,mo-1,da,0,0,0,0).getTime();
     customDateTo=new Date(yr,mo-1,da,23,59,59,999).getTime();
     activeDateFilter='custom';
-    syncUrl();render();
+    const sy=window.scrollY;syncUrl();render();requestAnimationFrame(()=>window.scrollTo(0,sy));
   }));
   // Click legend → toggle highlight (visual only, no data filter)
   wrap.querySelectorAll('.cbar-legend').forEach(el=>el.addEventListener('click',()=>{
