@@ -891,59 +891,58 @@ def _resolve_improvement_dest(
     return None
 
 
-def _update_memory_index(mem_dir: Path, target: str, desc: str) -> None:
-    """Add a pointer line for target to the MEMORY.md index in mem_dir.
+def _write_improvement_brief(
+    finding: dict,
+    project: str,
+    workspace: str | None,
+    project_root: str | None,
+    claude_dir: Path,
+    pending_dir: Path,
+    now_iso: str,
+) -> Path:
+    """Write a pending improvement brief for the apply-session-improvements skill.
 
     Args:
-        mem_dir: Directory containing the memory files and MEMORY.md.
-        target: Basename of the memory file just written.
-        desc: One-line description for the index entry.
+        finding: Improvement finding dict from the LLM.
+        project: Encoded project directory name.
+        workspace: Actual cwd path from the session, or None.
+        project_root: Git root for the project, or None.
+        claude_dir: ~/.claude directory path.
+        pending_dir: Directory to write brief files into.
+        now_iso: ISO timestamp string for file naming.
+
+    Returns:
+        Path to the written brief file.
     """
-    index = mem_dir / "MEMORY.md"
-    pointer = f"- [{Path(target).stem}]({target}) — {desc[:100]}\n"
-    if index.exists():
-        text = index.read_text(encoding="utf-8")
-        if target not in text:
-            index.write_text(text.rstrip() + "\n" + pointer, encoding="utf-8")
-    else:
-        index.write_text(pointer, encoding="utf-8")
-
-
-def _write_improvement_file(dest: Path, marker: str, content: str) -> None:
-    """Write or append an improvement to dest, preceded by marker.
-
-    Args:
-        dest: Destination file path (parent must already exist).
-        marker: Text to insert before content (e.g. an HTML comment).
-        content: Exact text to write or append.
-    """
-    if dest.exists():
-        dest.write_text(dest.read_text().rstrip() + "\n" + marker + content + "\n", encoding="utf-8")
-    else:
-        dest.write_text(content + "\n", encoding="utf-8")
-
-
-def _git_commit_improvements(files_changed: list[str]) -> None:
-    """Stage and commit a list of changed files.
-
-    Args:
-        files_changed: Absolute file paths to stage and commit.
-    """
-    check = subprocess.run(
-        ["git", "rev-parse", "--is-inside-work-tree"],
-        capture_output=True, check=False,
+    slug = re.sub(r"[^a-z0-9]+", "-", (finding.get("description") or "improvement")[:50].lower()).strip("-")
+    stamp = now_iso[:19].replace(":", "").replace("T", "-")
+    suggested_dest = _resolve_improvement_dest(
+        finding.get("action_type", ""), finding.get("target", "unknown.md"),
+        project_root, claude_dir, project,
     )
-    if check.returncode != 0:
-        print("  ⚠ Not inside a git repo; skipping commit of improvements", file=sys.stderr)
-        return
-    try:
-        subprocess.run(["git", "add"] + files_changed, check=True, capture_output=True)
-        subprocess.run(
-            ["git", "commit", "-m", "chore: apply session-summarize improvements"],
-            check=True, capture_output=True,
-        )
-    except subprocess.CalledProcessError as e:
-        print(f"  ⚠ git commit failed: {e.stderr.decode()[:300]}", file=sys.stderr)
+    lines = [
+        "---",
+        f"category: {finding.get('category', '')}",
+        f"action_type: {finding.get('action_type', '')}",
+        f"target: {finding.get('target', '')}",
+        f"confidence: {finding.get('confidence', 0)}",
+        f"project: {project}",
+        f"workspace: {workspace or ''}",
+        f"suggested_dest: {suggested_dest or '(unknown)'}",
+        "---",
+        "",
+        "## Finding",
+        "",
+        finding.get("description", ""),
+        "",
+        "## Suggested content",
+        "",
+        finding.get("content", ""),
+    ]
+    pending_dir.mkdir(parents=True, exist_ok=True)
+    path = pending_dir / f"{stamp}-{slug}.md"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
 
 
 def apply_improvements(
@@ -956,10 +955,11 @@ def apply_improvements(
     now_iso: str,
     apply_changes: bool,
 ) -> tuple[list[dict], list[dict]]:
-    """Write high-confidence findings to files; update applied/unapplied DB columns.
+    """Queue high-confidence findings as improvement briefs; update DB columns.
 
-    Findings with confidence > 75 are attempted when apply_changes is True;
-    all others stay unapplied. Both DB columns store full finding objects.
+    Findings with confidence > 75 are written as brief files to
+    ~/.claude/session-improvements/pending/ when apply_changes is True.
+    All others stay unapplied. Run /apply-session-improvements to action briefs.
 
     Args:
         con: Open database connection.
@@ -968,55 +968,35 @@ def apply_improvements(
         project: Encoded project directory name.
         workspace: Actual cwd path from the session, or None.
         claude_dir: ~/.claude directory path.
-        now_iso: ISO timestamp string for applied_at records.
-        apply_changes: If False, skip file writes (findings stay unapplied).
+        now_iso: ISO timestamp string for brief file naming.
+        apply_changes: If False, all findings stay unapplied.
 
     Returns:
-        Tuple of (applied findings, unapplied findings).
+        Tuple of (queued findings, unapplied findings).
     """
-    applied: list[dict] = []
+    queued: list[dict] = []
     unapplied: list[dict] = []
-    files_changed: list[str] = []
     project_root = _find_project_root(workspace, project)
+    pending_dir = claude_dir / "session-improvements" / "pending"
 
     for finding in suggestions:
         if not apply_changes or (finding.get("confidence") or 0) <= 75:
             unapplied.append(finding)
             continue
 
-        action = finding.get("action_type", "")
-        target = finding.get("target", "unknown.md")
-        content = finding.get("content", "")
+        brief = _write_improvement_brief(finding, project, workspace, project_root, claude_dir, pending_dir, now_iso)
         desc = finding.get("description", "")
-
-        dest = _resolve_improvement_dest(action, target, project_root, claude_dir, project)
-        if dest is None:
-            unapplied.append(finding)
-            continue
-
-        marker = f"\n<!-- session-summarize: {desc[:80]} -->\n" if action == "CLAUDE.md" else ""
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        _write_improvement_file(dest, marker, content)
-
-        if action == "Memory":
-            _update_memory_index(dest.parent, target, desc)
-            idx_path = str(dest.parent / "MEMORY.md")
-            if idx_path not in files_changed:
-                files_changed.append(idx_path)
-
-        files_changed.append(str(dest))
-        applied.append({**finding, "applied_at": now_iso, "result": "written"})
-        print(f"  ✅ {finding.get('category')}: {desc} → [{action}] {target}")
-
-    if files_changed:
-        _git_commit_improvements(files_changed)
+        action = finding.get("action_type", "")
+        target = finding.get("target", "")
+        print(f"  📋 {finding.get('category')}: {desc} → [{action}] {target} (queued)")
+        queued.append({**finding, "queued_at": now_iso, "result": "queued", "brief": str(brief)})
 
     con.execute(
         "UPDATE summaries SET applied_improvements=?, unapplied_improvements=? WHERE id=?",
-        (json.dumps(applied), json.dumps(unapplied), summary_id),
+        (json.dumps(queued), json.dumps(unapplied), summary_id),
     )
     con.commit()
-    return applied, unapplied
+    return queued, unapplied
 
 
 def print_findings_report(
@@ -1042,9 +1022,9 @@ def print_findings_report(
         for item in incomplete:
             print(f"    • {item}")
     if applied:
-        print("\nFindings (applied):")
+        print("\nFindings (queued for /apply-session-improvements):")
         for i, f in enumerate(applied, 1):
-            print(f"  {i}. ✅ {f.get('category')}: {f.get('description')} → [{f.get('action_type')}] {f.get('target')}")
+            print(f"  {i}. 📋 {f.get('category')}: {f.get('description')} → [{f.get('action_type')}] {f.get('target')}")
     if unapplied:
         print("\nFindings (unapplied — stored for review):")
         for i, f in enumerate(unapplied, len(applied) + 1):
