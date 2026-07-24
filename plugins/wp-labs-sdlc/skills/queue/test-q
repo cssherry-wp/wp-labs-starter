@@ -121,5 +121,38 @@ grep -q 'Migrate me' "$TMP/queue/$DST.md" \
   && pass "migrate-items: item copied to dst, source marked [-]" \
   || fail "migrate-items: expected item in dst and [-] in src"
 
+# --- Bug 1 regression: interpretation must land inside the item block, not after an
+#     embedded comment. Before the fix, migrate-items wrote '# migrated from src date'
+#     before new items; that comment absorbed into the tail of the last pre-existing
+#     block, so write-interpretation placed the interpretation below the comment. ---
+BUG1_DST='bug1-dst-ccccdddd'
+BUG1_SRC='bug1-src-eeeeffff'
+CLAUDE_CONFIG_DIR="$TMP" "$Q" add "$BUG1_DST" "Pre-existing item" "$TMP" > /dev/null
+CLAUDE_CONFIG_DIR="$TMP" "$Q" add "$BUG1_SRC" "Migrated item"     "$TMP" > /dev/null
+CLAUDE_CONFIG_DIR="$TMP" "$Q" migrate-items "$BUG1_DST" "${BUG1_SRC:0:8}:1" > /dev/null
+# Write interpretation on the pre-existing item (item 1)
+CLAUDE_CONFIG_DIR="$TMP" "$Q" write-interpretation "$BUG1_DST" 1 "My interpretation"
+# interpretation: must appear before the second item's '- [ ]' line
+interp_line=$(grep -n 'interpretation:' "$TMP/queue/$BUG1_DST.md" | head -1 | cut -d: -f1)
+item2_line=$(grep -n '^\- \[ \] Migrated item' "$TMP/queue/$BUG1_DST.md" | head -1 | cut -d: -f1)
+[ -n "$interp_line" ] && [ -n "$item2_line" ] && [ "$interp_line" -lt "$item2_line" ] \
+  && pass "bug1: write-interpretation placed inside pre-existing item block, not after comment" \
+  || fail "bug1: interpretation at line ${interp_line:-?}, item2 at line ${item2_line:-?} — expected interp < item2"
+
+# --- Bug 2 regression: a ref whose 8-char prefix matches the destination session's own
+#     file must not self-migrate. Before the fix, src_path == dst_path, so the code
+#     wrote the item as cancelled and appended a fresh open copy to the same file. ---
+BUG2_SID='d0184cd9-143c-41df-87ef-edeb1157329e'
+CLAUDE_CONFIG_DIR="$TMP" "$Q" add "$BUG2_SID" "Should not self-migrate" "$TMP" > /dev/null
+# ref prefix d0184cd9 matches BUG2_SID; with the fix this must produce "Session not found"
+CLAUDE_CONFIG_DIR="$TMP" "$Q" migrate-items "$BUG2_SID" "${BUG2_SID:0:8}:1" 2>&1 \
+  | grep -q 'Session not found\|No items migrated' \
+  && pass "bug2: self-migration via prefix blocked" \
+  || fail "bug2: expected 'Session not found', got: $(CLAUDE_CONFIG_DIR="$TMP" "$Q" list "$BUG2_SID" 2>&1)"
+open_count=$(grep -c '^\- \[ \]' "$TMP/queue/$BUG2_SID.md" 2>/dev/null || echo 0)
+[ "$open_count" -eq 1 ] \
+  && pass "bug2: item count unchanged after blocked self-migration" \
+  || fail "bug2: expected 1 open item, got $open_count (duplication occurred)"
+
 echo ""
 echo "All tests passed."

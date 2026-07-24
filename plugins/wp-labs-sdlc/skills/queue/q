@@ -182,6 +182,7 @@ total = 0
 for sid_prefix, item_nums in by_sid.items():
     matching = [f for f in os.listdir(queue_dir)
                 if f.endswith('.md') and f != 'pending.md'
+                and f != (cur_sid + '.md')  # never migrate from self
                 and (f[:-3] == sid_prefix or f[:len(sid_prefix)] == sid_prefix)]
     if not matching:
         print(f'Session not found: {sid_prefix}'); continue
@@ -207,7 +208,6 @@ for sid_prefix, item_nums in by_sid.items():
     if fresh_items:
         open(src_path, 'w').write(''.join(new_src))
         with open(dst_path, 'a') as f:
-            f.write(f'\n# migrated from {src_sid} {date_str}\n')
             for item in fresh_items:
                 f.write(item + '\n\n')
 
