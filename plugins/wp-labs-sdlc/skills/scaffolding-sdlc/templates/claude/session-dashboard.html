@@ -934,17 +934,15 @@ function renderCostBarChart(){
   for(const day of days)for(const[p,c]of Object.entries(dayMap[day]))projTot[p]=(projTot[p]||0)+c;
   const projs=Object.entries(projTot).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([p])=>p);
   const nP=projs.length,nD=days.length;
-  // Layout dims — bar width 4–20px, group gap ensures at least 6px air
+  // Layout dims — one bar per day, width scales with day count
   const pL=52,pR=12,pT=8,pH=160,pB=32;
-  const targetSlotW=Math.min(72,Math.max(28,600/nD));
-  const barW=Math.max(4,Math.min(20,Math.floor((targetSlotW-(nP-1)*2)/nP)));
-  const groupW=nP*barW+(nP-1)*2;
-  const slotW=Math.max(groupW+6,targetSlotW);
+  const slotW=Math.min(80,Math.max(20,560/nD));
+  const barW=Math.max(6,Math.floor(slotW*0.72));
   const plotW=Math.max(380,nD*slotW);
   const svgW=pL+plotW+pR,svgH=pT+pH+pB;
-  // Y scale: nice ceiling, 5 gridlines at 0/25/50/75/100 %
+  // Y scale: max of per-day totals (stacked), nice ceiling
   let yMax=0;
-  for(const day of days)for(const p of projs)yMax=Math.max(yMax,dayMap[day][p]||0);
+  for(const day of days){let t=0;for(const p of projs)t+=dayMap[day][p]||0;yMax=Math.max(yMax,t);}
   const yTop=niceNumber(yMax*1.12||0.01);
   const yTicks=[0,.25,.5,.75,1].map(f=>f*yTop);
   const yp=v=>(pT+pH-(v/yTop)*pH).toFixed(1);
@@ -960,26 +958,31 @@ function renderCostBarChart(){
   const bly=(pT+pH).toFixed(1);
   parts.push(`<line x1="${pL}" y1="${bly}" x2="${(pL+plotW).toFixed(1)}" y2="${bly}" stroke="var(--border)" stroke-width="1"/>`);
   parts.push(`<line x1="${pL}" y1="${pT}" x2="${pL}" y2="${bly}" stroke="var(--border2)" stroke-width="1"/>`);
-  // Bars + x-axis labels (thin label density when many days)
+  // Stacked bars + x-axis labels
   const everyN=nD>20?Math.ceil(nD/14):1;
+  const bx0=(slotW-barW)/2; // center bar in slot
   for(let di=0;di<nD;di++){
     const day=days[di];
-    const gx=pL+di*slotW;
+    const bx=(pL+di*slotW+bx0).toFixed(1);
     if(di%everyN===0||di===nD-1){
       const[yr,mo,da]=day.split('-');
       const lbl=new Date(+yr,+mo-1,+da).toLocaleDateString('en-US',{month:'short',day:'numeric'});
-      parts.push(`<text x="${(gx+groupW/2).toFixed(1)}" y="${(pT+pH+18).toFixed(1)}" text-anchor="middle" font-size="10" fill="var(--dim)" font-family="-apple-system,system-ui,sans-serif">${lbl}</text>`);
+      parts.push(`<text x="${(pL+di*slotW+slotW/2).toFixed(1)}" y="${(pT+pH+18).toFixed(1)}" text-anchor="middle" font-size="10" fill="var(--dim)" font-family="-apple-system,system-ui,sans-serif">${lbl}</text>`);
     }
-    for(let pi=0;pi<nP;pi++){
-      const p=projs[pi];
-      const c=dayMap[day][p]||0;
-      if(!c)continue;
-      const color=projColorHex(p);
-      const bh=Math.max(2,(c/yTop)*pH);
-      const bx=(gx+pi*(barW+2)).toFixed(1);
-      const tip=`${day}  ·  ${p}\n$${c<0.01?c.toFixed(4):c.toFixed(2)}`;
-      // ponytail: 4px top radius, square at baseline per mark spec
-      parts.push(`<rect x="${bx}" y="${(pT+pH-bh).toFixed(1)}" width="${barW}" height="${bh.toFixed(1)}" rx="${Math.min(4,barW/2)}" fill="${color}" class="cbar" data-tip="${esc(tip)}"/>`);
+    // Stack segments bottom→top (projs[0]=largest total at bottom; projs[nP-1] at top)
+    const daySegs=projs.map(p=>({p,c:dayMap[day][p]||0})).filter(s=>s.c>0);
+    const dayTotal=daySegs.reduce((s,{c})=>s+c,0);
+    let yOff=0;
+    for(let si=0;si<daySegs.length;si++){
+      const{p,c}=daySegs[si];
+      const isTop=si===daySegs.length-1;
+      const rawH=(c/yTop)*pH;
+      // 2px surface gap above each non-top segment (gap shows as background between segments)
+      const bh=Math.max(2,rawH-(isTop?0:2));
+      const rx=isTop?Math.min(4,barW/2):0; // round data-end of topmost segment only
+      const tip=`${day}  ·  ${p}\n$${c<0.01?c.toFixed(4):c.toFixed(2)}\n$${dayTotal<0.01?dayTotal.toFixed(4):dayTotal.toFixed(2)} total`;
+      parts.push(`<rect x="${bx}" y="${(pT+pH-yOff-bh).toFixed(1)}" width="${barW}" height="${bh.toFixed(1)}" rx="${rx}" fill="${projColorHex(p)}" class="cbar" data-tip="${esc(tip)}"/>`);
+      yOff+=rawH; // advance by full rawH so the 2px gap reads as background
     }
   }
   // Legend (secondary encoding — required: existing PROJ_COLORS fail CVD floor)
