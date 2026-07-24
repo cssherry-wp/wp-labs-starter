@@ -567,18 +567,21 @@ def upsert_session(
     return cur.lastrowid
 
 
-def insert_agents(con: sqlite3.Connection, session_id: int, agents: list[dict]) -> None:
+def insert_agents(
+    con: sqlite3.Connection, session_id: int, agents: list[dict], session_model: str | None = None
+) -> None:
     """Insert agent spawn records for a session.
 
     Args:
         con: Open database connection.
         session_id: FK referencing the sessions table.
         agents: List of agent dicts from extract_metadata().
+        session_model: Fallback model when the Agent call omits one.
     """
     for a in agents:
         con.execute(
             "INSERT INTO agents (session_id,model,effort,tools,spawned_at) VALUES (?,?,?,?,?)",
-            (session_id, a.get("model"), a.get("effort"), a.get("tools"), a.get("spawned_at")),
+            (session_id, a.get("model") or session_model, a.get("effort"), a.get("tools"), a.get("spawned_at")),
         )
 
 
@@ -903,7 +906,7 @@ def _process_batch(
     for item in batch:
         jsonl_path, rel, proj, h, meta = item
         sid = upsert_session(con, rel, proj, h, meta)
-        insert_agents(con, sid, meta.get("agents") or [])
+        insert_agents(con, sid, meta.get("agents") or [], session_model=meta.get("model"))
         session_ids[jsonl_path.stem] = sid
 
     try:
