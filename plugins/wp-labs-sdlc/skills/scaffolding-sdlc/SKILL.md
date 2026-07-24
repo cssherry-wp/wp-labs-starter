@@ -324,7 +324,7 @@ directory; copy from there.
    or the user says so. If both trackers are genuinely in use, keep both. Carrying
    the non-applicable bullet just trains the wrong PR convention into every session.
 
-9. **Verify & summarize.** Run `make check`, `make test`, and `make coverage` locally and report
+9. **Verify & summarize.** Run `make check` and `make coverage` locally and report
    results. Summarize what was created/changed and list manual follow-ups: add
    the repo secrets above (incl. Azure OIDC if hosting was added), and
    (recommended) enable branch protection requiring the CI checks.
