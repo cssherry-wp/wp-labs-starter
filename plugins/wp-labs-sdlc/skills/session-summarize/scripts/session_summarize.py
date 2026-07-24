@@ -468,11 +468,13 @@ def _extract_turns(jsonl_path: Path | str) -> list[str]:
             if t == "user":
                 parts = _user_parts((obj.get("message") or {}).get("content") or [])
                 if parts:
-                    turns.append(f"User: {' '.join(parts)}")
+                    body = " ".join(parts)
+                    turns.append(f"User (~{len(body) // 4} tok): {body}")
             elif t == "assistant":
                 parts = _assistant_parts((obj.get("message") or {}).get("content") or [])
                 if parts:
-                    turns.append(f"Assistant: {' '.join(parts)}")
+                    body = " ".join(parts)
+                    turns.append(f"Assistant (~{len(body) // 4} tok): {body}")
     return turns
 
 
@@ -653,6 +655,7 @@ def summarize_batch(
     batch: list[SessionItem],
     queue_dir: Path | str,
     full_uuids: set[str] | None = None,
+    archive_dir: Path | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Summarize a batch of sessions with one claude -p call.
 
@@ -660,15 +663,20 @@ def summarize_batch(
         batch: Sessions to include in this call.
         queue_dir: Directory containing per-session queue files.
         full_uuids: UUIDs that should receive the full transcript (not truncated).
+        archive_dir: If set, write each session block to archive_dir/<uuid>.txt
+            before sending to the LLM.
 
     Returns:
         Tuple of (parsed LLM response dict, usage dict).
     """
     full_uuids = full_uuids or set()
-    blocks = [
-        build_session_block(item, queue_dir, full_transcript=item[0].stem in full_uuids)
-        for item in batch
-    ]
+    blocks = []
+    for item in batch:
+        block = build_session_block(item, queue_dir, full_transcript=item[0].stem in full_uuids)
+        if archive_dir:
+            archive_dir.mkdir(parents=True, exist_ok=True)
+            (archive_dir / f"{item[0].stem}.txt").write_text(block, encoding="utf-8")
+        blocks.append(block)
     prompt = LLM_PROMPT_HEADER + "\n\n---\n\n".join(blocks)
     print(f"  Calling claude -p for {len(batch)} session(s)...", flush=True)
     text, usage = call_claude(prompt)
@@ -1028,6 +1036,7 @@ def _run_second_pass(
     claude_dir: Path,
     now_iso: str,
     dry_run: bool,
+    archive_dir: Path | None = None,
 ) -> None:
     """Run a second claude -p call for sessions that need their full transcript.
 
@@ -1042,6 +1051,7 @@ def _run_second_pass(
         claude_dir: ~/.claude directory path.
         now_iso: ISO timestamp string.
         dry_run: Skip file writes when True.
+        archive_dir: If set, write each session block to archive_dir/<uuid>.txt.
     """
     full_items = [item for item in batch if item[0].stem in needs_full]
     if not full_items:
@@ -1049,7 +1059,7 @@ def _run_second_pass(
     full_set = {item[0].stem for item in full_items}
     print(f"  Second pass: {len(full_items)} session(s) need full context...", flush=True)
     try:
-        result2, usage2 = summarize_batch(full_items, queue_dir, full_uuids=full_set)
+        result2, usage2 = summarize_batch(full_items, queue_dir, full_uuids=full_set, archive_dir=archive_dir)
         full_ids = [session_ids[uuid] for uuid in full_set if uuid in session_ids]
         summary_id2, suggestions2 = write_summary(con, full_ids, result2, usage2, now_iso)
         con.commit()
@@ -1066,6 +1076,7 @@ def _process_batch(
     claude_dir: Path,
     now_iso: str,
     dry_run: bool,
+    archive_dir: Path | None = None,
 ) -> None:
     """Upsert sessions, call the LLM, write summaries, apply improvements.
 
@@ -1076,6 +1087,7 @@ def _process_batch(
         claude_dir: ~/.claude directory path.
         now_iso: ISO timestamp string.
         dry_run: Skip file writes when True.
+        archive_dir: If set, write each session block to archive_dir/<uuid>.txt.
     """
     project = batch[0][2]
     workspace: str | None = batch[0][4].get("workspace")
@@ -1088,7 +1100,7 @@ def _process_batch(
         session_ids[jsonl_path.stem] = sid
 
     try:
-        result, usage = summarize_batch(batch, queue_dir)
+        result, usage = summarize_batch(batch, queue_dir, archive_dir=archive_dir)
     except Exception as e:
         print(f"  ⚠ LLM summarization failed: {e}", file=sys.stderr)
         return
@@ -1098,7 +1110,7 @@ def _process_batch(
     con.commit()  # sessions + summary committed atomically; LLM failure above leaves both uncommitted
 
     if needs_full:
-        _run_second_pass(batch, session_ids, needs_full, queue_dir, con, project, workspace, claude_dir, now_iso, dry_run)
+        _run_second_pass(batch, session_ids, needs_full, queue_dir, con, project, workspace, claude_dir, now_iso, dry_run, archive_dir=archive_dir)
 
     applied, unapplied = apply_improvements(con, summary_id, suggestions, project, workspace, claude_dir, now_iso, dry_run)
     print_findings_report(applied, unapplied)
@@ -1128,6 +1140,8 @@ def main() -> None:
         print(f"Sessions directory not found: {sessions_dir}", file=sys.stderr)
         sys.exit(1)
 
+    archive_dir = Path(args.output).parent / "session_trimmed"
+
     con = init_db(args.output)
     to_process = scan_sessions(sessions_dir, con, since=since)
     if not to_process:
@@ -1140,7 +1154,7 @@ def main() -> None:
 
     for i, batch in enumerate(batches, 1):
         print(f"\nBatch {i}/{len(batches)}: {batch[0][2]} [{len(batch)} session(s)]")
-        _process_batch(batch, queue_dir, con, claude_dir, now_iso, args.dry_run)
+        _process_batch(batch, queue_dir, con, claude_dir, now_iso, args.dry_run, archive_dir=archive_dir)
 
     con.close()
     print("\nDone.")
