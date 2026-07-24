@@ -63,6 +63,7 @@ list|list-other)
     ONELINE=0
     [ "${1:-}" = "--oneline" ] && { ONELINE=1; shift; }
     SID="${1:-}"; [ -n "$SID" ] && shift
+    [ "${1:-}" = "--oneline" ] && { ONELINE=1; shift; }
     GROUP_FILTER=""
     [ "${1:-}" = "--group" ] && { GROUP_FILTER="$2"; shift 2; }
     if [ -n "$SID" ]; then
@@ -219,15 +220,16 @@ needs-interpretation)
   # prints "<n>\t<ask>" for each open item missing an interpretation: line; empty = all have one
   SID="$1"; _validate_sid "$SID"; FILE="$QUEUE_DIR/$SID.md"
   [ -f "$FILE" ] || exit 0
-  python3 - "$FILE" <<'PY'
-import sys, re
+  python3 - "$SCRIPT_DIR" "$FILE" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+from _qlib import split_blocks
 
-path = sys.argv[1]
+path = sys.argv[2]
 text = open(path).read()
-blocks = re.split(r'(?=^- \[)', text, flags=re.MULTILINE)
 
 n = 0
-for block in blocks:
+for block in split_blocks(text):
     if not block.startswith('- [ ]'):
         continue
     n += 1
@@ -241,15 +243,16 @@ write-interpretation)
   # q write-interpretation <session-id> <item-n> "<interpretation text>"
   SID="$1"; NUM="$2"; INTERP="$3"; _validate_sid "$SID"; FILE="$QUEUE_DIR/$SID.md"
   [ -f "$FILE" ] || { echo "No queue file: $FILE"; exit 0; }
-  python3 - "$FILE" "$NUM" "$INTERP" <<'PY'
-import sys, re
+  python3 - "$SCRIPT_DIR" "$FILE" "$NUM" "$INTERP" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+from _qlib import split_blocks
 
-path, num, interp = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+path, num, interp = sys.argv[2], int(sys.argv[3]), sys.argv[4]
 text = open(path).read()
-blocks = re.split(r'(?=^- \[)', text, flags=re.MULTILINE)
 
 n, result = 0, []
-for block in blocks:
+for block in split_blocks(text):
     if block.startswith('- [ ]'):
         n += 1
         if n == num and 'interpretation:' not in block:
@@ -268,12 +271,14 @@ mark-done)
   # q mark-done <session-id> <n|sid8:n> [...]
   # bare numbers → mark done in own session; sid8:n refs → mark done in source session
   SID="$1"; shift; _validate_sid "$SID"; FILE="$QUEUE_DIR/$SID.md"
-  python3 - "$FILE" "$QUEUE_DIR" "$@" <<'PY'
+  python3 - "$SCRIPT_DIR" "$FILE" "$QUEUE_DIR" "$@" <<'PY'
 import sys, re, os
 from datetime import datetime
+sys.path.insert(0, sys.argv[1])
+from _qlib import split_blocks
 
-path, queue_dir = sys.argv[1], sys.argv[2]
-args = sys.argv[3:]
+path, queue_dir = sys.argv[2], sys.argv[3]
+args = sys.argv[4:]
 stamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 local_nums, by_sid = set(), {}
@@ -300,9 +305,8 @@ def mark_done_in(file_path, item_nums):
     if not os.path.isfile(file_path):
         print(f'No queue file: {file_path}'); return 0
     text = open(file_path).read()
-    blocks = re.split(r'(?=^- \[)', text, flags=re.MULTILINE)
     n, result, count = 0, [], 0
-    for block in blocks:
+    for block in split_blocks(text):
         if block.startswith('- [ ]'):
             n += 1
             if n in item_nums:
@@ -374,16 +378,7 @@ new_src, pending_items = [], []
 for block in split_blocks(open(src).read()):
     if block.startswith('- [ ]'):
         new_src.append(cancel_block(block, stamp, 'Moved after clear', 'pending'))
-        fresh, skip = [], False
-        for line in block.split('\n'):
-            s = line.lstrip()
-            if s.startswith('interpretation:'):
-                skip = True; continue
-            if skip and line.startswith('    '):
-                continue
-            skip = False
-            fresh.append(line)
-        pending_items.append('\n'.join(fresh).rstrip())
+        pending_items.append(block.rstrip())
     else:
         new_src.append(block)
 
@@ -416,7 +411,7 @@ rename-pending)
   ;;
 
 write-group)
-  # q write-group <session-id> <item-n> "<group name>"
+  # q write-group <session-id> <item-n> "<group name>"  — assigns or overwrites group on item N
   SID="$1"; NUM="$2"; GROUP="$3"; FILE="$QUEUE_DIR/$SID.md"
   [ -f "$FILE" ] || { echo "No queue file: $FILE" >&2; exit 1; }
   python3 - "$SCRIPT_DIR" "$FILE" "$NUM" "$GROUP" <<'PY'
