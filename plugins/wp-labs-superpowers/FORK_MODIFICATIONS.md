@@ -1,23 +1,23 @@
-# wp-labs-superpowers — team modifications
+# How to modify the wp-labs-superpowers fork
 
-This plugin is a fork of [`superpowers`](https://github.com/obra/superpowers). See `FORK.md` (auto-generated on each refresh) for the upstream base version and commit.
+See `FORK.md` for what the current fork differs from upstream. This file explains how to add or change team modifications so they survive future upstream refreshes.
 
-## What the fork changes
+## Add or edit a skill overlay
 
-All structural changes (path convention rewrites, file pruning) are applied by `scripts/refresh-superpowers-fork.sh` on each upstream sync.
+Overlays are appended to a skill's `SKILL.md` after each upstream refresh. To add one:
 
-Team workflow additions are appended to skill files from `team-overlays/`:
+1. Create `team-overlays/<skill-name>.md` wrapped in the required markers:
+   ```
+   <!-- wp-labs team overlay: BEGIN -->
+   ...your additions...
+   <!-- wp-labs team overlay: END -->
+   ```
+2. The refresh script (`scripts/refresh-superpowers-fork.sh`) appends it automatically. It checks for the `BEGIN` marker so it won't double-append.
 
-- `brainstorming.md` — spec→issue workflow
-- `writing-plans.md` — plan→comment workflow
-- `finishing-a-development-branch.md` — feature-docs step
+## Change how the fork is built
 
-The `test-driven-development` skill has additional team content baked directly into the skill file (not via an overlay): diff coverage check, test conventions, mocking policy, and testing anti-patterns. These survive upstream refreshes only if manually re-applied after a sync.
+Structural changes — path rewrites, file pruning, version logic — live in [`scripts/refresh-superpowers-fork.sh`](https://github.com/cssherry-wp/wp-labs-starter/blob/main/scripts/refresh-superpowers-fork.sh). Edit that script, then run it to verify the rebuild produces the expected result.
 
-## How to update the fork
+## Sync to a new upstream release
 
-To change **how the fork is built** (path rewrites, file pruning, version logic): edit [`scripts/refresh-superpowers-fork.sh`](https://github.com/cssherry-wp/wp-labs-starter/blob/main/scripts/refresh-superpowers-fork.sh).
-
-To add or change **team workflow content**: edit files in `plugins/wp-labs-superpowers/team-overlays/`. These are re-appended automatically on every upstream refresh.
-
-To sync to a **new upstream release**: run `scripts/refresh-superpowers-fork.sh` (or let the weekly CI workflow do it and open a PR).
+Run `scripts/refresh-superpowers-fork.sh` (or let the weekly CI workflow open a PR). It rebuilds `skills/` and `hooks/` from the upstream snapshot pinned by `anthropics/claude-plugins-official`, re-applies path rewrites, re-appends overlays, copies extra files, and bumps the version.
