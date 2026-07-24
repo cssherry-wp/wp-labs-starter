@@ -288,3 +288,64 @@ def test_sort_by_column_header(dash: Page) -> None:
     rows = dash.locator("tr.srow")
     expect(rows.first).to_contain_text("Alpha")
     expect(rows.last).to_contain_text("Beta")
+
+
+# ── Agent blocks ──────────────────────────────────────────────────────────────
+
+def test_agent_block_shown_under_turn(dash: Page) -> None:
+    tool_use_id = "toolu_01abc"
+    s = _make_session("aaa-111", title="Agent session")
+    s["userTurns"] = [{
+        "role": "user",
+        "text": "Do a search",
+        "ts": NOW_MS,
+        "agentSpawns": [{"toolUseId": tool_use_id, "label": "Search subagent"}],
+    }]
+    s["agents"] = [{
+        "agentId": "agent-xyz",
+        "agentType": "claude",
+        "description": "Search subagent",
+        "toolUseId": tool_use_id,
+        "spawnDepth": 1,
+        "parentAgentId": None,
+        "usage": {"in": 500, "out": 200, "cw": 0, "cr": 0},
+        "model": "haiku-4-5",
+        "effort": "normal",
+        "tools": ["WebSearch"],
+        "lastAssistantText": "Found results",
+    }]
+    _inject(dash, [s])
+    dash.locator("tr.srow").first.click()
+    expect(dash.locator(".agent-block")).to_be_visible()
+    expect(dash.locator(".agent-block")).to_contain_text("Search subagent")
+
+
+def test_agent_block_shows_model_and_tokens(dash: Page) -> None:
+    tool_use_id = "toolu_02def"
+    s = _make_session("bbb-222", title="Agent with metadata")
+    s["userTurns"] = [{
+        "role": "user",
+        "text": "Run agent",
+        "ts": NOW_MS,
+        "agentSpawns": [{"toolUseId": tool_use_id, "label": "Worker"}],
+    }]
+    s["agents"] = [{
+        "agentId": "agent-abc",
+        "agentType": "claude",
+        "description": "Worker",
+        "toolUseId": tool_use_id,
+        "spawnDepth": 1,
+        "parentAgentId": None,
+        "usage": {"in": 1000, "out": 400, "cw": 0, "cr": 0},
+        "model": "haiku-4-5",
+        "effort": "normal",
+        "tools": ["Bash"],
+        "lastAssistantText": None,
+    }]
+    _inject(dash, [s])
+    dash.locator("tr.srow").first.click()
+    block = dash.locator(".agent-block")
+    expect(block).to_be_visible()
+    # model name and token count should appear
+    expect(block).to_contain_text("haiku-4-5")
+    expect(block).to_contain_text("tok")
