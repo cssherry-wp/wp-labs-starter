@@ -11,6 +11,8 @@ user-invocable: false
 ### KISS Principle
 Avoid overcomplicated code for the sake of brevity or to cover some esoteric edge case that will only show up in a parallel universe. Keep the code simple for someone else to understand. It also reduces chances of introducing bugs.
 
+Follow SOLID principles — especially single responsibility (one reason to change per class/function) and dependency inversion (depend on abstractions, not concretions).
+
 ### Minimal, But Complete
 
 Always be minimal, but complete. Do not add details that are easy to find elsewhere (avoid "AI slop" - for example, PR description should not show the list of files changed, which can be seen in the commit details. It's better to use references than duplicating the content - for example, both humans and AI agents can be expected to know what KISS is, no need to explain in detail.)
@@ -18,22 +20,13 @@ Always be minimal, but complete. Do not add details that are easy to find elsewh
 ### Boy Scout Rule
 Existing codebase will often violate clean code principles. Minor cleanups and refactors are welcome, but keep them small, limiting the scope for easier review.
 
-### Clean Code
-Read and adhere to Bob Martin's great book, especially SOLID design principles.
-
 ### Automate What You Can
 Decrease our own workload - both human and AI. That is, do not expect users to
 provide input if it can be figured out automatically. Do not make developers do
 extra work when it can be automated.
 
-### Logging & Observability
-- Instrument code with the **OpenTelemetry framework** (the OTel SDK + instrumentation libraries) to emit logs, traces, and metrics. Don't hand-roll logging/tracing infrastructure — go through OTel so signals export to any backend.
-- Follow **OpenTelemetry semantic conventions** for span and attribute names; this also gives you structured, key/value output and automatic trace/span context propagation, so logs correlate with traces without manual plumbing.
-- Attach business identifiers (request/entity IDs, operation name) as attributes.
-- Log at the right level: `debug` for diagnostics, `info` for meaningful state changes, `warn` for recoverable problems, `error` for failures that need attention.
-- Make messages actionable — say what happened and what to check, not just "error".
-- Never log secrets, tokens, credentials, or PII.
-- Avoid logging in tight loops or hot paths without throttling or sampling.
+### Logging
+Always instrument operations and log at the right level. See `wp-labs-standards:logging`.
 
 ## Coding Conventions
 
@@ -50,11 +43,6 @@ Avoid importing new libraries/tools if you can achieve your objectives with a fe
 
 ### Lock Down Everything
 Third-party software we use is outside of our control. Lock the version to avoid "surprises". (E.g., use `yarn.lock` and `go.mod`.)
-
-### Model Conventions
-- Models' first parameter should generally be the id.
-- Model method names should not stutter, i.e. not `users.getUser()`, just `users.get()`.
-- Do not pass `req` into any models.
 
 ### Performance
 SQL in loops: be very careful about SQL within a loop or something like `dbToProject` (DB calls are expensive).
@@ -78,14 +66,7 @@ Start projects in safe languages like Go (preferred for backend), TypeScript (pr
 ### Always Add Tests
 For every feature added or bug fixed, add unit tests covering the core logic and functional/integration tests covering the end-to-end behavior.
 
-### Co-locate Tests With Source
-Keep the test file next to the source file in every language:
-- JavaScript/React: `Button.test.jsx` next to `Button.jsx`
-- Go: `foo_test.go` next to `foo.go`
-- Python: `test_foo.py` next to `foo.py`
-
-### Test Invalid Input
-Always include tests for edge cases and invalid input, not just the happy path.
+See `wp-labs-superpowers:test-driven-development` for test structure, mocking policy, and coverage expectations.
 
 ## Documentation
 

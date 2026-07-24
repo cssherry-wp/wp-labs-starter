@@ -20,14 +20,14 @@
   },
   "extraKnownMarketplaces": {
     "wp-labs-starter": {
-      "source": { "source": "github", "repo": "cssherry-wp/wp-labs-starter" }
+      "source": { "source": "github", "repo": "cssherry-wp/wp-labs-starter" },
+      "autoUpdate": true
     },
     "ponytail": {
       "source": { "source": "github", "repo": "DietrichGebert/ponytail" }
     },
     "playwright-skill": {
-      "source": { "source": "github", "repo": "lackeyjb/playwright-skill" },
-      "autoUpdate": true
+      "source": { "source": "github", "repo": "lackeyjb/playwright-skill" }
     }
   },
   "enabledPlugins": {
@@ -35,19 +35,11 @@
     "wp-labs-sdlc@wp-labs-starter": true,
     "wp-labs-superpowers@wp-labs-starter": true,
     "ponytail@ponytail": true,
-    "playwright-skill@playwright-skill": true,
-    "code-review@claude-plugins-official": true,
-    "code-simplifier@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true,
     "security-guidance@claude-plugins-official": true,
-    "explanatory-output-style@claude-plugins-official": true,
-    "frontend-design@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
     "chrome-devtools-mcp@claude-plugins-official": true,
-    "context7@claude-plugins-official": true,
-    "claude-md-management@claude-plugins-official": true,
-    "ralph-loop@claude-plugins-official": true,
-    "playwright@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": false
+    "context7@claude-plugins-official": true
   },
   "statusLine": {
     "type": "command",

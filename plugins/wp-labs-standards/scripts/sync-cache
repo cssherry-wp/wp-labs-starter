@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# Syncs this plugin's source to the active Claude Code cache entry.
+# Run after editing ANY plugin file to test changes without restarting Claude.
+#
+# Usage: sync-cache [--dry-run]
+# Env:   CLAUDE_SYNC_CACHE_OVERRIDE=<path>  override cache root (used by tests)
+#
+# Active version = highest semver non-orphaned .in_use entry.
+set -euo pipefail
+
+# Walk up from this script's location to find .claude-plugin/plugin.json
+_find_plugin_root() {
+  local dir
+  dir="$(cd "$(dirname "$0")" && pwd)"
+  while [[ "$dir" != "/" ]]; do
+    [[ -f "$dir/.claude-plugin/plugin.json" ]] && { echo "$dir"; return; }
+    dir="$(dirname "$dir")"
+  done
+  echo "" # not found
+}
+
+PLUGIN_ROOT="$(_find_plugin_root)"
+if [[ -z "$PLUGIN_ROOT" ]]; then
+  echo "error: .claude-plugin/plugin.json not found above $(dirname "$0")" >&2
+  exit 1
+fi
+
+PLUGIN_NAME=$(python3 -c "
+import json, sys
+try:
+    print(json.load(open('$PLUGIN_ROOT/.claude-plugin/plugin.json'))['name'])
+except Exception as e:
+    print('error: ' + str(e), file=sys.stderr); sys.exit(1)
+")
+
+CACHE_BASE="${CLAUDE_SYNC_CACHE_OVERRIDE:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/cache}"
+
+ACTIVE=$(python3 - <<PY
+import os, sys
+
+base = "$CACHE_BASE"
+plugin = "$PLUGIN_NAME"
+
+if not os.path.isdir(base):
+    sys.exit(0)
+
+candidates = []
+for org in os.listdir(base):
+    plugin_dir = os.path.join(base, org, plugin)
+    if not os.path.isdir(plugin_dir):
+        continue
+    for ver in os.listdir(plugin_dir):
+        vp = os.path.join(plugin_dir, ver)
+        if (os.path.isdir(vp)
+                and os.path.exists(os.path.join(vp, ".in_use"))
+                and not os.path.exists(os.path.join(vp, ".orphaned_at"))):
+            try:
+                candidates.append((tuple(int(x) for x in ver.split(".")), vp))
+            except ValueError:
+                pass
+
+if candidates:
+    print(max(candidates)[1])
+PY
+)
+
+if [[ -z "$ACTIVE" ]]; then
+  echo "error: no active cache entry found for '$PLUGIN_NAME' in $CACHE_BASE" >&2
+  exit 1
+fi
+
+if [[ "${1:-}" == "--dry-run" ]]; then
+  echo "would sync: $PLUGIN_ROOT -> $ACTIVE"
+  exit 0
+fi
+
+python3 -c "
+import shutil
+shutil.copytree('$PLUGIN_ROOT', '$ACTIVE',
+    dirs_exist_ok=True,
+    ignore=shutil.ignore_patterns('.claude-plugin'))
+"
+echo "synced: $PLUGIN_NAME -> $ACTIVE"

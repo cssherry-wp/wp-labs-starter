@@ -42,6 +42,7 @@ git merge upstream/main  # or `upstream/master`, depending on the repository
   - **Jira issue(s)**: prefix the PR title with the issue ID, joining multiple with a comma and space (`JIRA-1: <summary>` or `JIRA-1, JIRA-2: <summary>`).
 
 - Include test results: which environment, which cloud provider, which GPUs and what the result was.
+- If a coverage report is available from a recent `make coverage` run, include a one-line summary in the PR body (e.g. `Coverage: 87% lines`).
 
 ## Where this sits in the review flow
 

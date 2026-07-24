@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# Tests sync-cache. Safe to run anytime — uses a temp fake cache, never touches real cache.
+set -euo pipefail
+
+SCRIPT="$(cd "$(dirname "$0")" && pwd)/sync-cache"
+PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PASS=0; FAIL=0
+
+ok()   { echo "PASS: $1"; PASS=$((PASS+1)); }
+fail() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
+
+# --- Test 1: --dry-run prints path, exits 0, touches nothing ---
+tmp_cache=$(mktemp -d)
+PLUGIN_NAME=$(python3 -c "import json; print(json.load(open('$PLUGIN_ROOT/.claude-plugin/plugin.json'))['name'])")
+mkdir -p "$tmp_cache/test-org/$PLUGIN_NAME/1.0.0"
+touch "$tmp_cache/test-org/$PLUGIN_NAME/1.0.0/.in_use"
+
+out=$(CLAUDE_SYNC_CACHE_OVERRIDE="$tmp_cache" "$SCRIPT" --dry-run 2>&1)
+if [[ "$out" == "would sync: "* ]]; then
+  ok "--dry-run prints 'would sync:' prefix"
+else
+  fail "--dry-run output: got '$out'"
+fi
+
+# Verify no files were actually synced (only .in_use should exist)
+count=$(find "$tmp_cache/test-org/$PLUGIN_NAME/1.0.0" -type f -not -name ".in_use" | wc -l | tr -d ' ')
+if [[ "$count" -eq 0 ]]; then
+  ok "--dry-run did not write files"
+else
+  fail "--dry-run wrote $count unexpected files"
+fi
+rm -rf "$tmp_cache"
+
+# --- Test 2: sync produces diff-clean cache ---
+tmp_cache=$(mktemp -d)
+mkdir -p "$tmp_cache/test-org/$PLUGIN_NAME/2.0.0"
+touch "$tmp_cache/test-org/$PLUGIN_NAME/2.0.0/.in_use"
+
+CLAUDE_SYNC_CACHE_OVERRIDE="$tmp_cache" "$SCRIPT" >/dev/null
+
+if diff -rq \
+    --exclude='.claude-plugin' --exclude='.in_use' --exclude='.orphaned_at' \
+    "$PLUGIN_ROOT" "$tmp_cache/test-org/$PLUGIN_NAME/2.0.0" >/dev/null 2>&1; then
+  ok "synced cache matches source"
+else
+  fail "synced cache differs from source"
+  diff -r --exclude='.claude-plugin' --exclude='.in_use' --exclude='.orphaned_at' \
+    "$PLUGIN_ROOT" "$tmp_cache/test-org/$PLUGIN_NAME/2.0.0" || true
+fi
+rm -rf "$tmp_cache"
+
+# --- Test 3: orphaned version is skipped, in_use non-orphaned is chosen ---
+tmp_cache=$(mktemp -d)
+mkdir -p "$tmp_cache/test-org/$PLUGIN_NAME/1.0.0"
+touch "$tmp_cache/test-org/$PLUGIN_NAME/1.0.0/.in_use"
+touch "$tmp_cache/test-org/$PLUGIN_NAME/1.0.0/.orphaned_at"  # orphaned — should be skipped
+
+mkdir -p "$tmp_cache/test-org/$PLUGIN_NAME/0.9.0"
+touch "$tmp_cache/test-org/$PLUGIN_NAME/0.9.0/.in_use"  # lower ver, not orphaned
+
+out=$(CLAUDE_SYNC_CACHE_OVERRIDE="$tmp_cache" "$SCRIPT" --dry-run 2>&1)
+if [[ "$out" == *"/0.9.0" ]]; then
+  ok "orphaned version skipped, lower non-orphaned chosen"
+else
+  fail "expected 0.9.0 to be chosen, got: '$out'"
+fi
+rm -rf "$tmp_cache"
+
+# --- Test 4: no active cache entry → error ---
+tmp_cache=$(mktemp -d)
+out=$(CLAUDE_SYNC_CACHE_OVERRIDE="$tmp_cache" "$SCRIPT" 2>&1 || true)
+if [[ "$out" == "error: no active cache entry"* ]]; then
+  ok "empty cache → error message"
+else
+  fail "empty cache: expected error, got '$out'"
+fi
+rm -rf "$tmp_cache"
+
+# --- Test 5: .claude-plugin/plugin.json error path exists in script ---
+if grep -q 'plugin.json not found' "$SCRIPT"; then
+  ok "script has missing-plugin.json error path"
+else
+  fail "script missing error path for missing plugin.json"
+fi
+
+echo ""
+echo "Results: $PASS passed, $FAIL failed"
+[[ "$FAIL" -eq 0 ]] || exit 1

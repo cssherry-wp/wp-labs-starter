@@ -78,13 +78,6 @@ scaffold below.
 2. **CLAUDE.md** — copy `templates/claude/CLAUDE.md` to `~/.claude/CLAUDE.md`. If
    it already exists, show the diff and ask before overwriting.
 
-3. **rules/** — copy each file in `templates/claude/rules/` to `~/.claude/rules/`,
-   skipping files that are already identical. For any file that differs, show the
-   diff and ask.
-
-   Included rules: `coding-guidelines.md` (always-apply), `python.md`,
-   `js-ts.md`, `css.md`, `sql.md`, `context7.md`.
-
 **Standalone (no Claude needed):** the user can also run
 `scripts/setup-claude.sh` directly from a terminal — useful for bootstrapping a
 fresh machine before Claude Code is configured. It is interactive and follows the
@@ -129,9 +122,8 @@ directory; copy from there.
      force-push and deletion) — see "Set branch protection" below
    - `dependabot.yml`; the managed labels; hosting (`Dockerfile`,
      `docker-compose.yml`, `infra/` Bicep, `azure-deploy.yml`)
-   - Claude team settings (`.claude/settings.json`, `.claude/CLAUDE.md`,
-     `.claude/rules/`: marketplaces, plugins, Stop hook, prose style rules,
-     and glob-scoped coding guidelines)
+   - Claude team settings (`.claude/settings.json`, `.claude/CLAUDE.md`:
+     marketplaces, plugins, Stop hook, prose style rules)
 
    Present the inventory to the user. **On an existing repo, add only the
    missing pieces** and **explicitly ask about each gap** before adding it —
@@ -288,7 +280,7 @@ directory; copy from there.
    so both copies load at once (the repo copy wins on project precedence; the
    global copy becomes redundant context). Ask before importing:
 
-   > Import the team `.claude/` templates (CLAUDE.md, rules/) into this repo?
+   > Import the team `.claude/` templates (CLAUDE.md) into this repo?
    > They are the shared team baseline for anyone who has NOT run `--setup-claude`.
    > If you already ran `--setup-claude`, the same content also lives in your
    > `~/.claude/` and will load twice — harmless (identical), but redundant. [Y/n]
@@ -296,8 +288,8 @@ directory; copy from there.
    Default **Yes** — the repo copy is the team baseline for teammates without
    global setup. This warning covers the harmless identical-duplicate case; the
    dangerous *divergent* case (repo and global disagree) is already handled by the
-   per-file diff-and-ask in sub-steps a–c below. If the user declines, skip
-   sub-steps a–c.
+   per-file diff-and-ask in sub-steps a–b below. If the user declines, skip
+   sub-steps a–b.
 
    **a. settings.json** — deep-merge `templates/claude/settings.json` (marketplaces,
    `enabledPlugins`, Stop hook, ponytail `statusLine`, `defaultMode: plan`,
@@ -332,23 +324,7 @@ directory; copy from there.
    or the user says so. If both trackers are genuinely in use, keep both. Carrying
    the non-applicable bullet just trains the wrong PR convention into every session.
 
-   **c. rules/** — copy ONLY the rules relevant to the chosen stack from
-   `templates/claude/rules/` → `.claude/rules/`, skipping any file that already
-   exists (show diff and ask for conflicts). Selection logic:
-
-   | Rule file | Copy when |
-   |-----------|-----------|
-   | `coding-guidelines.md` | **Always** (`alwaysApply: true`) |
-   | `context7.md` | **Always** — fetches live library docs |
-   | `python.md` | Stack includes Python |
-   | `js-ts.md` | Stack includes TypeScript or JavaScript |
-   | `css.md` | Stack includes CSS/SCSS/Sass (independent of TypeScript) |
-   | `sql.md` | Project uses SQL (detected: ORM migration files, `.sql` files, or DB dependency in manifest) |
-
-   Do not copy a rule file if its language is not in use — dead rules load
-   noise into every Claude session.
-
-9. **Verify & summarize.** Run `make check` and `make test` locally and report
+9. **Verify & summarize.** Run `make check` and `make coverage` locally and report
    results. Summarize what was created/changed and list manual follow-ups: add
    the repo secrets above (incl. Azure OIDC if hosting was added), and
    (recommended) enable branch protection requiring the CI checks.

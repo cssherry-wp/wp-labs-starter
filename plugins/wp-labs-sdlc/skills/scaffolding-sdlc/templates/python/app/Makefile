@@ -1,5 +1,5 @@
 # Django + uv SDLC targets.
-.PHONY: install lint format check check-python typecheck typecheck-python test test-python install-hooks
+.PHONY: install lint format check check-python typecheck typecheck-python test test-python coverage coverage-python diff-cover diff-cover-python install-hooks
 
 install:
 	uv sync --extra dev
@@ -20,10 +20,18 @@ typecheck:
 
 test: ; uv run --extra dev pytest || [ $$? -eq 5 ]
 
+coverage:
+	uv run --extra dev pytest --cov --cov-fail-under=90 --cov-report=term-missing --cov-report=xml
+
+diff-cover:
+	uv run --extra dev diff-cover coverage.xml --compare-branch=origin/main --fail-under=90
+
 # Aliases so CI can use one target set across Python and fullstack repos.
 check-python: check
 typecheck-python: typecheck
 test-python: test
+coverage-python: coverage
+diff-cover-python: diff-cover
 
 install-hooks:
 	@if [ -d ../.git ]; then ln -sf ../../.sdlc-hooks/pre-commit ../.git/hooks/pre-commit && echo "pre-commit installed"; else echo "not a git repo"; fi

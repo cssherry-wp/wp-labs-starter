@@ -4,6 +4,7 @@
   const TOMBSTONE_AFTER_MS = 15000; // show the "paused" overlay after this long disconnected
 
   // Pure: next backoff delay (doubles, capped). Exported for unit tests.
+  // ponytail: manual backoff, no jitter — use p-retry or similar if jitter or per-attempt config is needed
   function nextReconnectDelay(current, max) {
     return Math.min(current * 2, max);
   }

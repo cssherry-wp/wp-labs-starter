@@ -55,7 +55,7 @@ jobs:
         run: |
           if [ -f package-lock.json ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
-            echo "✅ root Node: package-lock.json found — running lint + typecheck + test" >> "$GITHUB_STEP_SUMMARY"
+            echo "✅ root Node: package-lock.json found — running lint + typecheck + coverage" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
             echo "::notice::No root package-lock.json; skipping root Node jobs."
@@ -71,7 +71,11 @@ jobs:
       - if: steps.detect.outputs.present == 'true'
         run: make typecheck
       - if: steps.detect.outputs.present == 'true'
-        run: make test
+        run: make coverage
+      - if: steps.detect.outputs.present == 'true'
+        run: pip install --quiet "diff-cover>=9,<10"
+      - if: steps.detect.outputs.present == 'true'
+        run: make diff-cover
 
   # Nested app/frontend/ npm project (fullstack: Django at root of app/, React in app/frontend/).
   frontend:
@@ -87,7 +91,7 @@ jobs:
         run: |
           if [ -f app/frontend/package.json ] && [ ! -f package-lock.json ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
-            echo "✅ app/frontend/: npm project found — running lint + typecheck + test" >> "$GITHUB_STEP_SUMMARY"
+            echo "✅ app/frontend/: npm project found — running lint + typecheck + coverage" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
             echo "::notice::No app/frontend/ project; skipping."
@@ -103,7 +107,11 @@ jobs:
       - if: steps.detect.outputs.present == 'true'
         run: npm run typecheck
       - if: steps.detect.outputs.present == 'true'
-        run: npm test
+        run: npm run coverage
+      - if: steps.detect.outputs.present == 'true'
+        run: pip install --quiet "diff-cover>=9,<10"
+      - if: steps.detect.outputs.present == 'true'
+        run: diff-cover coverage/lcov.info --compare-branch=origin/main --fail-under=90
 
   python:
     needs: changes
@@ -116,7 +124,7 @@ jobs:
         run: |
           if [ -f app/pyproject.toml ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
-            echo "✅ Python: app/pyproject.toml found — running check + typecheck + test" >> "$GITHUB_STEP_SUMMARY"
+            echo "✅ Python: app/pyproject.toml found — running check + typecheck + coverage" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
             echo "::notice::No app/pyproject.toml; skipping Python jobs."
@@ -129,7 +137,9 @@ jobs:
       - if: steps.detect.outputs.present == 'true'
         run: make typecheck-python
       - if: steps.detect.outputs.present == 'true'
-        run: make test-python
+        run: make coverage-python
+      - if: steps.detect.outputs.present == 'true'
+        run: make diff-cover-python
 
   # CSS/SCSS/Sass linting — runs independently of the JS/TS build.
   stylelint:
