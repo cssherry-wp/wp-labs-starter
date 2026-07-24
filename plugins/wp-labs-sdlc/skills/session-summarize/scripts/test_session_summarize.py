@@ -14,7 +14,9 @@ from session_summarize import (
     TRANSCRIPT_TOKEN_LIMIT,
     _build_transcript,
     _extract_turns,
+    _find_project_root,
     _process_batch,
+    _resolve_improvement_dest,
     apply_improvements,
     compute_cost,
     extract_metadata,
@@ -480,6 +482,71 @@ class TestDryRun(unittest.TestCase):
             self.assertEqual(con.execute("SELECT COUNT(*) FROM summaries").fetchone()[0], 1)
             # No CLAUDE.md written
             self.assertFalse((claude_dir / "CLAUDE.md").exists(), "CLAUDE.md must not be written on dry-run")
+
+
+class TestFindProjectRootDecoding(unittest.TestCase):
+    """_find_project_root decodes encoded project names to real paths."""
+
+    def test_plain_path_decoding(self) -> None:
+        """A project name with no literal hyphens decodes to the expected path."""
+        with tempfile.TemporaryDirectory() as tmp:
+            # Encode tmp as a project name: leading / → leading -, / → -
+            encoded = tmp.replace("-", "--").replace("/", "-")
+            git_dir = Path(tmp) / ".git"
+            git_dir.mkdir()
+            result = _find_project_root(None, encoded)
+            self.assertEqual(result, tmp)
+
+    def test_literal_hyphen_in_path(self) -> None:
+        """Paths containing literal hyphens (encoded as --) decode correctly."""
+        with tempfile.TemporaryDirectory() as tmp:
+            # Create a subdir with a hyphen in its name
+            hyphen_dir = Path(tmp) / "my-project"
+            hyphen_dir.mkdir()
+            (hyphen_dir / ".git").mkdir()
+            # Encode: / → -, literal - → --
+            encoded = str(hyphen_dir).replace("-", "--").replace("/", "-")
+            result = _find_project_root(None, encoded)
+            self.assertEqual(result, str(hyphen_dir))
+
+    def test_workspace_takes_priority(self) -> None:
+        """workspace path is tried before the decoded project name."""
+        with tempfile.TemporaryDirectory() as tmp:
+            ws_dir = Path(tmp) / "workspace"
+            ws_dir.mkdir()
+            (ws_dir / ".git").mkdir()
+            result = _find_project_root(str(ws_dir), "-nonexistent-path")
+            self.assertEqual(result, str(ws_dir))
+
+
+class TestResolveImprovementDestPathTraversal(unittest.TestCase):
+    """_resolve_improvement_dest strips path traversal from LLM-supplied targets."""
+
+    def test_traversal_stripped_rules(self) -> None:
+        """../../.bashrc target is reduced to .bashrc inside the rules dir."""
+        with tempfile.TemporaryDirectory() as tmp:
+            claude_dir = Path(tmp)
+            dest = _resolve_improvement_dest("Rules", "../../.bashrc", None, claude_dir, "-proj")
+            self.assertIsNotNone(dest)
+            self.assertEqual(dest.name, ".bashrc")
+            self.assertTrue(str(dest).startswith(str(claude_dir / "rules")))
+
+    def test_traversal_stripped_memory(self) -> None:
+        """../../etc/passwd target is reduced to passwd inside the memory dir."""
+        with tempfile.TemporaryDirectory() as tmp:
+            claude_dir = Path(tmp)
+            dest = _resolve_improvement_dest("Memory", "../../etc/passwd", None, claude_dir, "-proj")
+            self.assertIsNotNone(dest)
+            self.assertEqual(dest.name, "passwd")
+            self.assertTrue("memory" in str(dest))
+
+    def test_plain_basename_unchanged(self) -> None:
+        """A plain basename is passed through without modification."""
+        with tempfile.TemporaryDirectory() as tmp:
+            claude_dir = Path(tmp)
+            dest = _resolve_improvement_dest("Rules", "python.md", None, claude_dir, "-proj")
+            self.assertIsNotNone(dest)
+            self.assertEqual(dest.name, "python.md")
 
 
 if __name__ == "__main__":
