@@ -257,6 +257,7 @@ const FUNNEL='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke
 let rootHandles=[], analyticsHandle=null, uuidToName={}, allSessions=[], filteredSessions=[], tableFilteredSessions=[];
 let activeProject='all', activeDateFilter='all', activeTaskType='all';
 let activeToolFilters=new Set(), activeSessionFilter='', activeQueueStatus='';
+let chartHighlightProj=null;
 let customDateFrom=null, customDateTo=null;
 let searchQuery='', tableSearch='', sortCol='date', sortAsc=false, expandedUuid=null;
 let tlDragState=null;
@@ -915,7 +916,7 @@ function niceNumber(x){if(x<=0)return 1;const m=Math.pow(10,Math.floor(Math.log1
 function renderCostBarChart(){
   const sec=document.getElementById('chartSection');
   const wrap=document.getElementById('chartWrap');
-  // Aggregate: dayMap[localDate][proj] = totalCost
+  // Aggregate: dayMap[localDate][proj] = {cost, sessions[]}
   const dayMap={};
   for(const s of filteredSessions){
     if(!s.startedAt)continue;
@@ -925,13 +926,15 @@ function renderCostBarChart(){
     const day=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
     const proj=s.projectNorm||s.projectLabel;
     if(!dayMap[day])dayMap[day]={};
-    dayMap[day][proj]=(dayMap[day][proj]||0)+cost;
+    if(!dayMap[day][proj])dayMap[day][proj]={cost:0,sessions:[]};
+    dayMap[day][proj].cost+=cost;
+    dayMap[day][proj].sessions.push(s);
   }
   const days=Object.keys(dayMap).sort();
   if(!days.length){sec.style.display='none';return;}
   // Top 8 projects by total cost across visible days
   const projTot={};
-  for(const day of days)for(const[p,c]of Object.entries(dayMap[day]))projTot[p]=(projTot[p]||0)+c;
+  for(const day of days)for(const[p,d]of Object.entries(dayMap[day]))projTot[p]=(projTot[p]||0)+d.cost;
   const projs=Object.entries(projTot).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([p])=>p);
   const nP=projs.length,nD=days.length;
   // Layout dims — one bar per day, width scales with day count
@@ -942,7 +945,7 @@ function renderCostBarChart(){
   const svgW=pL+plotW+pR,svgH=pT+pH+pB;
   // Y scale: max of per-day totals (stacked), nice ceiling
   let yMax=0;
-  for(const day of days){let t=0;for(const p of projs)t+=dayMap[day][p]||0;yMax=Math.max(yMax,t);}
+  for(const day of days){let t=0;for(const p of projs)t+=dayMap[day][p]?.cost||0;yMax=Math.max(yMax,t);}
   const yTop=niceNumber(yMax*1.12||0.01);
   const yTicks=[0,.25,.5,.75,1].map(f=>f*yTop);
   const yp=v=>(pT+pH-(v/yTop)*pH).toFixed(1);
@@ -958,7 +961,7 @@ function renderCostBarChart(){
   const bly=(pT+pH).toFixed(1);
   parts.push(`<line x1="${pL}" y1="${bly}" x2="${(pL+plotW).toFixed(1)}" y2="${bly}" stroke="var(--border)" stroke-width="1"/>`);
   parts.push(`<line x1="${pL}" y1="${pT}" x2="${pL}" y2="${bly}" stroke="var(--border2)" stroke-width="1"/>`);
-  // Stacked bars + x-axis labels
+  // Stacked bars + x-axis labels (date labels are clickable)
   const everyN=nD>20?Math.ceil(nD/14):1;
   const bx0=(slotW-barW)/2; // center bar in slot
   for(let di=0;di<nD;di++){
@@ -967,31 +970,69 @@ function renderCostBarChart(){
     if(di%everyN===0||di===nD-1){
       const[yr,mo,da]=day.split('-');
       const lbl=new Date(+yr,+mo-1,+da).toLocaleDateString('en-US',{month:'short',day:'numeric'});
-      parts.push(`<text x="${(pL+di*slotW+slotW/2).toFixed(1)}" y="${(pT+pH+18).toFixed(1)}" text-anchor="middle" font-size="10" fill="var(--dim)" font-family="-apple-system,system-ui,sans-serif">${lbl}</text>`);
+      parts.push(`<text x="${(pL+di*slotW+slotW/2).toFixed(1)}" y="${(pT+pH+18).toFixed(1)}" text-anchor="middle" font-size="10" fill="var(--accent)" font-family="-apple-system,system-ui,sans-serif" class="cbar-date" data-day="${esc(day)}" style="cursor:pointer">${lbl}</text>`);
     }
-    // Stack segments bottom→top (projs[0]=largest total at bottom; projs[nP-1] at top)
-    const daySegs=projs.map(p=>({p,c:dayMap[day][p]||0})).filter(s=>s.c>0);
-    const dayTotal=daySegs.reduce((s,{c})=>s+c,0);
+    // Stack segments bottom→top
+    const daySegs=projs.map(p=>({p,seg:dayMap[day][p]})).filter(({seg})=>seg&&seg.cost>0);
+    const dayTotal=daySegs.reduce((s,{seg})=>s+seg.cost,0);
     let yOff=0;
     for(let si=0;si<daySegs.length;si++){
-      const{p,c}=daySegs[si];
+      const{p,seg}=daySegs[si];
       const isTop=si===daySegs.length-1;
-      const rawH=(c/yTop)*pH;
-      // 2px surface gap above each non-top segment (gap shows as background between segments)
+      const rawH=(seg.cost/yTop)*pH;
+      // 2px surface gap above each non-top segment
       const bh=Math.max(2,rawH-(isTop?0:2));
-      const rx=isTop?Math.min(4,barW/2):0; // round data-end of topmost segment only
-      const tip=`${day}  ·  ${p}\n$${c<0.01?c.toFixed(4):c.toFixed(2)}\n$${dayTotal<0.01?dayTotal.toFixed(4):dayTotal.toFixed(2)} total`;
-      parts.push(`<rect x="${bx}" y="${(pT+pH-yOff-bh).toFixed(1)}" width="${barW}" height="${bh.toFixed(1)}" rx="${rx}" fill="${projColorHex(p)}" class="cbar" data-tip="${esc(tip)}"/>`);
-      yOff+=rawH; // advance by full rawH so the 2px gap reads as background
+      const rx=isTop?Math.min(4,barW/2):0;
+      const dim=chartHighlightProj&&chartHighlightProj!==p;
+      // Rich tooltip: time interval, turns, model
+      const sArr=seg.sessions;
+      const minTs=Math.min(...sArr.map(s=>s.startedAt?.getTime()||Infinity));
+      const maxTs=Math.max(...sArr.map(s=>(s.lastActivityAt||s.startedAt)?.getTime()||0));
+      const totalTurns=sArr.reduce((n,s)=>n+s.userTurns.length+s.commands.length,0);
+      const models=[...new Set(sArr.map(s=>s.model).filter(Boolean))];
+      const tfmt=ts=>new Date(ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+      const tip=[
+        `${day}  ·  ${p}`,
+        minTs<Infinity?tfmt(minTs)+' → '+tfmt(maxTs):'',
+        `${totalTurns} turn${totalTurns!==1?'s':''}  ·  `+(models.join(', ')||'—'),
+        `$${seg.cost<0.01?seg.cost.toFixed(4):seg.cost.toFixed(2)}  ·  $${dayTotal<0.01?dayTotal.toFixed(4):dayTotal.toFixed(2)} total`,
+      ].filter(Boolean).join('\n');
+      parts.push(`<rect x="${bx}" y="${(pT+pH-yOff-bh).toFixed(1)}" width="${barW}" height="${bh.toFixed(1)}" rx="${rx}" fill="${projColorHex(p)}" class="cbar cbar-seg" data-day="${esc(day)}" data-proj="${esc(p)}" data-tip="${esc(tip)}"${dim?' opacity="0.2"':''} style="cursor:pointer"/>`);
+      yOff+=rawH;
     }
   }
-  // Legend (secondary encoding — required: existing PROJ_COLORS fail CVD floor)
+  // Legend — clickable to highlight (no filter)
   const legend=nP>1
-    ?`<div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:6px;padding-left:${pL}px">${projs.map(p=>`<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--muted)"><span style="width:10px;height:10px;border-radius:2px;background:${projColorHex(p)};flex-shrink:0;display:inline-block"></span>${esc(p)}</span>`).join('')}</div>`
+    ?`<div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:6px;padding-left:${pL}px">${projs.map(p=>{
+        const isHL=chartHighlightProj===p;
+        return`<span class="cbar-legend" data-proj="${esc(p)}" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:${isHL?'var(--ink)':'var(--muted)'};cursor:pointer;padding:2px 5px;border-radius:4px;${isHL?'outline:1.5px solid var(--accent);background:var(--accent-s)':''}"><span style="width:10px;height:10px;border-radius:2px;background:${projColorHex(p)};flex-shrink:0;display:inline-block"></span>${esc(p)}</span>`;
+      }).join('')}</div>`
     :'';
   sec.style.display='block';
   wrap.innerHTML=`<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" style="display:block">${parts.join('')}</svg>${legend}`;
+  // Tooltips
   wrap.querySelectorAll('.cbar[data-tip]').forEach(el=>tipOn(el,el.dataset.tip));
+  // Click bar segment → filter by date + project
+  wrap.querySelectorAll('.cbar-seg').forEach(el=>el.addEventListener('click',()=>{
+    const[yr,mo,da]=el.dataset.day.split('-').map(Number);
+    customDateFrom=new Date(yr,mo-1,da,0,0,0,0).getTime();
+    customDateTo=new Date(yr,mo-1,da,23,59,59,999).getTime();
+    activeDateFilter='custom';activeProject=el.dataset.proj;
+    syncUrl();render();
+  }));
+  // Click date label → filter by that date only (all projects)
+  wrap.querySelectorAll('.cbar-date').forEach(el=>el.addEventListener('click',()=>{
+    const[yr,mo,da]=el.dataset.day.split('-').map(Number);
+    customDateFrom=new Date(yr,mo-1,da,0,0,0,0).getTime();
+    customDateTo=new Date(yr,mo-1,da,23,59,59,999).getTime();
+    activeDateFilter='custom';
+    syncUrl();render();
+  }));
+  // Click legend → toggle highlight (visual only, no data filter)
+  wrap.querySelectorAll('.cbar-legend').forEach(el=>el.addEventListener('click',()=>{
+    chartHighlightProj=chartHighlightProj===el.dataset.proj?null:el.dataset.proj;
+    renderCostBarChart();
+  }));
 }
 
 // ─── Table ────────────────────────────────────────────────────────────────────
