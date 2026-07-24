@@ -100,11 +100,11 @@ if [[ -n "$branch" ]]; then
 fi
 
 # Ponytail mode
-_pt=$(ls -d "$HOME"/.claude/plugins/cache/ponytail/ponytail/*/hooks/ponytail-statusline.sh 2>/dev/null | sort -V | tail -1 || true)
-pt=$([[ -f "${_pt:-}" ]] && bash "$_pt" 2>/dev/null || true)
-
 # Config dir
 cfg="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+
+_pt=$(ls -d "$cfg"/plugins/cache/ponytail/ponytail/*/hooks/ponytail-statusline.sh 2>/dev/null | sort -V | tail -1 || true)
+pt=$([[ -f "${_pt:-}" ]] && bash "$_pt" 2>/dev/null || true)
 
 # --- Line 1 ---
 out="${CY}${folder}${branch:+ [$branch]}${R}"
