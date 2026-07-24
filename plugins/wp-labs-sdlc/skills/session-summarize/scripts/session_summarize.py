@@ -321,6 +321,8 @@ Return a single JSON object with the following fields.
 "completed_tasks": JSON array of strings — tasks or queue items completed.
 
 "incomplete_tasks": JSON array of strings — tasks started or queued but unfinished.
+  Always include open items from the <queue-items> block (lines starting with "- [ ]");
+  exclude cancelled items (lines with "cancelled:" metadata).
 
 "improvement_suggestions": JSON array of finding objects. If nothing notable, return [].
   Each object:
