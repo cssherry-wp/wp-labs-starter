@@ -329,8 +329,8 @@ Return a single JSON object with the following fields.
   to give a useful summary. Omit or use [] if truncated context is sufficient.
   Only request what you genuinely need — each request triggers an extra API call.
 
-"summary_text": narrative string. Put outcomes first: list only commits and PRs
-  that are explicitly mentioned in the transcripts with their actual identifiers.
+"summary_text": narrative string. Put outcomes first: list commits, PRs, and issues
+  referenced in the transcript or in the <github-refs> block with their actual identifiers.
   Never invent git hashes, PR numbers, or branch names. Include real links when
   available. Then summarize what was worked on and the overall outcome.
 
@@ -415,6 +415,32 @@ def _extract_turns(jsonl_path: Path | str) -> list[str]:
     return turns
 
 
+_GITHUB_REF_RE = re.compile(
+    r"https://github\.com/\S+?/(?:pull|issues)/(\d+)"
+    r"|(?:PR|pull\s+request|issue|closes?|fixes?|resolves?|refs?)\s+#(\d+)",
+    re.IGNORECASE,
+)
+
+
+def _extract_github_refs(jsonl_path: Path | str) -> list[str]:
+    """Scan a session JSONL for GitHub PR/issue references.
+
+    Args:
+        jsonl_path: Path to the .jsonl session file.
+
+    Returns:
+        Sorted deduplicated list of ref strings like '#84' or full URLs.
+    """
+    refs: set[str] = set()
+    with open(jsonl_path, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            for m in _GITHUB_REF_RE.finditer(line):
+                num = m.group(1) or m.group(2)
+                if num:
+                    refs.add(f"#{num}")
+    return sorted(refs, key=lambda r: int(r[1:]))
+
+
 def _build_transcript(jsonl_path: Path | str, full_transcript: bool = False) -> str:
     """Build a transcript string, truncating long sessions to first+last 2 turns.
 
@@ -457,12 +483,15 @@ def build_session_block(item: SessionItem, queue_dir: Path | str, full_transcrip
     queue_text = queue_file.read_text(encoding="utf-8") if queue_file.exists() else "(none)"
     away = meta.get("away_summary")
     transcript = _build_transcript(jsonl_path, full_transcript=full_transcript)
+    github_refs = _extract_github_refs(jsonl_path)
 
     header = f"Session {uuid} | {project} | {meta.get('started_at', '')}\n"
     header += f"Cost: ${meta.get('cost_usd', 0):.4f} | Turns: {meta.get('user_turns',0)}u/{meta.get('assistant_turns',0)}a | Model: {meta.get('model', 'unknown')}\n"
     inner = f"<title>{title}</title>\n"
     inner += "<tasks>\n" + ("\n".join(task_lines) if task_lines else "(none)") + "\n</tasks>\n"
     inner += f"<queue-items>\n{queue_text}\n</queue-items>\n"
+    if github_refs:
+        inner += "<github-refs>" + ", ".join(github_refs) + "</github-refs>\n"
     if away:
         inner += f"<away-summary>\n{away}\n</away-summary>\n"
     inner += f"<transcript>\n{transcript}\n</transcript>\n"
