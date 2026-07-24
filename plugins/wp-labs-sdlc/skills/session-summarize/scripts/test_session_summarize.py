@@ -16,6 +16,7 @@ from session_summarize import (
     _extract_turns,
     _find_project_root,
     _process_batch,
+    init_db,
     _resolve_improvement_dest,
     apply_improvements,
     compute_cost,
@@ -482,6 +483,36 @@ class TestDryRun(unittest.TestCase):
             self.assertEqual(con.execute("SELECT COUNT(*) FROM summaries").fetchone()[0], 1)
             # No CLAUDE.md written
             self.assertFalse((claude_dir / "CLAUDE.md").exists(), "CLAUDE.md must not be written on dry-run")
+
+
+class TestSessionsNotCommittedOnLLMFailure(unittest.TestCase):
+    """Session rows are not committed when the LLM call fails (CR-008 fix)."""
+
+    def test_session_reprocessed_after_llm_failure(self) -> None:
+        """After a failed LLM call, sessions are not in the DB and are picked up on the next run."""
+        with tempfile.TemporaryDirectory() as tmp:
+            proj_dir = Path(tmp) / "sessions" / "-proj"
+            proj_dir.mkdir(parents=True)
+            queue_dir = Path(tmp) / "queue"
+            queue_dir.mkdir()
+            db_path = Path(tmp) / "test.db"
+            f = proj_dir / "failing.jsonl"
+            _write_jsonl(f, [_USER, _ASSISTANT])
+
+            # First run — LLM fails; connection is closed without committing
+            con = init_db(db_path)
+            with patch("session_summarize.call_claude", side_effect=RuntimeError("timeout")):
+                _process_batch(
+                    [(f, f"-proj/{f.name}", "-proj", "hash", extract_metadata(f))],
+                    queue_dir, con, Path(tmp) / "claude", "2026-01-01T00:00:00+00:00", False,
+                )
+            con.close()  # rolls back uncommitted session rows
+
+            # Second run — fresh connection; scan_sessions must return the session again
+            con2 = init_db(db_path)
+            to_process = scan_sessions(str(proj_dir.parent), con2)
+            con2.close()
+            self.assertEqual(len(to_process), 1, "session must be reprocessed after LLM failure")
 
 
 class TestFindProjectRootDecoding(unittest.TestCase):
