@@ -46,6 +46,3 @@ __pycache__/
 # Docker
 docker-compose.override.yml
 *.local.env
-
-# Superpowers working dirs (local-only, never commit)
-.superpowers/03-review/

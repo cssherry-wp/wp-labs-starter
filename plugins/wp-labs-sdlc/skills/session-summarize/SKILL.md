@@ -6,6 +6,7 @@ description: >-
   CLAUDE.md, rules, memory, and skill spec files. Run periodically to build up
   an improvement log from past sessions.
 user-invocable: true
+disable-model-invocation: true
 allowed-tools: Bash
 ---
 
