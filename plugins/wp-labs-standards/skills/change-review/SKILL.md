@@ -264,31 +264,26 @@ Keep it tight. End with the verdict, blockers first.
 
 ## 8. Interactive triage (non-`--ci` only)
 
-After printing the report, collect all **unfixed** findings. Skip this entirely under `--ci`.
+After printing the report, if there are **unfixed** findings (everything not applied under
+`--fix`), present them for the user to decide on with the `AskUserQuestion` tool — one question
+per finding (batch up to 4 per call, iterate until all are triaged). Skip this entirely under
+`--ci` (machine mode writes JSON and never prompts).
 
-Assign each finding a sequential ID (F1, F2, F3, …) before presenting.
-
-**If ≤ 4 unfixed findings**: use `AskUserQuestion` (multiSelect) — one question per finding,
-all batched into a single call. Per-finding fields:
-- **`header`**: `F<n>: <file>:<line>` or short slug.
-- **`question`**: the finding's impact (what breaks/degrades if left) plus trade-offs, so the
-  choice is self-contained.
-- **`options`** — action label only:
+- **`header`**: `<file>:<line>` or short finding slug.
+- **`question`**: the finding's impact (what breaks or degrades if left as-is) plus the pro/con of
+  each choice, so the trade-offs live in the text.
+- **`options`** — the action label only, no pro/con in the descriptions:
   - **Make the change** — apply the fix now.
-  - **Log as new issue** — create a tracker issue (`gh issue create`, or Jira via `acli`) and
-    link it back.
-  - **Add to queue** — capture as a `/queue` item for the current session so it runs later.
+  - **Log as new issue** — create a tracker issue (repo convention: `gh issue create`, else Jira
+    via `acli`) capturing the finding, and link it back.
   - **Ignore** — drop it.
 
-**If > 4 unfixed findings**: print a compact numbered list — one line per finding:
-`F<n>  <file>:<line>  <one-line summary>  (confidence N)` — then ask:
-"Which findings to address? Reply with IDs (e.g. F1 F3 F7). Any others will be ignored."
-Act on the selected IDs using the same four options; treat unmentioned findings as Ignored.
+The user can press **`n`** to attach a free-text note to any choice; read it from the answer's
+`annotations[].notes` and carry it into the action (append to the issue body, or record alongside
+an ignored finding).
 
-In both paths, carry free-text notes from `annotations[].notes` into the action (append to
-the issue body, or record alongside an ignored finding).
-
-Close with a one-line summary: what was changed, logged, and ignored.
+Act on each selection: apply the edit, create the issue, or record it as acknowledged. Report a
+one-line summary of what was changed, logged, and ignored.
 
 ## Notes
 
