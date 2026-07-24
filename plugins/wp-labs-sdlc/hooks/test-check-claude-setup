@@ -46,7 +46,7 @@ cp "$TMPL/statusline.sh" "$LOCAL/statusline.sh"
 cp "$TMPL/rules/coding.md" "$LOCAL/rules/coding.md"
 printf '{"defaultMode":"plan","enabledPlugins":{"foo":true}}\n' > "$LOCAL/settings.json"
 
-out=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$LOCAL" run_hook '{}' 2>/dev/null || true)
+out=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$LOCAL" run_hook '{"session_id":"test-sid-2"}' 2>/dev/null || true)
 echo "$out" | jq -e '.hookSpecificOutput.additionalContext | test("CLAUDE.md")' > /dev/null \
   && pass "CLAUDE.md drift -> JSON" || fail "CLAUDE.md drift -> expected CLAUDE.md in output, got: $out"
 
@@ -58,7 +58,7 @@ cp "$TMPL/CLAUDE.md" "$LOCAL/CLAUDE.md"
 cp "$TMPL/rules/coding.md" "$LOCAL/rules/coding.md"
 printf '{"defaultMode":"plan","enabledPlugins":{"foo":true}}\n' > "$LOCAL/settings.json"
 
-out=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$LOCAL" run_hook '{}' 2>/dev/null || true)
+out=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$LOCAL" run_hook '{"session_id":"test-sid-3"}' 2>/dev/null || true)
 echo "$out" | jq -e '.hookSpecificOutput.additionalContext | test("statusline.sh")' > /dev/null \
   && pass "missing file -> JSON" || fail "missing file -> expected statusline.sh in output, got: $out"
 
@@ -70,7 +70,7 @@ cp "$TMPL/statusline.sh" "$LOCAL/statusline.sh"
 cp "$TMPL/rules/coding.md" "$LOCAL/rules/coding.md"
 printf '{"defaultMode":"autorespond","enabledPlugins":{"foo":true}}\n' > "$LOCAL/settings.json"
 
-out=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$LOCAL" run_hook '{}' 2>/dev/null || true)
+out=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$LOCAL" run_hook '{"session_id":"test-sid-4"}' 2>/dev/null || true)
 echo "$out" | jq -e '.hookSpecificOutput.additionalContext | test("settings.json")' > /dev/null \
   && pass "settings.json drift -> JSON" || fail "settings.json drift -> expected settings.json in output, got: $out"
 
@@ -86,7 +86,7 @@ printf 'stale\n' > "$LOCAL/queue/old.md"
 printf 'fresh\n' > "$LOCAL/queue/new.md"
 touch -t 202001010000 "$LOCAL/queue/old.md"
 
-CLAUDE_QUEUE_TRASH_DIR="$TRASH" CLAUDE_CONFIG_DIR="$LOCAL" run_hook '{}' > /dev/null 2>&1 || true
+CLAUDE_QUEUE_TRASH_DIR="$TRASH" CLAUDE_CONFIG_DIR="$LOCAL" run_hook '{"session_id":"test-sid-6"}' > /dev/null 2>&1 || true
 if [ ! -e "$LOCAL/queue/old.md" ] && [ -f "$TRASH/old.md" ] && [ -f "$LOCAL/queue/new.md" ]; then
   pass "stale queue trashed, fresh kept"
 else
@@ -114,6 +114,18 @@ echo "$out1" | jq -e '.hookSpecificOutput.additionalContext | test("CLAUDE.md")'
 out2=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$LOCAL" run_hook "{\"session_id\":\"$SID\"}" 2>/dev/null || true)
 [ -z "$out2" ] && pass "second run with same session_id -> silent (sentinel)" \
   || fail "second run -> expected silent, got: $out2"
+
+# --- Test 8: no session_id -> silent (hook must not run on every prompt without sentinel) ---
+LOCAL="$TMP/no-sid"
+mkdir -p "$LOCAL/rules"
+printf '# DRIFT\n' > "$LOCAL/CLAUDE.md"  # would normally trigger output
+cp "$TMPL/statusline.sh" "$LOCAL/statusline.sh"
+cp "$TMPL/rules/coding.md" "$LOCAL/rules/coding.md"
+printf '{"defaultMode":"plan","enabledPlugins":{"foo":true}}\n' > "$LOCAL/settings.json"
+
+out=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$LOCAL" run_hook '{}' 2>/dev/null || true)
+[ -z "$out" ] && pass "no session_id -> silent exit" \
+  || fail "no session_id -> expected silent, got: $out"
 
 echo ""
 echo "All tests passed."

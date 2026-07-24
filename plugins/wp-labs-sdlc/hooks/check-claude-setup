@@ -14,7 +14,8 @@ _prompt=$(printf '%s' "$_input" | jq -r '.prompt // empty' 2>/dev/null || true)
 _queue_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue"
 _trash_dir="${CLAUDE_QUEUE_TRASH_DIR:-$HOME/.Trash}"
 
-# First-run-only: skip subsequent prompts in the same session
+# First-run-only: skip subsequent prompts in the same session.
+# Exit immediately when session_id is absent — without a sentinel we'd run on every prompt.
 if [ -n "$_session_id" ]; then
   # ponytail: inline guard (q's _validate_sid is not sourceable); exit 0 so hook never blocks Claude
   [[ "$_session_id" =~ ^[a-zA-Z0-9_-]+$ ]] || exit 0
@@ -22,6 +23,8 @@ if [ -n "$_session_id" ]; then
   _sentinel="${_queue_dir}/.setup-${_session_id}"
   [ -f "$_sentinel" ] && exit 0
   touch "$_sentinel"
+else
+  exit 0
 fi
 
 # Queue housekeeping: move stale queue files (>30 days untouched) to the Trash.
