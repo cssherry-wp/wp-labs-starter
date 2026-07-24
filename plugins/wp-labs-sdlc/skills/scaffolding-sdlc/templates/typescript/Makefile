@@ -1,5 +1,5 @@
 # TypeScript SDLC targets — scaffolded by scaffolding-sdlc.
-.PHONY: install lint format check typecheck test test-e2e install-hooks
+.PHONY: install lint format check typecheck test coverage test-e2e install-hooks
 
 install:
 	# `npm install` (not `npm ci`): a freshly scaffolded repo has no
@@ -21,6 +21,9 @@ typecheck:
 
 test:
 	npx vitest run
+
+coverage:
+	npx vitest run --coverage --coverage.thresholds.lines=80
 
 test-e2e:
 	npx playwright test

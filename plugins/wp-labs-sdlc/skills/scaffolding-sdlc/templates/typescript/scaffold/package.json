@@ -9,6 +9,7 @@
     "start": "node dist/cli.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "coverage": "vitest run --coverage --coverage.thresholds.lines=80",
     "lint": "biome check .",
     "format": "biome format --write .",
     "typecheck": "tsc -b --pretty"
@@ -17,6 +18,7 @@
     "@biomejs/biome": "1.9.4",
     "@types/node": "^22.0.0",
     "typescript": "^5.6.0",
+    "@vitest/coverage-v8": "^2.1.0",
     "vitest": "^2.1.0"
   }
 }

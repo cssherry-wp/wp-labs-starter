@@ -161,6 +161,10 @@ history/prior-PR lenses (section 3) surfaced.
 tests updated, or are any now stale/broken? Name the specific missing or affected test files. If
 test-neutral (docs, config, pure formatting), say so.
 
+**Coverage:** run `make coverage` (TypeScript) or `make coverage-python` (Python) if the target
+exists. Report the overall line % and flag any changed module below 80% as a blocker. For e2e:
+note any new user-visible flows in the diff that lack a Playwright test.
+
 ## 5. Confidence scoring
 
 Score every finding 0–100 for how confident you are it's a real, relevant issue:
@@ -257,6 +261,7 @@ When `--ci` is passed (read-only mode), write findings as JSON, not prose — re
   <deep correctness via /code-review folded in, same format>
 
 ### 7. Tests
+Coverage: <overall line %> (or: not available)
 - [CR-NNN] <test file / area> — <missing or stale coverage> (confidence N)   (or: Adequate / N/A)
 
 ### Verdict

@@ -72,6 +72,8 @@ jobs:
         run: make typecheck
       - if: steps.detect.outputs.present == 'true'
         run: make test
+      - if: steps.detect.outputs.present == 'true'
+        run: make coverage
 
   # Nested app/frontend/ npm project (fullstack: Django at root of app/, React in app/frontend/).
   frontend:
@@ -104,6 +106,8 @@ jobs:
         run: npm run typecheck
       - if: steps.detect.outputs.present == 'true'
         run: npm test
+      - if: steps.detect.outputs.present == 'true'
+        run: npm run coverage
 
   python:
     needs: changes
@@ -130,6 +134,8 @@ jobs:
         run: make typecheck-python
       - if: steps.detect.outputs.present == 'true'
         run: make test-python
+      - if: steps.detect.outputs.present == 'true'
+        run: make coverage-python
 
   # CSS/SCSS/Sass linting — runs independently of the JS/TS build.
   stylelint:

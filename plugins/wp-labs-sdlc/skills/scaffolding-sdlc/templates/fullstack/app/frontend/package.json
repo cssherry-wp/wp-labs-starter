@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "coverage": "vitest run --coverage --coverage.thresholds.lines=80"
   },
   "dependencies": {
     "react": "^18.2.0",
@@ -27,6 +28,7 @@
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@vitejs/plugin-react": "^4.0.0",
+    "@vitest/coverage-v8": "^2.1.0",
     "jsdom": "^25.0.0",
     "sass": "^1.101.0",
     "stylelint": "^16.0.0",
