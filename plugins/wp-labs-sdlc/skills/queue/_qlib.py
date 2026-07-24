@@ -68,3 +68,23 @@ def cancel_block(block: str, stamp: str, reason: str, moved_to: str | None = Non
         lambda m: m.group() + suffix,
         cancelled, count=1, flags=re.MULTILINE,
     )
+
+
+def write_group(path: str, num: int, group: str) -> None:
+    """Write a group name into open item block num (1-indexed). No-op if group: already set.
+
+    Args:
+        path: Absolute path to the queue .md file.
+        num: 1-indexed item number (counts only open `- [ ]` blocks).
+        group: Group name string; stripped of surrounding whitespace before writing.
+    """
+    text = open(path).read()
+    blocks = split_blocks(text)
+    n, result = 0, []
+    for block in blocks:
+        if block.startswith('- [ ]'):
+            n += 1
+            if n == num and 'group:' not in block:
+                block = block.rstrip() + f'\n  group: {group.strip()}\n\n'
+        result.append(block)
+    open(path, 'w').write(''.join(result))
