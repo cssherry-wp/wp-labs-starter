@@ -1,0 +1,16 @@
+{
+  "name": "session-dashboard-lint",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "npm run lint:html && npm run lint:js",
+    "lint:html": "html-validate --config .htmlvalidate.json scaffolding-sdlc/templates/claude/session-dashboard.html",
+    "lint:js": "eslint scaffolding-sdlc/templates/claude/session-dashboard.html"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "eslint-plugin-html": "^8.0.0",
+    "globals": "^15.0.0",
+    "html-validate": "^9.0.0"
+  }
+}

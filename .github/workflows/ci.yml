@@ -78,6 +78,25 @@ jobs:
                 echo "::endgroup::"
               done
 
+  html-lint:
+    name: HTML/JS lint (session-dashboard)
+    needs: changes
+    if: needs.changes.outputs.dashboard == 'true'
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    defaults:
+      run:
+        working-directory: plugins/wp-labs-sdlc/skills
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: plugins/wp-labs-sdlc/skills/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+
   dashboard:
     name: Playwright (session-dashboard)
     needs: changes
