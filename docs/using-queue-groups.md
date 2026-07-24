@@ -43,7 +43,7 @@ Open `~/.claude/queue/<session-id>.md` — each tagged item contains a `group:` 
 ## 3. Filter the list to a single group
 
 ```bash
-~/.claude/queue/q list <session-id> --group ci-fixes
+${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q list <session-id> --group ci-fixes
 ```
 
 Only items whose `group:` field matches exactly are shown.
@@ -51,10 +51,10 @@ Only items whose `group:` field matches exactly are shown.
 ## 4. Assign or reassign a group manually
 
 ```bash
-~/.claude/queue/q write-group <session-id> <n> "docs"
+${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q write-group <session-id> <n> "docs"
 ```
 
-`<n>` is the 1-indexed open-item number. This is a no-op if the item already has a `group:` field.
+`<n>` is the 1-indexed open-item number. If the item already has a group, this overwrites it.
 
 ## 5. How drain (Mode B) handles groups
 

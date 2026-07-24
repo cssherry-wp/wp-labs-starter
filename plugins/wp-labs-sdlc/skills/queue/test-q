@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# Integration tests for the q queue helper subcommands.
+set -euo pipefail
+
+Q="$(cd "$(dirname "$0")" && pwd)/q"
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+
+pass() { printf 'PASS: %s\n' "$1"; }
+fail() { printf 'FAIL: %s\n' "$1"; exit 1; }
+
+SID='test-session-add123'
+FILE="$TMP/queue/$SID.md"
+
+# --- Test 1: add creates file with item ---
+CLAUDE_CONFIG_DIR="$TMP" "$Q" add "$SID" "Fix the flaky test" "$TMP" > /dev/null
+[ -f "$FILE" ] && grep -q '^\- \[ \] Fix the flaky test' "$FILE" \
+  && pass "add: creates file with item" || fail "add: expected queue file with item"
+
+# --- Test 2: add with --high --group ---
+CLAUDE_CONFIG_DIR="$TMP" "$Q" add "$SID" --high --group ci-fixes "High priority item" "$TMP" > /dev/null
+grep -q 'priority: high' "$FILE" && grep -q 'group: ci-fixes' "$FILE" \
+  && pass "add: --high --group flags written" || fail "add: expected priority/group in file"
+
+# --- Test 3: list shows open items ---
+out=$(CLAUDE_CONFIG_DIR="$TMP" "$Q" list "$SID")
+echo "$out" | grep -q 'Fix the flaky test' \
+  && pass "list: shows item text" || fail "list: expected item text, got: $out"
+
+# --- Test 4: list <sid> --oneline (regression: was silently ignored) ---
+out=$(CLAUDE_CONFIG_DIR="$TMP" "$Q" list "$SID" --oneline)
+lines=$(echo "$out" | grep -c '.' || true)
+[ "$lines" -ge 2 ] \
+  && pass "list <sid> --oneline: accepted after SID" \
+  || fail "list <sid> --oneline: expected multiple lines, got: $out"
+
+# --- Test 5: list --oneline <sid> also works ---
+out=$(CLAUDE_CONFIG_DIR="$TMP" "$Q" list --oneline "$SID")
+[ -n "$out" ] \
+  && pass "list --oneline <sid>: accepted before SID" \
+  || fail "list --oneline <sid>: expected output, got empty"
+
+# --- Test 6: write-group assigns a new group ---
+SID2='test-nogroup-456'
+CLAUDE_CONFIG_DIR="$TMP" "$Q" add "$SID2" "Item without group" "$TMP" > /dev/null
+CLAUDE_CONFIG_DIR="$TMP" "$Q" write-group "$SID2" 1 "initial-group"
+grep -q 'group: initial-group' "$TMP/queue/$SID2.md" \
+  && pass "write-group: assigns group" || fail "write-group: expected group field"
+
+# --- Test 7: write-group overwrites existing group (regression: was a no-op) ---
+CLAUDE_CONFIG_DIR="$TMP" "$Q" write-group "$SID2" 1 "updated-group"
+grep -q 'group: updated-group' "$TMP/queue/$SID2.md" \
+  && ! grep -q 'group: initial-group' "$TMP/queue/$SID2.md" \
+  && pass "write-group: overwrites existing group" \
+  || fail "write-group: expected updated-group, got: $(grep 'group:' "$TMP/queue/$SID2.md" || echo '(none)')"
+
+# --- Test 8: needs-interpretation lists item without interpretation ---
+SID3='test-interp-789'
+CLAUDE_CONFIG_DIR="$TMP" "$Q" add "$SID3" "Needs interpretation" "$TMP" > /dev/null
+out=$(CLAUDE_CONFIG_DIR="$TMP" "$Q" needs-interpretation "$SID3")
+echo "$out" | grep -q 'Needs interpretation' \
+  && pass "needs-interpretation: shows item" || fail "needs-interpretation: expected item, got: $out"
+
+# --- Test 9: write-interpretation writes the field ---
+CLAUDE_CONFIG_DIR="$TMP" "$Q" write-interpretation "$SID3" 1 "Do X then Y"
+grep -q 'interpretation: Do X then Y' "$TMP/queue/$SID3.md" \
+  && pass "write-interpretation: field written" || fail "write-interpretation: field missing"
+
+# --- Test 10: needs-interpretation skips item that has one ---
+out=$(CLAUDE_CONFIG_DIR="$TMP" "$Q" needs-interpretation "$SID3" || true)
+[ -z "$out" ] \
+  && pass "needs-interpretation: skips interpreted item" \
+  || fail "needs-interpretation: expected empty, got: $out"
+
+# --- Test 11: mark-done marks item [x] ---
+SID4='test-done-abc'
+CLAUDE_CONFIG_DIR="$TMP" "$Q" add "$SID4" "To be done" "$TMP" > /dev/null
+CLAUDE_CONFIG_DIR="$TMP" "$Q" mark-done "$SID4" 1 > /dev/null
+grep -q '^\- \[x\]' "$TMP/queue/$SID4.md" && grep -q 'completed:' "$TMP/queue/$SID4.md" \
+  && pass "mark-done: marks [x] with timestamp" || fail "mark-done: expected [x] and completed field"
+
+# --- Test 12: mark-cancelled marks item [-] with reason ---
+SID5='test-cancel-def'
+CLAUDE_CONFIG_DIR="$TMP" "$Q" add "$SID5" "Cancel me" "$TMP" > /dev/null
+CLAUDE_CONFIG_DIR="$TMP" "$Q" mark-cancelled "$SID5" --reason "Not needed" 1 > /dev/null
+grep -q '^\- \[-\]' "$TMP/queue/$SID5.md" && grep -q 'reason: Not needed' "$TMP/queue/$SID5.md" \
+  && pass "mark-cancelled: marks [-] with reason" || fail "mark-cancelled: expected [-] and reason field"
+
+# --- Test 13: clear parks items in pending.md, preserving interpretation ---
+SID6='test-clear-ghi'
+CLAUDE_CONFIG_DIR="$TMP" "$Q" add "$SID6" "Clear me" "$TMP" > /dev/null
+CLAUDE_CONFIG_DIR="$TMP" "$Q" write-interpretation "$SID6" 1 "Keep this interpretation"
+CLAUDE_CONFIG_DIR="$TMP" "$Q" clear "$SID6" > /dev/null
+grep -q '^\- \[-\]' "$TMP/queue/$SID6.md" \
+  && pass "clear: marks source item [-]" || fail "clear: source item not marked [-]"
+grep -q 'Clear me' "$TMP/queue/pending.md" \
+  && grep -q 'interpretation: Keep this interpretation' "$TMP/queue/pending.md" \
+  && pass "clear: preserves interpretation in pending.md" \
+  || fail "clear: expected item + interpretation in pending.md"
+
+# --- Test 14: rename-pending → session file ---
+SID7='test-rename-jkl'
+CLAUDE_CONFIG_DIR="$TMP" "$Q" rename-pending "$SID7" > /dev/null
+[ -f "$TMP/queue/$SID7.md" ] && [ ! -f "$TMP/queue/pending.md" ] \
+  && pass "rename-pending: session file created, pending.md removed" \
+  || fail "rename-pending: expected session file and no pending.md"
+grep -q 'Clear me' "$TMP/queue/$SID7.md" \
+  && pass "rename-pending: content preserved" || fail "rename-pending: content missing"
+
+# --- Test 15: migrate-items moves item between sessions ---
+SRC='test-src-mno'
+DST='test-dst-pqr'
+CLAUDE_CONFIG_DIR="$TMP" "$Q" add "$SRC" "Migrate me" "$TMP" > /dev/null
+# Use oneline list to get the [sid8:n] ref
+ref=$(CLAUDE_CONFIG_DIR="$TMP" "$Q" list-other "$DST" --oneline 2>/dev/null \
+  | grep 'Migrate me' | grep -oE '\[[A-Za-z0-9_-]{8}:[0-9]+\]' | tr -d '[]' || true)
+[ -n "$ref" ] || fail "migrate-items: could not find ref for source item"
+CLAUDE_CONFIG_DIR="$TMP" "$Q" migrate-items "$DST" "$ref" > /dev/null
+grep -q 'Migrate me' "$TMP/queue/$DST.md" \
+  && grep -q '^\- \[-\]' "$TMP/queue/$SRC.md" \
+  && pass "migrate-items: item copied to dst, source marked [-]" \
+  || fail "migrate-items: expected item in dst and [-] in src"
+
+echo ""
+echo "All tests passed."

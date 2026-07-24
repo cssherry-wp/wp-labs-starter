@@ -34,6 +34,7 @@ def parse_block_meta(lines: list[str]) -> tuple[dict[str, str], list[str], list[
         if in_interp:
             if line.startswith('    '):
                 interp_lines.append(s)
+                continue
             else:
                 in_interp = False
         if s.startswith('- '):
@@ -71,7 +72,7 @@ def cancel_block(block: str, stamp: str, reason: str, moved_to: str | None = Non
 
 
 def write_group(path: str, num: int, group: str) -> None:
-    """Write a group name into open item block num (1-indexed). No-op if group: already set.
+    """Assign or overwrite the group on open item num (1-indexed).
 
     Args:
         path: Absolute path to the queue .md file.
@@ -84,7 +85,15 @@ def write_group(path: str, num: int, group: str) -> None:
     for block in blocks:
         if block.startswith('- [ ]'):
             n += 1
-            if n == num and 'group:' not in block:
-                block = block.rstrip() + f'\n  group: {group.strip()}\n\n'
+            if n == num:
+                group_name = group.strip()
+                if 'group:' in block:
+                    block = re.sub(
+                        r'^  group: [^\n]*',
+                        f'  group: {group_name}',
+                        block, count=1, flags=re.MULTILINE,
+                    )
+                else:
+                    block = block.rstrip() + f'\n  group: {group_name}\n\n'
         result.append(block)
     open(path, 'w').write(''.join(result))

@@ -16,19 +16,24 @@ _trash_dir="${CLAUDE_QUEUE_TRASH_DIR:-$HOME/.Trash}"
 
 # First-run-only: skip subsequent prompts in the same session
 if [ -n "$_session_id" ]; then
+  # ponytail: inline guard (q's _validate_sid is not sourceable); exit 0 so hook never blocks Claude
+  [[ "$_session_id" =~ ^[a-zA-Z0-9_-]+$ ]] || exit 0
   mkdir -p "$_queue_dir"
   _sentinel="${_queue_dir}/.setup-${_session_id}"
   [ -f "$_sentinel" ] && exit 0
   touch "$_sentinel"
 fi
 
-# Queue housekeeping: delete stale queue files (>30 days untouched)
-# ponytail: mtime-based; rm -f is cross-platform (prior mv-to-$HOME/.Trash was macOS-only).
+# Queue housekeeping: move stale queue files (>30 days untouched) to the Trash.
+# ponytail: macOS-only (uses ~/.Trash); override CLAUDE_QUEUE_TRASH_DIR in tests.
 if [ -d "$_queue_dir" ]; then
+  mkdir -p "$_trash_dir" 2>/dev/null || true
   while IFS= read -r -d '' _qf; do
     _last_edit=$(date -r "$_qf" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "unknown")
-    rm -f "$_qf" && \
-      echo "queue housekeeping: deleted $(basename "$_qf") (last edit ${_last_edit})" >&2 || true
+    _dest="$_trash_dir/$(basename "$_qf")"
+    if mv "$_qf" "$_dest" 2>/dev/null; then
+      echo "queue housekeeping: trashed $(basename "$_qf") (last edit ${_last_edit}) -> ${_dest}" >&2
+    fi
   done < <(find "$_queue_dir" -maxdepth 1 -type f -name '*.md' -mtime +30 -print0 2>/dev/null)
   # Prune per-session sentinel files older than 7 days
   find "$_queue_dir" -maxdepth 1 -name '.setup-*' -mtime +7 -delete 2>/dev/null || true

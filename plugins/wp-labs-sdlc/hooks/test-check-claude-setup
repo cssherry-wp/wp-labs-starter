@@ -78,18 +78,19 @@ echo "$out" | jq -e '.hookSpecificOutput.additionalContext | test("settings.json
 out=$(CLAUDE_CONFIG_DIR="$TMP/clean" run_hook '{}' 2>/dev/null || true)
 [ -z "$out" ] && pass "CLAUDE_PLUGIN_ROOT unset -> silent" || fail "CLAUDE_PLUGIN_ROOT unset -> expected no output, got: $out"
 
-# --- Test 6: stale queue file (30+ days) deleted; fresh one kept ---
+# --- Test 6: stale queue file (30+ days) trashed; fresh one kept ---
 LOCAL="$TMP/queue"
-mkdir -p "$LOCAL/queue"
+TRASH="$TMP/trash"
+mkdir -p "$LOCAL/queue" "$TRASH"
 printf 'stale\n' > "$LOCAL/queue/old.md"
 printf 'fresh\n' > "$LOCAL/queue/new.md"
 touch -t 202001010000 "$LOCAL/queue/old.md"
 
-CLAUDE_CONFIG_DIR="$LOCAL" run_hook '{}' > /dev/null 2>&1 || true
-if [ ! -e "$LOCAL/queue/old.md" ] && [ -f "$LOCAL/queue/new.md" ]; then
-  pass "stale queue deleted, fresh kept"
+CLAUDE_QUEUE_TRASH_DIR="$TRASH" CLAUDE_CONFIG_DIR="$LOCAL" run_hook '{}' > /dev/null 2>&1 || true
+if [ ! -e "$LOCAL/queue/old.md" ] && [ -f "$TRASH/old.md" ] && [ -f "$LOCAL/queue/new.md" ]; then
+  pass "stale queue trashed, fresh kept"
 else
-  fail "queue cleanup -> expected old.md deleted and new.md kept"
+  fail "queue cleanup -> expected old.md in trash and new.md kept"
 fi
 
 # --- Test 7: first-run sentinel blocks repeat runs ---
