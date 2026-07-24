@@ -12,7 +12,7 @@ jobs:
     permissions: { contents: read }
     outputs:
       dashboard: ${{ steps.filter.outputs.dashboard }}
-      jq: ${{ steps.filter.outputs.jq }}
+      bash-tests: ${{ steps.filter.outputs.bash-tests }}
     steps:
       - uses: actions/checkout@v5
       - uses: dorny/paths-filter@v3
@@ -22,9 +22,9 @@ jobs:
             dashboard:
               - 'plugins/wp-labs-sdlc/skills/session-dashboard/**'
               - 'plugins/wp-labs-sdlc/skills/scaffolding-sdlc/templates/claude/session-dashboard.html'
-            jq:
-              - 'plugins/wp-labs-sdlc/skills/scaffolding-sdlc/templates/github/workflows/build-review-payload.jq'
-              - 'plugins/wp-labs-sdlc/skills/scaffolding-sdlc/tests/**'
+            bash-tests:
+              - '**/*.test.sh'
+              - '**/*.jq'
 
   dashboard:
     name: Playwright (session-dashboard)
@@ -42,12 +42,24 @@ jobs:
       - run: uv run playwright install chromium --with-deps
       - run: uv run pytest
 
-  jq:
-    name: JQ tests (build-review-payload)
+  bash-tests:
+    name: Bash tests
     needs: changes
-    if: needs.changes.outputs.jq == 'true'
+    if: needs.changes.outputs.bash-tests == 'true'
     runs-on: ubuntu-latest
     permissions: { contents: read }
     steps:
       - uses: actions/checkout@v5
-      - run: bash plugins/wp-labs-sdlc/skills/scaffolding-sdlc/tests/build-review-payload.test.sh
+      - name: Run all bash test scripts
+        run: |
+          find . -name '*.test.sh' \
+            -not -path './.claude/*' \
+            -not -path './feature/*' \
+            -not -path '*/templates/*' \
+            -not -path '*/.venv/*' \
+            | sort \
+            | while read -r f; do
+                echo "::group::$f"
+                bash "$f"
+                echo "::endgroup::"
+              done
