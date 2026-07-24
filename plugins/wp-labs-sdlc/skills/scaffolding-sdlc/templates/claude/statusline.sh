@@ -62,7 +62,7 @@ try:
                 msg = d.get('message') or d
                 if msg.get('role') == 'user':
                     s = txt(msg.get('content', '')).split('\n')[0][:120]
-                    if s:
+                    if s and not s.startswith('<'):
                         if not first_msg: first_msg = s
                         last_msg = s
             except Exception: pass
