@@ -38,6 +38,14 @@ Omit a section only if it genuinely doesn't apply (e.g. no real alternatives for
 
 Prefer one commit per task — each task's work is its own commit. But keep a completed task to a **single** commit: if you make a follow-up commit that modifies an already-committed task (a fix, review correction, or amendment for that same task), squash it into that task's original commit rather than leaving a separate fixup commit. A finished task should show up as exactly one commit in the log.
 
+### Issue linking
+
+If the commit addresses a tracker issue, add a reference at the end of the commit body:
+
+- **GitHub**: trailer on its own line — `Closes #123` when this commit resolves the issue, `Refs #123` when it relates but doesn't close it
+- **Jira**: prefix the subject line — `PROJ-123: <summary>` — and add `Refs PROJ-123` as a trailer when multiple commits share the same issue
+- Omit entirely when no issue applies; do not create an issue just to have one to reference
+
 ## Pull Request Descriptions
 
 <!-- scaffolder (SKILL.md step 8b): keep only the bullet for this repo's issue
