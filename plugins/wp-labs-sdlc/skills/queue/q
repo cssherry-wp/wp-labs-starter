@@ -6,13 +6,21 @@ set -euo pipefail
 QUEUE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue"
 mkdir -p "$QUEUE_DIR"
 
+# Guard against path traversal via a caller-supplied session id.
+# UUIDs only use alphanumerics and hyphens; nothing else is valid.
+_validate_sid() {
+  local sid="$1"
+  [ -z "$sid" ] && return 0
+  [[ "$sid" =~ ^[a-zA-Z0-9_-]+$ ]] || { printf 'Invalid session id: %s\n' "$sid" >&2; exit 1; }
+}
+
 cmd="${1:-}"; shift || true
 
 case "$cmd" in
 
 add)
   # q add <session-id> [--high|--med|--low] "<ask>" "<ctx>"
-  SID="$1"; shift
+  SID="$1"; shift; _validate_sid "$SID"
   PRI=""
   case "${1:-}" in --high) PRI=high; shift;; --med) PRI=med; shift;; --low) PRI=low; shift;; esac
   ASK="${1:-}"; CTX="${2:-$(pwd)}"
@@ -122,7 +130,7 @@ PY
 list-other)
   # q list-other <session-id> [--oneline]
   # Lists open items from all sessions EXCEPT <session-id>, labelled with [sid8:n] refs
-  SID="${1:-}"; shift || true
+  SID="${1:-}"; shift || true; _validate_sid "$SID"
   ONELINE=0
   [ "${1:-}" = "--oneline" ] && { ONELINE=1; shift; }
   shopt -s nullglob; FILES=("$QUEUE_DIR"/*.md); shopt -u nullglob
@@ -188,7 +196,7 @@ migrate-items)
   # q migrate-items <dst-session-id> <sid8:n> [<sid8:n> ...]
   # Migrates specific items (by per-session number, full or 8-char UUID prefix) into dst
   [ $# -lt 2 ] && { echo "Usage: q migrate-items <session-id> <sid8:n> [...]" >&2; exit 1; }
-  SID="$1"; shift
+  SID="$1"; shift; _validate_sid "$SID"
 
   python3 - "$SID" "$QUEUE_DIR" "$@" <<'PY'
 import sys, re, os
@@ -206,7 +214,13 @@ for ref in refs:
     parts = ref.split(':')
     if len(parts) != 2:
         print(f'Invalid ref (expected sid8:n): {ref}', file=sys.stderr); continue
-    sid_prefix, n = parts[0], int(parts[1])
+    sid_prefix, n_str = parts[0], parts[1]
+    if not sid_prefix:
+        print(f'Invalid ref (empty sid): {ref}', file=sys.stderr); continue
+    try:
+        n = int(n_str)
+    except ValueError:
+        print(f'Invalid ref (non-integer n): {ref}', file=sys.stderr); continue
     by_sid.setdefault(sid_prefix, set()).add(n)
 
 total = 0
@@ -253,7 +267,7 @@ PY
 needs-interpretation)
   # q needs-interpretation <session-id>
   # prints "<n>\t<ask>" for each open item missing an interpretation: line; empty = all have one
-  SID="$1"; FILE="$QUEUE_DIR/$SID.md"
+  SID="$1"; _validate_sid "$SID"; FILE="$QUEUE_DIR/$SID.md"
   [ -f "$FILE" ] || exit 0
   python3 - "$FILE" <<'PY'
 import sys, re
@@ -275,7 +289,7 @@ PY
 
 write-interpretation)
   # q write-interpretation <session-id> <item-n> "<interpretation text>"
-  SID="$1"; NUM="$2"; INTERP="$3"; FILE="$QUEUE_DIR/$SID.md"
+  SID="$1"; NUM="$2"; INTERP="$3"; _validate_sid "$SID"; FILE="$QUEUE_DIR/$SID.md"
   [ -f "$FILE" ] || { echo "No queue file: $FILE"; exit 0; }
   python3 - "$FILE" "$NUM" "$INTERP" <<'PY'
 import sys, re
@@ -303,7 +317,7 @@ PY
 mark-done)
   # q mark-done <session-id> <n|sid8:n> [...]
   # bare numbers → mark done in own session; sid8:n refs → mark done in source session
-  SID="$1"; shift; FILE="$QUEUE_DIR/$SID.md"
+  SID="$1"; shift; _validate_sid "$SID"; FILE="$QUEUE_DIR/$SID.md"
   python3 - "$FILE" "$QUEUE_DIR" "$@" <<'PY'
 import sys, re, os
 from datetime import datetime
@@ -317,10 +331,13 @@ for arg in args:
     if ':' in arg:
         parts = arg.split(':')
         if len(parts) == 2:
-            try:
-                by_sid.setdefault(parts[0], set()).add(int(parts[1]))
-            except ValueError:
-                print(f'Invalid ref: {arg}', file=sys.stderr)
+            if not parts[0]:
+                print(f'Invalid ref (empty sid): {arg}', file=sys.stderr)
+            else:
+                try:
+                    by_sid.setdefault(parts[0], set()).add(int(parts[1]))
+                except ValueError:
+                    print(f'Invalid ref: {arg}', file=sys.stderr)
         else:
             print(f'Invalid ref (expected sid8:n): {arg}', file=sys.stderr)
     else:
@@ -363,7 +380,7 @@ PY
 
 mark-cancelled)
   # q mark-cancelled <session-id> [--reason <text>] <n> [<n> ...]
-  SID="$1"; shift; FILE="$QUEUE_DIR/$SID.md"
+  SID="$1"; shift; _validate_sid "$SID"; FILE="$QUEUE_DIR/$SID.md"
   [ -f "$FILE" ] || { echo "No queue file: $FILE"; exit 0; }
   REASON="Cancelled"
   if [ "${1:-}" = "--reason" ]; then REASON="$2"; shift 2; fi
@@ -393,7 +410,7 @@ PY
 
 clear)
   # q clear <session-id>  — mark open items [-] + park fresh copies in pending.md
-  SID="$1"; FILE="$QUEUE_DIR/$SID.md"; PENDING="$QUEUE_DIR/pending.md"
+  SID="$1"; _validate_sid "$SID"; FILE="$QUEUE_DIR/$SID.md"; PENDING="$QUEUE_DIR/pending.md"
   [ -f "$FILE" ] || { echo "No queue file: $FILE"; exit 0; }
   python3 - "$FILE" "$PENDING" "$SID" <<'PY'
 import sys, re
@@ -436,7 +453,7 @@ PY
 
 rename-pending)
   # q rename-pending <session-id>  — mv pending.md → <session-id>.md
-  SID="$1"; PENDING="$QUEUE_DIR/pending.md"
+  SID="$1"; _validate_sid "$SID"; PENDING="$QUEUE_DIR/pending.md"
   if [ -f "$PENDING" ]; then
     if [ -f "$QUEUE_DIR/$SID.md" ]; then
       # Session file already exists — append items (skip pending.md header line + blank)
@@ -456,7 +473,7 @@ rename-pending)
 migrate)
   # q migrate <session-id> [src-session-id ...]  — cancel open items in other sessions, append fresh copies here
   # If source session IDs are given, only migrate those; otherwise migrate all
-  SID="$1"; shift || true
+  SID="$1"; shift || true; _validate_sid "$SID"
   SRC_FILTER=("$@")
   DST="$QUEUE_DIR/$SID.md"
   total=0; sessions=0
