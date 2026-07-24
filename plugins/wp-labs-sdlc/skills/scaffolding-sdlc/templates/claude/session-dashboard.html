@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -198,18 +198,18 @@ tr.detail-row td{padding:0;border-bottom:1px solid var(--border)}
 <div id="tip"></div>
 <header>
   <h1>Claude Sessions</h1>
-  <button class="hbtn" id="openBtn">Open ~/.claude</button>
-  <button class="hbtn" id="reloadBtn" style="display:none">↻ Reload</button>
-  <button class="hbtn" id="clearCacheBtn" style="display:none" title="Force full re-scan (merges into persistent cache)">↺ Rescan</button>
-  <button class="hbtn" id="analyticsBtn" style="display:none" title="Set ~/ClaudeAnalytics folder for persistent file cache">⊕ Analytics</button>
-  <button class="hbtn" id="addDirBtn" style="display:none">+ Add folder</button>
+  <button type="button" class="hbtn" id="openBtn">Open ~/.claude</button>
+  <button type="button" class="hbtn" id="reloadBtn" style="display:none">↻ Reload</button>
+  <button type="button" class="hbtn" id="clearCacheBtn" style="display:none" title="Force full re-scan (merges into persistent cache)">↺ Rescan</button>
+  <button type="button" class="hbtn" id="analyticsBtn" style="display:none" title="Set ~/ClaudeAnalytics folder for persistent file cache">⊕ Analytics</button>
+  <button type="button" class="hbtn" id="addDirBtn" style="display:none">+ Add folder</button>
   <span id="dirPills" style="display:inline-flex;gap:4px;flex-wrap:wrap"></span>
   <div id="prog-wrap"><div id="prog-bar"></div></div>
   <span id="status">Loading…</span>
   <div class="grow"></div>
   <input type="text" id="search" placeholder="Search sessions…" autocomplete="off">
   <span id="filterInfo"></span>
-  <button class="hbtn" id="themeBtn" title="Toggle theme">◑</button>
+  <button type="button" class="hbtn" id="themeBtn" title="Toggle theme">◑</button>
 </header>
 
 <div id="stats"></div>
@@ -223,7 +223,7 @@ tr.detail-row td{padding:0;border-bottom:1px solid var(--border)}
   <div class="icon">🤖</div>
   <h2>Claude Sessions Dashboard</h2>
   <p>Visualize sessions, tasks, and costs across every project.</p>
-  <button class="hbtn primary" id="openMain" style="font-size:13.5px;padding:8px 18px;border-radius:8px">Open ~/.claude folder</button>
+  <button type="button" class="hbtn primary" id="openMain" style="font-size:13.5px;padding:8px 18px;border-radius:8px">Open ~/.claude folder</button>
   <p class="note">Chrome or Edge required · files stay local</p>
 </div>
 
@@ -676,7 +676,6 @@ function clearAllFilters(){
 }
 
 // ─── Filters ──────────────────────────────────────────────────────────────────
-function allNormProjects(){return[...new Set(allSessions.map(s=>s.projectNorm||s.projectLabel))].sort();}
 function applyFilters(){
   const q=searchQuery.toLowerCase();const now=Date.now();
   filteredSessions=allSessions.filter(s=>{
@@ -929,7 +928,6 @@ function renderTable(){
   sec.querySelectorAll('.qc[data-qstatus]').forEach(el=>el.addEventListener('click',e=>{e.stopPropagation();const st=el.dataset.qstatus;activeQueueStatus=activeQueueStatus===st?'':st;syncUrl();render();}));
   if(expandedUuid&&displaySessions.find(s=>s.uuid===expandedUuid)){const tr=sec.querySelector(`tr[data-uuid="${expandedUuid}"]`);if(tr)insertDetailRow(tr,allSessions.find(s=>s.uuid===expandedUuid));}
 }
-function sessionColorHex(uuid){let h=5381;for(let i=0;i<uuid.length;i++)h=((h<<5)+h+uuid.charCodeAt(i))>>>0;return PROJ_COLORS[h%PROJ_COLORS.length];}
 function sessionRow(s){
   const title=s.title||(s.userTurns[0]?.text.slice(0,80))||'(untitled)';
   const norm=s.projectNorm||s.projectLabel;
@@ -988,9 +986,7 @@ function toggleRow(uuid){
 }
 function insertDetailRow(tr,s){
   const detail=document.createElement('tr');detail.className='detail-row';detail.dataset.for=s.uuid;
-  const norm=s.projectNorm||s.projectLabel;
   const worktree=s.projectWorktree;
-  const metaLine=[worktree?`<span style="font-size:11px;color:var(--muted)">worktree: <span style="font-family:var(--mono)">${esc(worktree)}</span></span>`:'',s.name&&s.name!==s.title?`<span style="font-size:11px;color:var(--muted)">name: ${esc(s.name)}</span>`:''].filter(Boolean).join(' · ');
   const lastReplyHtml=s.lastAssistantText?`<div class="turn-block"><div class="turn-label"><span class="role-badge rb-asst">assistant</span>Last reply</div><div class="turn-text" style="max-height:120px;font-size:11.5px">${esc(s.lastAssistantText.trim().slice(0,800))}</div></div>`:'';
   const allTurns=[...s.userTurns].reverse().map((t,i)=>{const n=s.userTurns.length-i;const spawnHtml=(t.agentSpawns||[]).map(sp=>{const ag=(s.agents||[]).find(a=>a.toolUseId===sp.toolUseId);const cost=ag?calcCost(ag.model,ag.usage):null;const tok=ag?(ag.usage.in+ag.usage.out+ag.usage.cw+ag.usage.cr):0;const effortBadge=ag?.effort&&ag.effort!=='normal'?`<span class="agent-meta" style="opacity:.7">${esc(ag.effort)}</span>`:'';const toolsHtml=ag?.tools?.length?`<span class="agent-meta" style="opacity:.6">${esc(ag.tools.slice(0,5).join(' · '))}</span>`:'';const tip=ag?.lastAssistantText?` data-tip="${esc(ag.lastAssistantText.trim().slice(0,300))}"`:' ';return`<div class="agent-block"><span class="role-badge rb-agent">${esc(ag?.agentType||'agent')}</span><span class="agent-desc"${tip}>${esc(ag?.description||sp.label||'')}</span>${effortBadge}${toolsHtml}${ag?.model?`<span class="agent-meta">${esc(ag.model)}</span>`:''} ${tok>0?`<span class="agent-meta">${fmtK(tok)}tok</span>`:''}${cost!==null?`<span class="agent-cost"> · $${cost<0.01?cost.toFixed(4):cost.toFixed(2)}</span>`:''}</div>`;}).join('');return`<div class="turn-block"><div class="turn-label"><span class="role-badge rb-user">user</span>Turn ${n}${t.ts?' · '+fmtDate(t.ts):''}</div><div class="turn-text">${esc(t.text)}</div>${spawnHtml}</div>`;});
   const cmdTurns=[...s.commands].reverse().map(c=>`<div class="turn-block"><div class="turn-label"><span class="role-badge rb-cmd">cmd</span>Command${c.ts?' · '+fmtDate(c.ts):''}</div><div class="turn-text cmd-text">${esc(c.name)}${c.args?' '+esc(c.args):''}</div></div>`);
