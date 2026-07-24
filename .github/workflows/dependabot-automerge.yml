@@ -1,0 +1,44 @@
+# Auto-merges Dependabot PRs once CI (see ci.yml) passes.
+# Scoped to patch/minor bumps only; major version bumps always need manual review.
+# Uses `gh pr checks --watch` instead of native GitHub auto-merge because that
+# feature requires repo-admin-only settings (repo auto-merge toggle + branch
+# protection required checks) that aren't configured on this repo yet.
+name: Dependabot auto-merge
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      # gh pr merge shells out to git, so the job needs a working tree. Check out
+      # the BASE ref, not the PR head, so untrusted PR code never lands on disk in
+      # this write-token job. Do NOT add steps here that execute PR code.
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Wait for CI, then merge patch/minor updates
+        if: |
+          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr checks "$PR_URL" --watch --fail-fast
+          gh pr merge --squash "$PR_URL"

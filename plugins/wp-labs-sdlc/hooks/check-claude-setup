@@ -1,22 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Queue housekeeping: move /queue backlog files untouched for >30 days to the
-# trash. Runs on every startup, before (and independent of) the drift check
-# below. Each trashed file is logged to STDERR (its last edit + new location);
-# stdout stays reserved for the JSON payload below.
-# ponytail: mtime-based; CLAUDE_QUEUE_TRASH_DIR override exists only so the test
-# can redirect the trash away from the real ~/.Trash. `date -r <file>` reads the
-# mtime portably on both BSD (macOS) and GNU coreutils.
+# Queue housekeeping: move /queue backlog files untouched for >30 days to
+# CLAUDE_ANALYTICS_DIR. Runs on every startup, before (and independent of) the
+# drift check below. Each archived file is logged to STDERR (its last edit +
+# new location); stdout stays reserved for the JSON payload below.
+# ponytail: mtime-based. `date -r <file>` reads the mtime portably on both
+# BSD (macOS) and GNU coreutils.
 _queue_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue"
-_trash_dir="${CLAUDE_QUEUE_TRASH_DIR:-$HOME/.Trash}"
+_archive_dir="${CLAUDE_ANALYTICS_DIR:-$HOME/ClaudeAnalytics}"
 if [ -d "$_queue_dir" ]; then
-  mkdir -p "$_trash_dir" 2> /dev/null || true
+  mkdir -p "$_archive_dir" 2> /dev/null || true
   while IFS= read -r -d '' _qf; do
     _last_edit=$(date -r "$_qf" '+%Y-%m-%d %H:%M:%S' 2> /dev/null || echo "unknown")
-    _dest="$_trash_dir/$(basename "$_qf")"
+    _dest="$_archive_dir/$(basename "$_qf")"
     if mv "$_qf" "$_dest" 2> /dev/null; then
-      echo "queue housekeeping: trashed $(basename "$_qf") (last edit ${_last_edit}) -> ${_dest}" >&2
+      echo "queue housekeeping: archived $(basename "$_qf") (last edit ${_last_edit}) -> ${_dest}" >&2
     fi
   done < <(find "$_queue_dir" -maxdepth 1 -type f -name '*.md' -mtime +30 -print0 2> /dev/null)
 fi
@@ -40,6 +39,7 @@ check_text_file() {
   fi
 }
 
+check_text_file "CLAUDE.md"
 check_text_file "statusline.sh"
 
 if [ -d "$TMPL/rules" ]; then
@@ -47,6 +47,16 @@ if [ -d "$TMPL/rules" ]; then
     [ -e "$src" ] || continue
     check_text_file "rules/$(basename "$src")"
   done
+fi
+
+# session-dashboard.html lives in ~/ClaudeAnalytics/, not ~/.claude/
+ANALYTICS_DIR="${CLAUDE_ANALYTICS_DIR:-$HOME/ClaudeAnalytics}"
+if [ -f "$TMPL/session-dashboard.html" ]; then
+  if [ ! -f "$ANALYTICS_DIR/session-dashboard.html" ]; then
+    drift_files+=("session-dashboard.html (missing from ~/ClaudeAnalytics/)")
+  elif ! diff -q "$TMPL/session-dashboard.html" "$ANALYTICS_DIR/session-dashboard.html" > /dev/null 2>&1; then
+    drift_files+=("session-dashboard.html")
+  fi
 fi
 
 # settings.json: merge template into local (template wins), compare to current.
@@ -69,6 +79,7 @@ Drifted files:
 ${drift_list}
 IMPORTANT: At the start of this session, proactively tell the user their local Claude setup is out of sync and offer to apply the updates now — no additional command from them required. If they agree, apply each drifted file:
 - Text files (CLAUDE.md, statusline.sh, rules/*): read from ${TMPL}/<file> and write to ${CLAUDE_DIR}/<file>
-- settings.json: run jq -sS '.[0] as \$a | .[1] as \$b | (\$a * \$b) | .hooks = (((\$a.hooks // {} | keys) + (\$b.hooks // {} | keys) | unique) as \$keys | reduce \$keys[] as \$k ({}; . + {(\$k): ([\$a.hooks[\$k] // [], \$b.hooks[\$k] // []] | add)}))' ${CLAUDE_DIR}/settings.json ${TMPL}/settings.json and write the result to ${CLAUDE_DIR}/settings.json"
+- settings.json: run jq -sS '.[0] as \$a | .[1] as \$b | (\$a * \$b) | .hooks = (((\$a.hooks // {} | keys) + (\$b.hooks // {} | keys) | unique) as \$keys | reduce \$keys[] as \$k ({}; . + {(\$k): ([\$a.hooks[\$k] // [], \$b.hooks[\$k] // []] | add)}))' ${CLAUDE_DIR}/settings.json ${TMPL}/settings.json and write the result to ${CLAUDE_DIR}/settings.json
+- session-dashboard.html: read from ${TMPL}/session-dashboard.html and write to ${ANALYTICS_DIR}/session-dashboard.html"
 
 jq -n --arg v "$msg" '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":$v}}'

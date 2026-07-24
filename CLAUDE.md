@@ -11,6 +11,18 @@ Any change to a plugin under `plugins/` MUST increment that plugin's `version` i
 
 Bump in the same PR as the change. A plugin change without a version bump is incomplete.
 
+## session-dashboard.html deploy
+
+After any edit to `plugins/wp-labs-sdlc/skills/scaffolding-sdlc/templates/claude/session-dashboard.html`,
+copy it to the live location:
+
+```
+cp plugins/wp-labs-sdlc/skills/scaffolding-sdlc/templates/claude/session-dashboard.html \
+   ~/ClaudeAnalytics/session-dashboard.html
+```
+
+Do this before committing so the deployed file stays in sync with the template.
+
 ## wp-labs-superpowers fork
 
 See [`plugins/wp-labs-superpowers/FORK_MODIFICATIONS.md`](plugins/wp-labs-superpowers/FORK_MODIFICATIONS.md) for what the fork changes and how to update it.
