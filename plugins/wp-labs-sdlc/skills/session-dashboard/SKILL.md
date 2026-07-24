@@ -28,6 +28,7 @@ else
 fi
 ```
 
-After running, tell the user the dashboard is open and they may need to reload
-if they want data from the current session (the file picker is persistent across
-page loads once granted).
+After running, tell the user the dashboard is open. On first use they need to
+click the "Open ~/.claude" button (or the large "Open ~/.claude folder" button
+on the landing page) to grant folder access — not reload. Once granted, the
+permission is stored in IndexedDB and persists across page loads automatically.
