@@ -168,3 +168,22 @@ Print the output. Done — produce or write no interpretations.
    - For each ungrouped item, infer a group and call `q write-group <session-id> <n> "<group>"`.
    - Show the confirmation table and apply any reassignments.
    - Skip if all migrated items already have groups.
+
+## Mode E — Clear: `/queue clear`
+
+Cancels all open items in the current session and parks fresh copies in
+`pending.md`. The next session's start hook automatically renames
+`pending.md` → `<new-session-id>.md`, so the items surface as if they were
+queued in the new session.
+
+```bash
+${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q clear <session-id>
+```
+
+Use this when you want to close a session but carry its backlog forward
+without running it now. The original items are marked `- [-]` with
+`reason: Moved after clear` so the source session's history stays intact.
+
+## See also
+
+- [Using Queue Groups](../../../docs/using-queue-groups.md) — full guide to capturing, assigning, filtering, and bulk-acting on groups
