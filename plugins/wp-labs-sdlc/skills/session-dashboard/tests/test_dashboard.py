@@ -290,6 +290,54 @@ def test_sort_by_column_header(dash: Page) -> None:
     expect(rows.last).to_contain_text("Beta")
 
 
+# ── Timeline drag ─────────────────────────────────────────────────────────────
+
+def test_timeline_drag_sets_custom_date_filter(dash: Page) -> None:
+    """Dragging across the timeline canvas activates the custom date filter."""
+    s1 = _make_session("aaa-111", title="Old session", ts=NOW_MS - 24 * ONE_HOUR_MS)
+    s2 = _make_session("bbb-222", title="Recent session", ts=NOW_MS - ONE_HOUR_MS)
+    _inject(dash, [s1, s2])
+
+    canvas = dash.locator(".tl-canvas")
+    expect(canvas).to_be_visible()
+
+    box = canvas.bounding_box()
+    assert box is not None, "timeline canvas must have layout"
+
+    # Drag across the middle of the axis row (first 24px — no session bars there)
+    axis_y = box["y"] + 10
+    dash.mouse.move(box["x"] + box["width"] * 0.2, axis_y)
+    dash.mouse.down()
+    dash.mouse.move(box["x"] + box["width"] * 0.7, axis_y)
+    dash.mouse.up()
+    dash.wait_for_timeout(200)
+
+    expect(dash.locator("[data-period='custom'].on")).to_be_visible()
+
+
+def test_timeline_drag_below_threshold_ignored(dash: Page) -> None:
+    """A drag smaller than 0.5% of the timeline width is treated as a click, not a filter."""
+    s1 = _make_session("aaa-111", title="Session", ts=NOW_MS - 2 * ONE_HOUR_MS)
+    _inject(dash, [s1])
+
+    canvas = dash.locator(".tl-canvas")
+    expect(canvas).to_be_visible()
+
+    box = canvas.bounding_box()
+    assert box is not None
+    # Move only 0.1% of canvas width — below the 0.5% threshold
+    mid_x = box["x"] + box["width"] * 0.5
+    axis_y = box["y"] + 10
+    dash.mouse.move(mid_x, axis_y)
+    dash.mouse.down()
+    dash.mouse.move(mid_x + box["width"] * 0.001, axis_y)
+    dash.mouse.up()
+    dash.wait_for_timeout(200)
+
+    # Custom period should NOT be active
+    expect(dash.locator("[data-period='custom'].on")).to_have_count(0)
+
+
 # ── Agent blocks ──────────────────────────────────────────────────────────────
 
 def test_agent_block_shown_under_turn(dash: Page) -> None:

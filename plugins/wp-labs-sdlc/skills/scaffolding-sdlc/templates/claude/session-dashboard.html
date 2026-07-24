@@ -669,7 +669,7 @@ function renderFilterInfo(){
   document.getElementById('clearAll').onclick=e=>{e.preventDefault();clearAllFilters();};
 }
 function clearAllFilters(){
-  activeProject='all';activeDateFilter='all';activeTaskType='all';searchQuery='';tableSearch='';sortCol='date';sortAsc=false;expandedUuid=null;activeToolFilters=new Set();activeSessionFilter='';activeQueueStatus='';customDateFrom=null;customDateTo=null;
+  activeProject='all';activeDateFilter='all';activeTaskType='all';searchQuery='';tableSearch='';sortCol='date';sortAsc=false;expandedUuid=null;activeToolFilters=new Set();activeSessionFilter='';activeQueueStatus='';customDateFrom=null;customDateTo=null;_filterBarKey=null;
   document.getElementById('search').value='';
   const tsi=document.getElementById('tableSearchInp');if(tsi)tsi.value='';
   syncUrl();render();
@@ -728,9 +728,13 @@ function allToolsSkills(){
   for(const s of tableFilteredSessions){s.tools.filter(t=>t!=='Skill').forEach(t=>tools.add(t));s.skills.forEach(sk=>skills.add(sk));}
   return{tools:[...tools].sort(),skills:[...skills].sort()};
 }
+let _filterBarKey=null;
 function renderFilters(){
   const bar=document.getElementById('filterBar');
   const {tools,skills}=allToolsSkills();
+  const _key=JSON.stringify([activeDateFilter,activeTaskType,[...activeToolFilters].sort(),customDateFrom,customDateTo,...tools,...skills]);
+  if(_key===_filterBarKey){bar.style.display='flex';return;}
+  _filterBarKey=_key;
   const periodOpts=[{k:'all',l:'All time'},{k:'hour',l:'Last hour'},{k:'today',l:'Today'},{k:'week',l:'This week'},{k:'month',l:'This month'},{k:'custom',l:'Custom'}];
   const typeOpts=[{k:'all',l:'All'},{k:'chat',l:'Chat'},{k:'commands',l:'Commands'},{k:'queued',l:'Queued'},{k:'tasks',l:'Claude tasks'},{k:'haspr',l:'Has PR'}];
   const selectedChips=[...activeToolFilters].map(f=>
@@ -1036,7 +1040,7 @@ function getPricing(model){if(!model)return null;let p=PRICING[model];if(!p){con
 function calcCost(model,usage){const p=getPricing(model);if(!p)return null;return(usage.in*p.in+usage.cw*p.cw+usage.cr*p.cr+usage.out*p.out)/1e6;}
 
 // ─── Session cache ────────────────────────────────────────────────────────────────
-function cacheKey(){return'claude-sess-v2-'+rootHandles.map(h=>h.name).join('|');}
+function cacheKey(){return'claude-sess-v3-'+rootHandles.map(h=>h.name).join('|');}
 function serializeCache(sessions){
   return sessions.map(s=>({...s,
     startedAt:s.startedAt?.toISOString()||null,
@@ -1063,9 +1067,20 @@ async function hasNewerFiles(handles,cacheTs){
       for await(const[,pd]of pH){
         if(pd.kind!=='directory')continue;
         for await(const[fn,fh]of pd){
-          if(!fn.endsWith('.jsonl')||fh.kind!=='file')continue;
-          const f=await fh.getFile();
-          if(f.lastModified>cacheTs)return true;
+          if(fh.kind==='file'&&fn.endsWith('.jsonl')){
+            const f=await fh.getFile();
+            if(f.lastModified>cacheTs)return true;
+          } else if(fh.kind==='directory'){
+            // Subagent JSONL files are not reflected in parent JSONL mtime
+            try{
+              const subH=await fh.getDirectoryHandle('subagents');
+              for await(const[sfn,sfh]of subH){
+                if(!sfn.endsWith('.jsonl')||sfh.kind!=='file')continue;
+                const sf=await sfh.getFile();
+                if(sf.lastModified>cacheTs)return true;
+              }
+            }catch{}
+          }
         }
       }
     }catch{}
@@ -1112,8 +1127,17 @@ async function loadCache(){
 // ─── Event wiring ─────────────────────────────────────────────────────────────
 document.getElementById('clearCacheBtn').addEventListener('click',()=>load());
 document.getElementById('analyticsBtn').addEventListener('click',async()=>{await setupAnalyticsDir();if(analyticsHandle)load();});
-document.getElementById('search').addEventListener('input',e=>{searchQuery=e.target.value.trim();syncUrl();render();});
-document.getElementById('tableSearchInp').addEventListener('input',e=>{tableSearch=e.target.value;syncUrl();renderTable();renderFilterInfo();});
+let _searchDebounce=null,_tSearchDebounce=null;
+document.getElementById('search').addEventListener('input',e=>{
+  searchQuery=e.target.value.trim();
+  clearTimeout(_searchDebounce);
+  _searchDebounce=setTimeout(()=>{syncUrl();render();},200);
+});
+document.getElementById('tableSearchInp').addEventListener('input',e=>{
+  tableSearch=e.target.value;
+  clearTimeout(_tSearchDebounce);
+  _tSearchDebounce=setTimeout(()=>{syncUrl();renderTable();renderFilterInfo();},200);
+});
 
 // ─── Timeline drag ────────────────────────────────────────────────────────────
 document.addEventListener('mousemove',e=>{
