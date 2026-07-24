@@ -358,8 +358,10 @@ For each uncovered line, triage by whether the gap is obvious:
 |--------|---------------|
 | Reachable only via untested input combination | Guards with multiple conditions |
 | Defensive safety net, likely unreachable | `raise RuntimeError("unreachable")`, exhaustive `else` |
-| Covered by the e2e suite | UI-layer error paths |
-| Generated / boilerplate | Auto-generated serializers, scaffolded migrations |
+| Generated / boilerplate with no custom logic | Auto-generated migrations, `__str__`, scaffolded serializer fields |
+| 3rd party framework behaviour | `super().save()`, framework-provided validation, ORM field declarations |
+| Pure orchestration, covered by e2e | View/controller that delegates entirely to already-tested services; no conditional logic of its own |
+| UI-layer error path, covered by e2e | Frontend error display, form validation messages |
 
 Do not skip this step. Every gap needs a decision — silence is not an answer.
 
@@ -394,9 +396,6 @@ Keep the test file next to the source file in every language:
 
 ### Mocking Policy
 Minimize mocks — use them only at true system boundaries: databases, HTTP clients, filesystems, clocks, and external processes. Mock the I/O boundary, not the logic above it.
-
-- Unit tests: cover all edge cases and error paths.
-- e2e / integration tests: cover all golden-path use cases end to end.
 
 ## Testing Anti-Patterns
 
