@@ -101,6 +101,7 @@ for path in files:
             if in_interp:
                 if line.startswith('    '):
                     interp_lines.append(s)
+                    continue  # don't fall through to sub/meta parsing
                 else:
                     in_interp = False
             if s.startswith('- '):
@@ -171,8 +172,11 @@ for path in files:
         for line in lines[1:]:
             s = line.strip()
             if in_interp:
-                if line.startswith('    '): interp_lines.append(s)
-                else: in_interp = False
+                if line.startswith('    '):
+                    interp_lines.append(s)
+                    continue  # don't fall through to sub/meta parsing
+                else:
+                    in_interp = False
             if s.startswith('- '): sub.append(s[2:])
             elif s.startswith('interpretation:'):
                 interp_lines.append(s[len('interpretation:'):].strip()); in_interp = True

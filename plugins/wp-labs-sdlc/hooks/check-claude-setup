@@ -22,15 +22,13 @@ if [ -n "$_session_id" ]; then
   touch "$_sentinel"
 fi
 
-# Queue housekeeping: trash stale queue files (>30 days untouched)
-# ponytail: mtime-based; CLAUDE_QUEUE_TRASH_DIR override lets tests redirect trash.
+# Queue housekeeping: delete stale queue files (>30 days untouched)
+# ponytail: mtime-based; rm -f is cross-platform (prior mv-to-$HOME/.Trash was macOS-only).
 if [ -d "$_queue_dir" ]; then
-  mkdir -p "$_trash_dir" 2>/dev/null || true
   while IFS= read -r -d '' _qf; do
     _last_edit=$(date -r "$_qf" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "unknown")
-    _dest="$_trash_dir/$(basename "$_qf")"
-    mv "$_qf" "$_dest" 2>/dev/null && \
-      echo "queue housekeeping: trashed $(basename "$_qf") (last edit ${_last_edit}) -> ${_dest}" >&2 || true
+    rm -f "$_qf" && \
+      echo "queue housekeeping: deleted $(basename "$_qf") (last edit ${_last_edit})" >&2 || true
   done < <(find "$_queue_dir" -maxdepth 1 -type f -name '*.md' -mtime +30 -print0 2>/dev/null)
   # Prune per-session sentinel files older than 7 days
   find "$_queue_dir" -maxdepth 1 -name '.setup-*' -mtime +7 -delete 2>/dev/null || true
