@@ -394,6 +394,91 @@ def test_agent_block_shows_model_and_tokens(dash: Page) -> None:
     dash.locator("tr.srow").first.click()
     block = dash.locator(".agent-block")
     expect(block).to_be_visible()
-    # model name and token count should appear
     expect(block).to_contain_text("haiku-4-5")
     expect(block).to_contain_text("tok")
+
+
+def test_agent_block_shows_cost(dash: Page) -> None:
+    """Agent block shows a dollar cost when the model has known pricing."""
+    tool_use_id = "toolu_03ghi"
+    s = _make_session("ccc-333", title="Costed agent")
+    s["userTurns"] = [{
+        "role": "user",
+        "text": "Run agent",
+        "ts": NOW_MS,
+        "agentSpawns": [{"toolUseId": tool_use_id, "label": "Priced agent"}],
+    }]
+    s["agents"] = [{
+        "agentId": "agent-cost",
+        "agentType": "claude",
+        "description": "Priced agent",
+        "toolUseId": tool_use_id,
+        "spawnDepth": 1,
+        "parentAgentId": None,
+        # large enough for cost >= $0.01 so it renders as $X.XX not $0.0000X
+        "usage": {"in": 1_000_000, "out": 100_000, "cw": 0, "cr": 0},
+        "model": "haiku-4-5",
+        "effort": "normal",
+        "tools": [],
+        "lastAssistantText": None,
+    }]
+    _inject(dash, [s])
+    dash.locator("tr.srow").first.click()
+    expect(dash.locator(".agent-cost")).to_be_visible()
+    expect(dash.locator(".agent-cost")).to_contain_text("$")
+
+
+def test_agent_block_shows_tools(dash: Page) -> None:
+    """Agent block shows tool names used by the agent."""
+    tool_use_id = "toolu_04jkl"
+    s = _make_session("ddd-444", title="Tooled agent")
+    s["userTurns"] = [{
+        "role": "user",
+        "text": "Run agent",
+        "ts": NOW_MS,
+        "agentSpawns": [{"toolUseId": tool_use_id, "label": "Tool agent"}],
+    }]
+    s["agents"] = [{
+        "agentId": "agent-tools",
+        "agentType": "claude",
+        "description": "Tool agent",
+        "toolUseId": tool_use_id,
+        "spawnDepth": 1,
+        "parentAgentId": None,
+        "usage": {"in": 500, "out": 200, "cw": 0, "cr": 0},
+        "model": "haiku-4-5",
+        "effort": "normal",
+        "tools": ["Bash", "Read", "Edit"],
+        "lastAssistantText": None,
+    }]
+    _inject(dash, [s])
+    dash.locator("tr.srow").first.click()
+    expect(dash.locator(".agent-block")).to_contain_text("Bash")
+
+
+def test_agent_block_shows_effort_badge(dash: Page) -> None:
+    """Effort badge appears in the agent block when effort is not 'normal'."""
+    tool_use_id = "toolu_05mno"
+    s = _make_session("eee-555", title="High effort agent")
+    s["userTurns"] = [{
+        "role": "user",
+        "text": "Run agent",
+        "ts": NOW_MS,
+        "agentSpawns": [{"toolUseId": tool_use_id, "label": "Effort agent"}],
+    }]
+    s["agents"] = [{
+        "agentId": "agent-effort",
+        "agentType": "claude",
+        "description": "Effort agent",
+        "toolUseId": tool_use_id,
+        "spawnDepth": 1,
+        "parentAgentId": None,
+        "usage": {"in": 500, "out": 200, "cw": 0, "cr": 0},
+        "model": "haiku-4-5",
+        "effort": "high",
+        "tools": [],
+        "lastAssistantText": None,
+    }]
+    _inject(dash, [s])
+    dash.locator("tr.srow").first.click()
+    expect(dash.locator(".agent-block")).to_contain_text("high")
