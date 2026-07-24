@@ -894,7 +894,6 @@ def _process_batch(
         sid = upsert_session(con, rel, proj, h, meta)
         insert_agents(con, sid, meta.get("agents") or [])
         session_ids[jsonl_path.stem] = sid
-    con.commit()
 
     try:
         result = summarize_batch(batch, queue_dir)
@@ -904,7 +903,7 @@ def _process_batch(
 
     needs_full = result.get("needs_full_context") or []
     summary_id, auto_apply, unapplied = write_summary(con, list(session_ids.values()), result, now_iso)
-    con.commit()
+    con.commit()  # sessions + summary committed atomically; LLM failure above leaves both uncommitted
 
     if needs_full:
         _run_second_pass(batch, session_ids, needs_full, queue_dir, con, project, workspace, claude_dir, now_iso, dry_run)
