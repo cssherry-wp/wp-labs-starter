@@ -12,7 +12,7 @@ import sqlite3
 import subprocess
 import sys
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -259,12 +259,17 @@ def extract_metadata(jsonl_path: Path | str) -> dict[str, Any]:
     }
 
 
-def scan_sessions(sessions_dir: Path | str, con: sqlite3.Connection) -> list[SessionItem]:
+def scan_sessions(
+    sessions_dir: Path | str,
+    con: sqlite3.Connection,
+    since: datetime | None = None,
+) -> list[SessionItem]:
     """Walk sessions_dir for JSONL files; return items with new or changed hashes.
 
     Args:
         sessions_dir: Root directory containing per-project subdirectories.
         con: Open database connection for hash lookups.
+        since: If set, skip files with mtime older than this timestamp.
 
     Returns:
         List of SessionItem tuples for sessions that need processing.
@@ -278,6 +283,9 @@ def scan_sessions(sessions_dir: Path | str, con: sqlite3.Connection) -> list[Ses
             continue
         project = proj_dir.name
         for jsonl in sorted(proj_dir.glob("*.jsonl")):
+            if since and datetime.fromtimestamp(jsonl.stat().st_mtime, tz=timezone.utc) < since:
+                skipped += 1
+                continue
             rel = str(jsonl.relative_to(sessions_dir))
             h = sha256_file(jsonl)
             row = con.execute("SELECT file_hash FROM sessions WHERE path=?", (rel,)).fetchone()
@@ -1057,19 +1065,22 @@ def main() -> None:
     ap.add_argument("--output", default=os.path.expanduser("~/ClaudeAnalytics/session_summaries.db"),
                     help="SQLite output path")
     ap.add_argument("--dry-run", action="store_true", help="Skip file writes; DB is still updated")
+    ap.add_argument("--since-hours", type=float, default=None, metavar="N",
+                    help="Only process sessions whose file was modified in the last N hours")
     args = ap.parse_args()
 
     claude_dir = Path(args.claude_dir)
     sessions_dir = Path(args.sessions_dir) if args.sessions_dir else claude_dir / "projects"
     queue_dir = claude_dir / "queue"
     now_iso = datetime.now(timezone.utc).isoformat()
+    since = datetime.now(timezone.utc) - timedelta(hours=args.since_hours) if args.since_hours else None
 
     if not sessions_dir.exists():
         print(f"Sessions directory not found: {sessions_dir}", file=sys.stderr)
         sys.exit(1)
 
     con = init_db(args.output)
-    to_process = scan_sessions(sessions_dir, con)
+    to_process = scan_sessions(sessions_dir, con, since=since)
     if not to_process:
         print("Nothing to process.")
         con.close()
