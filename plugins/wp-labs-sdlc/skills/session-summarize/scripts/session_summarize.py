@@ -330,7 +330,7 @@ Return a single JSON object with the following fields.
   Only request what you genuinely need — each request triggers an extra API call.
 
 "summary_text": narrative string. Put outcomes first: list commits, PRs, and issues
-  referenced in the transcript or in the <github-refs> block with their actual identifiers.
+  referenced in the transcript or in the <refs> block (GitHub PRs/issues, Jira tickets, Bitbucket PRs) with their actual identifiers.
   Never invent git hashes, PR numbers, or branch names. Include real links when
   available. Then summarize what was worked on and the overall outcome.
 
@@ -415,30 +415,38 @@ def _extract_turns(jsonl_path: Path | str) -> list[str]:
     return turns
 
 
-_GITHUB_REF_RE = re.compile(
-    r"https://github\.com/\S+?/(?:pull|issues)/(\d+)"
-    r"|(?:PR|pull\s+request|issue|closes?|fixes?|resolves?|refs?)\s+#(\d+)",
+_REF_RE = re.compile(
+    r"https://github\.com/\S+?/(?:pull|issues)/(?P<gh_num>\d+)"
+    r"|(?:PR|pull\s+request|issue|closes?|fixes?|resolves?|refs?)\s+#(?P<gh_inline>\d+)"
+    r"|https://(?:[^/\s]+\.atlassian\.net)/browse/(?P<jira_key>[A-Z][A-Z0-9]{0,9}-\d+)"
+    r"|https://bitbucket\.org/\S+?/pull-requests/(?P<bb_num>\d+)",
     re.IGNORECASE,
 )
 
 
-def _extract_github_refs(jsonl_path: Path | str) -> list[str]:
-    """Scan a session JSONL for GitHub PR/issue references.
+def _extract_refs(jsonl_path: Path | str) -> list[str]:
+    """Scan a session JSONL for GitHub, Jira, and Bitbucket references.
 
     Args:
         jsonl_path: Path to the .jsonl session file.
 
     Returns:
-        Sorted deduplicated list of ref strings like '#84' or full URLs.
+        Sorted deduplicated list of ref strings like '#84', 'PROJECT-123', or 'BB-PR#5'.
     """
     refs: set[str] = set()
     with open(jsonl_path, encoding="utf-8", errors="replace") as f:
         for line in f:
-            for m in _GITHUB_REF_RE.finditer(line):
-                num = m.group(1) or m.group(2)
-                if num:
-                    refs.add(f"#{num}")
-    return sorted(refs, key=lambda r: int(r[1:]))
+            for m in _REF_RE.finditer(line):
+                gh = m.group("gh_num") or m.group("gh_inline")
+                jira = m.group("jira_key")
+                bb = m.group("bb_num")
+                if gh:
+                    refs.add(f"#{gh}")
+                elif jira:
+                    refs.add(jira.upper())
+                elif bb:
+                    refs.add(f"BB-PR#{bb}")
+    return sorted(refs)
 
 
 def _build_transcript(jsonl_path: Path | str, full_transcript: bool = False) -> str:
@@ -463,6 +471,27 @@ def _build_transcript(jsonl_path: Path | str, full_transcript: bool = False) -> 
     return "\n".join(turns)
 
 
+def _duration_str(started: str | None, last: str | None) -> str:
+    """Format the elapsed time between two ISO timestamps as a human-readable string.
+
+    Args:
+        started: ISO 8601 timestamp for session start, or None.
+        last: ISO 8601 timestamp for last activity, or None.
+
+    Returns:
+        Duration string like "42m" or "1h7m", or "?" if timestamps are missing/invalid.
+    """
+    if not started or not last:
+        return "?"
+    try:
+        s = datetime.fromisoformat(started.replace("Z", "+00:00"))
+        e = datetime.fromisoformat(last.replace("Z", "+00:00"))
+        m = round((e - s).total_seconds() / 60)
+        return f"{m // 60}h{m % 60}m" if m >= 60 else f"{m}m"
+    except Exception:
+        return "?"
+
+
 def build_session_block(item: SessionItem, queue_dir: Path | str, full_transcript: bool = False) -> str:
     """Build the LLM input block for a single session.
 
@@ -483,15 +512,16 @@ def build_session_block(item: SessionItem, queue_dir: Path | str, full_transcrip
     queue_text = queue_file.read_text(encoding="utf-8") if queue_file.exists() else "(none)"
     away = meta.get("away_summary")
     transcript = _build_transcript(jsonl_path, full_transcript=full_transcript)
-    github_refs = _extract_github_refs(jsonl_path)
+    all_refs = _extract_refs(jsonl_path)
 
+    duration = _duration_str(meta.get("started_at"), meta.get("last_activity_at"))
     header = f"Session {uuid} | {project} | {meta.get('started_at', '')}\n"
-    header += f"Cost: ${meta.get('cost_usd', 0):.4f} | Turns: {meta.get('user_turns',0)}u/{meta.get('assistant_turns',0)}a | Model: {meta.get('model', 'unknown')}\n"
+    header += f"Duration: {duration} | Cost: ${meta.get('cost_usd', 0):.4f} | Turns: {meta.get('user_turns',0)}u/{meta.get('assistant_turns',0)}a | Model: {meta.get('model', 'unknown')}\n"
     inner = f"<title>{title}</title>\n"
     inner += "<tasks>\n" + ("\n".join(task_lines) if task_lines else "(none)") + "\n</tasks>\n"
     inner += f"<queue-items>\n{queue_text}\n</queue-items>\n"
-    if github_refs:
-        inner += "<github-refs>" + ", ".join(github_refs) + "</github-refs>\n"
+    if all_refs:
+        inner += "<refs>" + ", ".join(all_refs) + "</refs>\n"
     if away:
         inner += f"<away-summary>\n{away}\n</away-summary>\n"
     inner += f"<transcript>\n{transcript}\n</transcript>\n"
