@@ -134,7 +134,7 @@ If nothing is currently in progress, say so and offer to run the item now instea
 5. Mark completed: `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q mark-done <session-id> <n1> <n2> ...`
    Close with one line: what ran, what was skipped, what was dropped.
 
-6. **Ralph loop**: if open items remain, re-run `q list` and `q needs-interpretation`.
+6. **Drain loop**: if open items remain, re-run `q list` and `q needs-interpretation`.
    Loop until no open items or user replies "stop" / "done" / "exit".
 
 ## Mode C — List only: `/queue list`
