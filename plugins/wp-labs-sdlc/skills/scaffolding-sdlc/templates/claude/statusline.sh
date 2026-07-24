@@ -111,12 +111,12 @@ out="${CY}${folder}${branch:+ [$branch]}${R}"
 [[ -n "$sync" ]] && out+=" | ${YL}${sync}${R}"
 out+=" | ${bar_c}${token_pct}% ${bar}${R}${cost_str:+ ${DM}${cost_str}${R}}${dur_str:+ ${DM}${dur_str}${R}}"
 [[ -n "$pt" ]] && out+=" | ${YL}${pt}${R}"
-[[ -n "$model" ]] && out+=" | ${model}"
+out+=" | ${model:-${DM}(new)${R}}"
 [[ -n "$session_id" ]] && out+=" | ${DM}${session_id}${R}"
 out+=" | ${DM}${cfg/$HOME/~}${R}"
 echo "$out"
 
-# --- Line 2: first → last user message ---
+# --- Line 2: first → last user message, or hint when session has no messages yet ---
 if [[ -n "$first_msg" || -n "$last_msg" ]]; then
   cols=$(tput cols 2>/dev/null || echo 120)
   if [[ "$first_msg" == "$last_msg" ]]; then
@@ -129,4 +129,6 @@ if [[ -n "$first_msg" || -n "$last_msg" ]]; then
     msg_line="\"${f}\" → \"${l}\""
   fi
   echo "${DM}${msg_line}${R}"
+else
+  echo "${DM}(new session)${R}"
 fi
