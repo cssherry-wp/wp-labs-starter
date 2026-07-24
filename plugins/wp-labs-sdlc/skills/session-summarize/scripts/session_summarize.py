@@ -79,7 +79,12 @@ CREATE TABLE IF NOT EXISTS summaries (
     improvement_suggestions TEXT,
     unusual_flags TEXT,
     applied_improvements TEXT DEFAULT '[]',
-    unapplied_improvements TEXT
+    unapplied_improvements TEXT,
+    input_tokens INTEGER DEFAULT 0,
+    output_tokens INTEGER DEFAULT 0,
+    cache_write_tokens INTEGER DEFAULT 0,
+    cache_read_tokens INTEGER DEFAULT 0,
+    cost_usd REAL
 );
 CREATE TABLE IF NOT EXISTS session_summary_items (
     session_id INTEGER NOT NULL REFERENCES sessions(id),
@@ -102,6 +107,17 @@ def init_db(db_path: Path | str) -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(str(db_path))
     con.executescript(SCHEMA)
+    for col, ddl in [
+        ("input_tokens", "INTEGER DEFAULT 0"),
+        ("output_tokens", "INTEGER DEFAULT 0"),
+        ("cache_write_tokens", "INTEGER DEFAULT 0"),
+        ("cache_read_tokens", "INTEGER DEFAULT 0"),
+        ("cost_usd", "REAL"),
+    ]:
+        try:
+            con.execute(f"ALTER TABLE summaries ADD COLUMN {col} {ddl}")
+        except sqlite3.OperationalError:
+            pass  # column already exists
     con.commit()
     return con
 
@@ -475,29 +491,55 @@ def parse_llm_response(text: str) -> dict[str, Any]:
     raise ValueError(f"No JSON object found in response: {text[:200]!r}")
 
 
-def call_claude(prompt: str) -> str:
-    """Invoke `claude -p` with a prompt and return stdout.
+def call_claude(prompt: str) -> tuple[str, dict[str, Any]]:
+    """Invoke `claude -p --output-format json` and return (text, usage).
 
     Args:
         prompt: The full prompt to pass to the claude CLI.
 
     Returns:
-        Stripped stdout from the claude process.
+        Tuple of (response text, usage dict with normalized token/cost keys).
 
     Raises:
         RuntimeError: If claude exits with a non-zero code.
     """
-    result = subprocess.run(["claude", "-p", prompt], capture_output=True, text=True, timeout=300, check=False)
+    result = subprocess.run(
+        ["claude", "-p", "--output-format", "json", prompt],
+        capture_output=True, text=True, timeout=300, check=False,
+    )
     if result.returncode != 0:
         raise RuntimeError(f"claude -p exited {result.returncode}: {result.stderr[:500]}")
-    return result.stdout.strip()
+
+    text = ""
+    usage: dict[str, Any] = {}
+    raw = result.stdout
+    idx = raw.find("[")
+    if idx >= 0:
+        try:
+            entries = json.loads(raw[idx:])
+            for obj in entries:
+                if obj.get("type") == "result":
+                    text = obj.get("result", "")
+                    u = obj.get("usage") or {}
+                    usage = {
+                        "input_tokens": u.get("input_tokens", 0),
+                        "output_tokens": u.get("output_tokens", 0),
+                        "cache_write_tokens": u.get("cache_creation_input_tokens", 0),
+                        "cache_read_tokens": u.get("cache_read_input_tokens", 0),
+                        "cost_usd": obj.get("total_cost_usd"),
+                    }
+                    break
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    return text or raw.strip(), usage
 
 
 def summarize_batch(
     batch: list[SessionItem],
     queue_dir: Path | str,
     full_uuids: set[str] | None = None,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """Summarize a batch of sessions with one claude -p call.
 
     Args:
@@ -506,7 +548,7 @@ def summarize_batch(
         full_uuids: UUIDs that should receive the full transcript (not truncated).
 
     Returns:
-        Parsed LLM response dict.
+        Tuple of (parsed LLM response dict, usage dict).
     """
     full_uuids = full_uuids or set()
     blocks = [
@@ -515,7 +557,8 @@ def summarize_batch(
     ]
     prompt = LLM_PROMPT_HEADER + "\n\n---\n\n".join(blocks)
     print(f"  Calling claude -p for {len(batch)} session(s)...", flush=True)
-    return parse_llm_response(call_claude(prompt))
+    text, usage = call_claude(prompt)
+    return parse_llm_response(text), usage
 
 
 # ---------------------------------------------------------------------------
@@ -589,6 +632,7 @@ def write_summary(
     con: sqlite3.Connection,
     session_ids: list[int],
     result: dict[str, Any],
+    usage: dict[str, Any],
     now_iso: str,
 ) -> tuple[int, list[dict], list[dict]]:
     """Insert one summaries row and link it to session_ids.
@@ -597,6 +641,7 @@ def write_summary(
         con: Open database connection.
         session_ids: Session row IDs to link to this summary.
         result: Parsed LLM response dict.
+        usage: Token/cost usage from the claude -p call.
         now_iso: ISO timestamp string for created_at.
 
     Returns:
@@ -609,8 +654,9 @@ def write_summary(
     cur = con.execute(
         """INSERT INTO summaries
            (created_at,summary_text,completed_tasks,incomplete_tasks,
-            improvement_suggestions,unusual_flags,unapplied_improvements,applied_improvements)
-           VALUES (?,?,?,?,?,?,?,?)""",
+            improvement_suggestions,unusual_flags,unapplied_improvements,applied_improvements,
+            input_tokens,output_tokens,cache_write_tokens,cache_read_tokens,cost_usd)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             now_iso, result.get("summary_text", ""),
             json.dumps(result.get("completed_tasks") or []),
@@ -619,6 +665,11 @@ def write_summary(
             json.dumps(result.get("unusual_flags") or []),
             json.dumps(unapplied),
             json.dumps([]),
+            usage.get("input_tokens", 0),
+            usage.get("output_tokens", 0),
+            usage.get("cache_write_tokens", 0),
+            usage.get("cache_read_tokens", 0),
+            usage.get("cost_usd"),
         ),
     )
     summary_id = cur.lastrowid
@@ -870,9 +921,9 @@ def _run_second_pass(
     full_set = {item[0].stem for item in full_items}
     print(f"  Second pass: {len(full_items)} session(s) need full context...", flush=True)
     try:
-        result2 = summarize_batch(full_items, queue_dir, full_uuids=full_set)
+        result2, usage2 = summarize_batch(full_items, queue_dir, full_uuids=full_set)
         full_ids = [session_ids[uuid] for uuid in full_set if uuid in session_ids]
-        summary_id2, auto2, unapplied2 = write_summary(con, full_ids, result2, now_iso)
+        summary_id2, auto2, unapplied2 = write_summary(con, full_ids, result2, usage2, now_iso)
         con.commit()
         if auto2:
             apply_improvements(con, summary_id2, auto2, project, workspace, claude_dir, now_iso, dry_run)
@@ -910,13 +961,13 @@ def _process_batch(
         session_ids[jsonl_path.stem] = sid
 
     try:
-        result = summarize_batch(batch, queue_dir)
+        result, usage = summarize_batch(batch, queue_dir)
     except Exception as e:
         print(f"  ⚠ LLM summarization failed: {e}", file=sys.stderr)
         return
 
     needs_full = result.get("needs_full_context") or []
-    summary_id, auto_apply, unapplied = write_summary(con, list(session_ids.values()), result, now_iso)
+    summary_id, auto_apply, unapplied = write_summary(con, list(session_ids.values()), result, usage, now_iso)
     con.commit()  # sessions + summary committed atomically; LLM failure above leaves both uncommitted
 
     if needs_full:
