@@ -66,7 +66,7 @@ python3 session_summarize.py \
 
 ## Adapting for a team
 
-To run on a schedule (e.g. nightly), invoke the script directly and commit the DB to a shared location, or use the `/schedule` skill to set up a cloud agent.
+To run on a schedule (e.g. nightly), invoke the script directly and store the DB file in a shared location (e.g. a network drive or object storage). Do not commit the SQLite binary to git — it has no meaningful merge semantics. Use the `/schedule` skill to set up a cloud agent instead.
 
 To tune the confidence threshold, edit `write_summary()` in `session_summarize.py` — the split between `auto_apply` and `unapplied` is a single comparison against 75.
 
