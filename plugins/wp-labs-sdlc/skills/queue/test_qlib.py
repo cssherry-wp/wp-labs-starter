@@ -1,6 +1,6 @@
 import os, tempfile, sys
 sys.path.insert(0, os.path.dirname(__file__))
-from _qlib import cancel_block, parse_block_meta, split_blocks, write_group
+from _qlib import cancel_block, migrate_blocks, parse_block_meta, split_blocks, write_group
 
 
 def _tmp(content):
@@ -93,6 +93,36 @@ def test_parse_block_meta_group_and_priority():
     assert meta['group'] == 'ci-fixes'
 
 
+# --- migrate_blocks ---
+
+_QUEUE_TWO = (
+    "- [ ] Item one\n  queued: 2026-01-01 00:00:00\n  ctx: foo\n\n"
+    "- [ ] Item two\n  queued: 2026-01-01 00:00:00\n  ctx: foo\n\n"
+)
+
+def test_migrate_blocks_cancels_and_returns_fresh():
+    updated, fresh = migrate_blocks(_QUEUE_TWO, {1}, '2026-01-01 12:00:00', 'dst-sid')
+    assert '- [-]' in updated
+    assert 'moved-to: dst-sid' in updated
+    assert len(fresh) == 1
+    assert fresh[0].startswith('- [ ] Item one')
+
+def test_migrate_blocks_leaves_unselected_open():
+    updated, fresh = migrate_blocks(_QUEUE_TWO, {1}, '2026-01-01 12:00:00', 'dst-sid')
+    assert '- [ ] Item two' in updated
+    assert len(fresh) == 1
+
+def test_migrate_blocks_empty_set_migrates_nothing():
+    updated, fresh = migrate_blocks(_QUEUE_TWO, set(), '2026-01-01 12:00:00', 'dst-sid')
+    assert updated == _QUEUE_TWO
+    assert fresh == []
+
+def test_migrate_blocks_multiple_items():
+    updated, fresh = migrate_blocks(_QUEUE_TWO, {1, 2}, '2026-01-01 12:00:00', 'dst-sid')
+    assert updated.count('- [-]') == 2
+    assert len(fresh) == 2
+
+
 # --- write_group ---
 
 def test_write_group_adds_field():
@@ -129,6 +159,10 @@ def test_write_group_strips_whitespace():
 
 
 if __name__ == '__main__':
+    test_migrate_blocks_cancels_and_returns_fresh()
+    test_migrate_blocks_leaves_unselected_open()
+    test_migrate_blocks_empty_set_migrates_nothing()
+    test_migrate_blocks_multiple_items()
     test_split_blocks_empty()
     test_split_blocks_single()
     test_split_blocks_multiple()

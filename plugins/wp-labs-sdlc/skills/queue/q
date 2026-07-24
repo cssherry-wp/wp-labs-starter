@@ -153,15 +153,14 @@ migrate-items)
   SID="$1"; shift; _validate_sid "$SID"
 
   python3 - "$SCRIPT_DIR" "$SID" "$QUEUE_DIR" "$@" <<'PY'
-import sys, re, os
-from datetime import datetime, date
+import sys, os
+from datetime import datetime
 sys.path.insert(0, sys.argv[1])
-from _qlib import split_blocks, cancel_block
+from _qlib import migrate_blocks
 
 cur_sid, queue_dir = sys.argv[2], sys.argv[3]
 refs = sys.argv[4:]
 stamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-date_str = date.today().isoformat()
 dst_path = os.path.join(queue_dir, cur_sid + '.md')
 
 by_sid = {}
@@ -187,29 +186,14 @@ for sid_prefix, item_nums in by_sid.items():
     if not matching:
         print(f'Session not found: {sid_prefix}'); continue
     src_path = os.path.join(queue_dir, matching[0])
-    src_sid = matching[0][:-3]
 
-    text = open(src_path).read()
-    blocks = split_blocks(text)
-
-    local_n, new_src, fresh_items = 0, [], []
-    for block in blocks:
-        if block.startswith('- [ ]'):
-            local_n += 1
-            if local_n in item_nums:
-                new_src.append(cancel_block(block, stamp, 'Moved after exit', cur_sid))
-                fresh_items.append(block.rstrip())
-                total += 1
-            else:
-                new_src.append(block)
-        else:
-            new_src.append(block)
-
+    updated_src, fresh_items = migrate_blocks(open(src_path).read(), item_nums, stamp, cur_sid)
     if fresh_items:
-        open(src_path, 'w').write(''.join(new_src))
+        open(src_path, 'w').write(updated_src)
         with open(dst_path, 'a') as f:
             for item in fresh_items:
                 f.write(item + '\n\n')
+        total += len(fresh_items)
 
 print(f'Migrated {total} item(s) to this session.' if total else 'No items migrated.')
 PY

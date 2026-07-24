@@ -61,6 +61,7 @@ ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q write-group <session-id> <n> "docs"
 During `/queue` drain, after writing interpretations, Claude:
 
 1. Calls `q list` to find items without a `[group]` badge.
+   Items that already have a group keep it — only ungrouped items are assigned one.
 2. Infers a short group name for each ungrouped item from its ask and interpretation.
 3. Writes the inferred group with `q write-group`.
 4. Shows a confirmation table and applies any reassignments you reply with.
