@@ -105,7 +105,7 @@ header h1{font-size:13.5px;font-weight:700;letter-spacing:-.01em;white-space:now
 /* ── Table ── */
 #tblHead{display:none;padding:8px 14px 4px;align-items:center;justify-content:space-between;gap:8px}
 #tblLabel{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em}
-#tableSearchInp{border:1px solid var(--border);border-radius:4px;padding:4px 10px;background:transparent;color:var(--fg);font-size:12px;width:220px;outline:none}
+#tableSearchInp{border:1px solid var(--border);border-radius:4px;padding:4px 10px;background:transparent;color:var(--ink);font-size:12px;width:220px;outline:none}
 #tableSearchInp:focus{border-color:var(--accent)}
 #tableSearchInp::placeholder{color:var(--dim)}
 #tableSection{flex:1;padding:0 14px 20px;display:none}
@@ -235,7 +235,15 @@ const PROJ_COLORS=['#7c3aed','#2ea043','#d29922','#f85149','#388bfd','#db61a2','
 const COLOR_CSS={red:'#f85149',orange:'#d29922',yellow:'#e3b341',green:'#2ea043',blue:'#388bfd',purple:'#7c3aed',pink:'#db61a2',cyan:'#39d353',teal:'#1abc9c',white:'#c9d1d9',black:'#6e7681',gray:'#8b949e',grey:'#8b949e'};
 const TOOL_DESC={'Bash':'Run shell commands','Read':'Read files from disk','Edit':'Edit files (targeted diff)','Write':'Write/create files','Agent':'Spawn a subagent','Workflow':'Run multi-agent workflow','TaskCreate':'Create managed tasks','Skill':'Invoke a skill','WebFetch':'Fetch web content','WebSearch':'Search the web','Artifact':'Publish artifact','AskUserQuestion':'Ask user a clarifying question','ReportFindings':'Report code-review findings','PushNotification':'Send OS notification','LSP':'Language server queries','EnterPlanMode':'Enter plan mode','ExitPlanMode':'Approve plan and exit'};
 const PRICING={'opus-4-8':{in:15,cw:3.75,cr:1.50,out:75},'opus-4':{in:15,cw:3.75,cr:1.50,out:75},'opus-4-7':{in:15,cw:3.75,cr:1.50,out:75},'sonnet-5':{in:3,cw:0.375,cr:0.30,out:15},'sonnet-4-5':{in:3,cw:0.375,cr:0.30,out:15},'sonnet-4':{in:3,cw:0.375,cr:0.30,out:15},'haiku-4-5':{in:0.80,cw:0.10,cr:0.08,out:4},'haiku-4':{in:0.25,cw:0.03,cr:0.025,out:1.25}};
-const SKIP_WORDS=['Users','sherryzhou','code','Notes','private','tmp','home'];
+// ponytail: updated by inferSkipWords() at load time; base list covers OS paths only
+let SKIP_WORDS=['Users','home','private','tmp'];
+function inferSkipWords(projDirNames){
+  if(!projDirNames.length)return;
+  const segs=projDirNames.map(n=>n.replace(/^-+/,'').split('-').filter(Boolean));
+  let i=0;
+  while(segs[0]&&i<segs[0].length&&segs.every(s=>s[i]===segs[0][i]))i++;
+  SKIP_WORDS=[...new Set(['Users','home','private','tmp',...(segs[0]||[]).slice(0,i)])];
+}
 const FUNNEL='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 4h18l-7 8v7l-4 2v-9z"/></svg>';
 
 // ─── State ──────────────────────────────────────────────────────────────────
@@ -408,7 +416,7 @@ async function load(){
   uuidToName={};const sessions=new Map();let done=0,total=0;
   for(const rootHandle of rootHandles){
     try{const sH=await rootHandle.getDirectoryHandle('sessions');for await(const[fn,fh]of sH){if(!fn.endsWith('.json')||fh.kind!=='file')continue;try{const d=JSON.parse(await(await fh.getFile()).text());if(d.sessionId&&d.name)uuidToName[d.sessionId]=d.name;}catch{}}}catch{}
-    try{const pH=await rootHandle.getDirectoryHandle('projects');for await(const[,pd]of pH){if(pd.kind!=='directory')continue;for await(const[fn]of pd){if(fn.endsWith('.jsonl'))total++;}}}catch{}
+    try{const pH=await rootHandle.getDirectoryHandle('projects');const _pns=[];for await(const[pn,pd]of pH){if(pd.kind!=='directory')continue;_pns.push(pn);for await(const[fn]of pd){if(fn.endsWith('.jsonl'))total++;}}inferSkipWords(_pns);}catch{}
     try{
       const pH=await rootHandle.getDirectoryHandle('projects');
       for await(const[proj,pd]of pH){
@@ -480,6 +488,7 @@ async function loadFromFileList(fileList){
   const files=Array.from(fileList),jsonlFiles=[],queueFiles=[],sessFiles=[],agentJsonlFiles=[],agentMetaFiles=[];
   for(const f of files){const p=f.webkitRelativePath.split('/');if(p[1]==='projects'&&p[3]?.endsWith('.jsonl'))jsonlFiles.push([f,p[2],p[3].slice(0,-6)]);else if(p[1]==='projects'&&p[4]==='subagents'&&p[5]?.endsWith('.jsonl'))agentJsonlFiles.push([f,p[2],p[3],p[5]]);else if(p[1]==='projects'&&p[4]==='subagents'&&p[5]?.endsWith('.meta.json'))agentMetaFiles.push([f,p[2],p[3],p[5]]);else if(p[1]==='queue'&&p[2]?.endsWith('.md'))queueFiles.push([f,p[2].slice(0,-3)]);else if(p[1]==='sessions'&&p[2]?.endsWith('.json'))sessFiles.push(f);}
   for(const f of sessFiles){try{const d=JSON.parse(await f.text());if(d.sessionId&&d.name)uuidToName[d.sessionId]=d.name;}catch{}}
+  inferSkipWords([...new Set(jsonlFiles.map(([,proj])=>proj))]);
   const tot=jsonlFiles.length;let dn=0;
   for(const[f,proj,uuid]of jsonlFiles){
     try{const p=parseJSONL(await f.text());if(!sessions.has(uuid))sessions.set(uuid,mkSession(uuid,proj));const s=sessions.get(uuid);if(!s.name)s.name=uuidToName[uuid]||null;mergeJSONL(s,p);}catch{}
