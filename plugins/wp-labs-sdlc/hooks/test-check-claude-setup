@@ -19,59 +19,91 @@ printf '# CLAUDE\n' > "$TMPL/CLAUDE.md"
 printf '#!/usr/bin/env bash\necho hi\n' > "$TMPL/statusline.sh"
 printf 'rule content\n' > "$TMPL/rules/coding.md"
 printf '{"defaultMode":"plan","enabledPlugins":{"foo":true}}\n' > "$TMPL/settings.json"
+printf '<html>dashboard</html>\n' > "$TMPL/session-dashboard.html"
 
 # --- Test 1: clean (all files match) -> silent ---
-LOCAL="$TMP/clean"
-mkdir -p "$LOCAL/rules"
+LOCAL="$TMP/clean"; ANALYTICS="$TMP/clean-analytics"
+mkdir -p "$LOCAL/rules" "$ANALYTICS"
 cp "$TMPL/CLAUDE.md" "$LOCAL/CLAUDE.md"
 cp "$TMPL/statusline.sh" "$LOCAL/statusline.sh"
 cp "$TMPL/rules/coding.md" "$LOCAL/rules/coding.md"
+cp "$TMPL/session-dashboard.html" "$ANALYTICS/session-dashboard.html"
 printf '{"defaultMode":"plan","enabledPlugins":{"foo":true},"personalKey":"x"}\n' > "$LOCAL/settings.json"
 
-out=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$LOCAL" bash "$HOOK" 2>/dev/null || true)
+out=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$LOCAL" CLAUDE_ANALYTICS_DIR="$ANALYTICS" bash "$HOOK" 2>/dev/null || true)
 [ -z "$out" ] && pass "clean -> silent" || fail "clean -> expected no output, got: $out"
 
 # --- Test 2: CLAUDE.md differs -> JSON listing it ---
-LOCAL="$TMP/drift_claudemd"
-mkdir -p "$LOCAL/rules"
+LOCAL="$TMP/drift_claudemd"; ANALYTICS="$TMP/drift_claudemd-analytics"
+mkdir -p "$LOCAL/rules" "$ANALYTICS"
 printf '# OLD\n' > "$LOCAL/CLAUDE.md"
 cp "$TMPL/statusline.sh" "$LOCAL/statusline.sh"
 cp "$TMPL/rules/coding.md" "$LOCAL/rules/coding.md"
+cp "$TMPL/session-dashboard.html" "$ANALYTICS/session-dashboard.html"
 printf '{"defaultMode":"plan","enabledPlugins":{"foo":true}}\n' > "$LOCAL/settings.json"
 
-out=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$LOCAL" bash "$HOOK" 2>/dev/null || true)
+out=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$LOCAL" CLAUDE_ANALYTICS_DIR="$ANALYTICS" bash "$HOOK" 2>/dev/null || true)
 echo "$out" | jq -e '.hookSpecificOutput.additionalContext | test("CLAUDE.md")' > /dev/null \
   && pass "CLAUDE.md drift -> JSON" || fail "CLAUDE.md drift -> expected CLAUDE.md in output, got: $out"
 
 # --- Test 3: missing file -> JSON listing it as missing ---
-LOCAL="$TMP/missing"
-mkdir -p "$LOCAL/rules"
+LOCAL="$TMP/missing"; ANALYTICS="$TMP/missing-analytics"
+mkdir -p "$LOCAL/rules" "$ANALYTICS"
 cp "$TMPL/CLAUDE.md" "$LOCAL/CLAUDE.md"
 # statusline.sh intentionally absent
 cp "$TMPL/rules/coding.md" "$LOCAL/rules/coding.md"
+cp "$TMPL/session-dashboard.html" "$ANALYTICS/session-dashboard.html"
 printf '{"defaultMode":"plan","enabledPlugins":{"foo":true}}\n' > "$LOCAL/settings.json"
 
-out=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$LOCAL" bash "$HOOK" 2>/dev/null || true)
+out=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$LOCAL" CLAUDE_ANALYTICS_DIR="$ANALYTICS" bash "$HOOK" 2>/dev/null || true)
 echo "$out" | jq -e '.hookSpecificOutput.additionalContext | test("statusline.sh")' > /dev/null \
   && pass "missing file -> JSON" || fail "missing file -> expected statusline.sh in output, got: $out"
 
 # --- Test 4: settings.json drift -> JSON listing it ---
-LOCAL="$TMP/drift_settings"
-mkdir -p "$LOCAL/rules"
+LOCAL="$TMP/drift_settings"; ANALYTICS="$TMP/drift_settings-analytics"
+mkdir -p "$LOCAL/rules" "$ANALYTICS"
 cp "$TMPL/CLAUDE.md" "$LOCAL/CLAUDE.md"
 cp "$TMPL/statusline.sh" "$LOCAL/statusline.sh"
 cp "$TMPL/rules/coding.md" "$LOCAL/rules/coding.md"
+cp "$TMPL/session-dashboard.html" "$ANALYTICS/session-dashboard.html"
 printf '{"defaultMode":"autorespond","enabledPlugins":{"foo":true}}\n' > "$LOCAL/settings.json"
 
-out=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$LOCAL" bash "$HOOK" 2>/dev/null || true)
+out=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$LOCAL" CLAUDE_ANALYTICS_DIR="$ANALYTICS" bash "$HOOK" 2>/dev/null || true)
 echo "$out" | jq -e '.hookSpecificOutput.additionalContext | test("settings.json")' > /dev/null \
   && pass "settings.json drift -> JSON" || fail "settings.json drift -> expected settings.json in output, got: $out"
 
-# --- Test 5: CLAUDE_PLUGIN_ROOT unset -> silent exit ---
+# --- Test 5: dashboard missing -> JSON listing it ---
+LOCAL="$TMP/dash_missing"; ANALYTICS="$TMP/dash_missing-analytics"
+mkdir -p "$LOCAL/rules" "$ANALYTICS"
+cp "$TMPL/CLAUDE.md" "$LOCAL/CLAUDE.md"
+cp "$TMPL/statusline.sh" "$LOCAL/statusline.sh"
+cp "$TMPL/rules/coding.md" "$LOCAL/rules/coding.md"
+printf '{"defaultMode":"plan","enabledPlugins":{"foo":true}}\n' > "$LOCAL/settings.json"
+# session-dashboard.html intentionally absent from analytics dir
+
+out=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$LOCAL" CLAUDE_ANALYTICS_DIR="$ANALYTICS" bash "$HOOK" 2>/dev/null || true)
+echo "$out" | jq -e '.hookSpecificOutput.additionalContext | test("session-dashboard")' > /dev/null \
+  && pass "dashboard missing -> JSON" || fail "dashboard missing -> expected session-dashboard in output, got: $out"
+
+# --- Test 6: dashboard differs -> JSON listing it ---
+LOCAL="$TMP/dash_drift"; ANALYTICS="$TMP/dash_drift-analytics"
+mkdir -p "$LOCAL/rules" "$ANALYTICS"
+cp "$TMPL/CLAUDE.md" "$LOCAL/CLAUDE.md"
+cp "$TMPL/statusline.sh" "$LOCAL/statusline.sh"
+cp "$TMPL/rules/coding.md" "$LOCAL/rules/coding.md"
+cp "$TMPL/session-dashboard.html" "$ANALYTICS/session-dashboard.html"
+printf '{"defaultMode":"plan","enabledPlugins":{"foo":true}}\n' > "$LOCAL/settings.json"
+printf '<html>old-dashboard</html>\n' > "$ANALYTICS/session-dashboard.html"
+
+out=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$LOCAL" CLAUDE_ANALYTICS_DIR="$ANALYTICS" bash "$HOOK" 2>/dev/null || true)
+echo "$out" | jq -e '.hookSpecificOutput.additionalContext | test("session-dashboard")' > /dev/null \
+  && pass "dashboard drift -> JSON" || fail "dashboard drift -> expected session-dashboard in output, got: $out"
+
+# --- Test 7: CLAUDE_PLUGIN_ROOT unset -> silent exit ---
 out=$(CLAUDE_CONFIG_DIR="$TMP/clean" bash "$HOOK" 2>/dev/null || true)
 [ -z "$out" ] && pass "CLAUDE_PLUGIN_ROOT unset -> silent" || fail "CLAUDE_PLUGIN_ROOT unset -> expected no output, got: $out"
 
-# --- Test 6: stale queue file (30+ days) trashed; fresh one kept ---
+# --- Test 8: stale queue file (30+ days) trashed; fresh one kept ---
 # Plugin root left unset so the hook does only the queue sweep then exits silent.
 LOCAL="$TMP/queue"
 mkdir -p "$LOCAL/queue"
