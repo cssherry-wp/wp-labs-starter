@@ -160,7 +160,7 @@ def _parse_assistant_content(
     agents: list[dict] = []
     tasks: list[dict] = []
     for c in content:
-        if c.get("type") != "tool_use":
+        if not isinstance(c, dict) or c.get("type") != "tool_use":
             continue
         name = c.get("name", "")
         ci = c.get("input") or {}
@@ -369,19 +369,26 @@ def _extract_turns(jsonl_path: Path | str) -> list[str]:
             t = obj.get("type", "")
             if t == "user":
                 msg = obj.get("message") or {}
-                text = " ".join(
-                    c.get("text", "") for c in (msg.get("content") or [])
-                    if c.get("type") == "text"
-                )
+                content = msg.get("content") or []
+                if isinstance(content, list):
+                    text = " ".join(
+                        c.get("text", "") for c in content
+                        if isinstance(c, dict) and c.get("type") == "text"
+                    )
+                else:
+                    text = ""
                 if text:
                     turns.append(f"User: {text[:2000]}")
             elif t == "assistant":
                 msg = obj.get("message") or {}
+                content = msg.get("content") or []
+                if not isinstance(content, list):
+                    content = []
                 text = " ".join(
-                    c.get("text", "") for c in (msg.get("content") or [])
-                    if c.get("type") == "text"
+                    c.get("text", "") for c in content
+                    if isinstance(c, dict) and c.get("type") == "text"
                 )[:500]
-                tools = [c.get("name", "") for c in (msg.get("content") or []) if c.get("type") == "tool_use"]
+                tools = [c.get("name", "") for c in content if isinstance(c, dict) and c.get("type") == "tool_use"]
                 summary = (text + (f" [tools: {', '.join(tools)}]" if tools else "")).strip()
                 if summary:
                     turns.append(f"Assistant: {summary}")
