@@ -5,6 +5,5 @@ updates:
     schedule: { interval: "weekly" }
     labels: ["dependencies"]
     groups:
-      actions-minor:
+      all-actions:
         patterns: ["*"]
-        update-types: ["minor", "patch"]
