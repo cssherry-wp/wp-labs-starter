@@ -43,7 +43,7 @@ Prefer one commit per task — each task's work is its own commit. But keep a co
 If the commit addresses a tracker issue, add a reference at the end of the commit body:
 
 - **GitHub**: trailer on its own line — `Closes #123` when this commit resolves the issue, `Refs #123` when it relates but doesn't close it
-- **Jira**: prefix the subject line — `PROJ-123: <summary>` — and add `Refs PROJ-123` as a trailer when multiple commits share the same issue
+- **Jira**: prefix the subject line — `PROJ-123: <summary>` — and add `Refs PROJ-123` as a trailer when a commit shares multiple issues
 - Omit entirely when no issue applies; do not create an issue just to have one to reference
 
 ## Pull Request Descriptions
@@ -78,11 +78,11 @@ Banned closers: "In conclusion", "In summary", "Overall", "To sum up", "Say the 
 
 ### Task completion
 
-At the end of each task, include a brief summary covering:
+At the end of a coding task in a Claude Code session, include a brief summary covering:
 - What was done (files changed, decisions made)
 - Any assumptions or caveats the user needs to know
 
-A few lines is enough. This is the delivery note — what the user needs to act on the work — not a content recap. It pairs with the "no closers/recaps" rule rather than contradicting it: recaps restate what the user can read; a task summary surfaces what they cannot (assumptions, scope decisions, known limitations).
+A few lines is enough. This applies to Claude Code sessions — not general writing tasks. It is the delivery note for what the user needs to act on the work, not a content recap. It pairs with the "no closers/recaps" rule: recaps restate what the user can read; a task summary surfaces what they cannot (assumptions, scope decisions, known limitations).
 
 ### No sycophancy
 

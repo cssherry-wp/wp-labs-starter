@@ -20,7 +20,7 @@ See [`plugins/wp-labs-superpowers/FORK_MODIFICATIONS.md`](plugins/wp-labs-superp
 If the commit addresses a tracker issue, add a reference at the end of the commit body:
 
 - **GitHub**: trailer on its own line — `Closes #123` when this commit resolves the issue, `Refs #123` when it relates but doesn't close it
-- **Jira**: prefix the subject line — `PROJ-123: <summary>` — and add `Refs PROJ-123` as a trailer when multiple commits share the same issue
+- **Jira**: prefix the subject line — `PROJ-123: <summary>` — and add `Refs PROJ-123` as a trailer when a commit shares multiple issues
 - Omit entirely when no issue applies; do not create an issue just to have one to reference
 
 <!-- session-summarize: Worktree-safe repo root: use git -C git-common-dir/.. instead of git rev-parse - -->
