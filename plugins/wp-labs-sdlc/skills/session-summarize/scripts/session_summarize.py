@@ -624,7 +624,8 @@ def call_claude(prompt: str) -> tuple[str, dict[str, Any]]:
         RuntimeError: If claude exits with a non-zero code.
     """
     result = subprocess.run(
-        ["claude", "-p", "--output-format", "json", prompt],
+        ["claude", "-p", "--output-format", "json"],
+        input=prompt,
         capture_output=True, text=True, timeout=300, check=False,
     )
     if result.returncode != 0:
