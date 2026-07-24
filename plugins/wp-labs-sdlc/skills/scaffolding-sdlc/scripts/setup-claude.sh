@@ -82,6 +82,20 @@ if [ -f "$src" ]; then
   fi
 fi
 
+# --- session-dashboard.html ---
+src="$TMPL/session-dashboard.html"
+ANALYTICS_DIR="$HOME/ClaudeAnalytics"
+dst="$ANALYTICS_DIR/session-dashboard.html"
+if [ -f "$src" ]; then
+  mkdir -p "$ANALYTICS_DIR"
+  if [ -f "$dst" ] && diff -q "$src" "$dst" > /dev/null 2>&1; then
+    echo "session-dashboard.html: already up to date"
+  else
+    cp "$src" "$dst"
+    echo "session-dashboard.html: installed to $ANALYTICS_DIR/"
+  fi
+fi
+
 echo ""
 echo "Done. Restart Claude Code to pick up the new settings."
 echo "Plugins listed in settings.json will auto-install on first launch."

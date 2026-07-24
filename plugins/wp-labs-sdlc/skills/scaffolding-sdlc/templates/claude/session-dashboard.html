@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Sessions</title>
+<style>
+:root {
+  --bg:#0d1117;--panel:#161b22;--panel2:#1c2128;--panel3:#21262d;
+  --border:#30363d;--border2:#21262d;
+  --ink:#c9d1d9;--muted:#8b949e;--dim:#6e7681;
+  --accent:#7c3aed;--accent2:#6d28d9;--accent-s:rgba(124,58,237,.14);
+  --done:#2ea043;--done-s:rgba(46,160,67,.18);
+  --open:#d29922;--open-s:rgba(210,153,34,.18);
+  --err:#f85149;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+}
+@media(prefers-color-scheme:light){:root{
+  --bg:#f6f8fa;--panel:#fff;--panel2:#f6f8fa;--panel3:#eaeef2;
+  --border:#d0d7de;--border2:#e1e4e8;
+  --ink:#24292f;--muted:#57606a;--dim:#8c959f;
+  --accent:#6d28d9;--accent2:#5b21b6;--accent-s:rgba(109,40,217,.1);
+  --done:#1a7f37;--done-s:rgba(26,127,55,.12);
+  --open:#9a6700;--open-s:rgba(154,103,0,.12);
+}}
+:root[data-theme=dark]{--bg:#0d1117;--panel:#161b22;--panel2:#1c2128;--panel3:#21262d;--border:#30363d;--border2:#21262d;--ink:#c9d1d9;--muted:#8b949e;--dim:#6e7681;--accent:#7c3aed;--accent2:#6d28d9;--accent-s:rgba(124,58,237,.14);--done:#2ea043;--done-s:rgba(46,160,67,.18);--open:#d29922;--open-s:rgba(210,153,34,.18);}
+:root[data-theme=light]{--bg:#f6f8fa;--panel:#fff;--panel2:#f6f8fa;--panel3:#eaeef2;--border:#d0d7de;--border2:#e1e4e8;--ink:#24292f;--muted:#57606a;--dim:#8c959f;--accent:#6d28d9;--accent2:#5b21b6;--accent-s:rgba(109,40,217,.1);--done:#1a7f37;--done-s:rgba(26,127,55,.12);--open:#9a6700;--open-s:rgba(154,103,0,.12);}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:13.5px;-webkit-font-smoothing:antialiased}
+body{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;line-height:1.5;min-height:100vh;display:flex;flex-direction:column}
+button,input,select{font:inherit;color:inherit;background:none}
+
+/* ── Header ── */
+header{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--border);padding:8px 14px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+header h1{font-size:13.5px;font-weight:700;letter-spacing:-.01em;white-space:nowrap}
+.grow{flex:1}
+#status{font-size:12px;color:var(--muted);white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}
+.hbtn{border:1px solid var(--border);border-radius:6px;padding:3px 9px;cursor:pointer;font-size:12px;background:var(--panel2);white-space:nowrap;transition:border-color .12s}
+.hbtn:hover{border-color:var(--accent)}
+.hbtn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.hbtn.primary:hover{background:var(--accent2)}
+#search{border:1px solid var(--border);border-radius:6px;padding:3px 8px;min-width:160px;outline:none;background:var(--panel2);font-size:12px;display:none}
+#search:focus{border-color:var(--accent)}
+#filterInfo{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--accent);white-space:nowrap}
+#filterInfo .fi{display:inline-flex;align-items:center;gap:4px;cursor:default}
+#filterInfo a{color:var(--muted);font-size:12px}
+#filterInfo a:hover{color:var(--ink)}
+
+/* ── Stats strip ── */
+#stats{padding:5px 14px;border-bottom:1px solid var(--border2);display:none;gap:14px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.sv{color:var(--ink);font-weight:600;margin-right:2px;font-variant-numeric:tabular-nums}
+.sdot{color:var(--border)}
+
+/* ── Filter bar ── */
+#filterBar{padding:6px 14px;border-bottom:1px solid var(--border2);display:none;gap:7px;align-items:center;flex-wrap:wrap}
+.fl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+.pill{border:1px solid var(--border);border-radius:999px;padding:2px 8px;font-size:11.5px;cursor:pointer;background:var(--panel2);white-space:nowrap}
+.pill:hover{border-color:var(--accent)}
+.pill.on{background:var(--accent-s);border-color:var(--accent);color:var(--accent)}
+
+/* ── Autocomplete project ── */
+.ac-wrap{position:relative;display:inline-block}
+.ac-inp{border:1px solid var(--border);border-radius:6px;padding:2px 22px 2px 7px;font-size:12px;background:var(--panel2);outline:none;min-width:150px;max-width:200px}
+.ac-inp:focus{border-color:var(--accent)}
+.ac-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:13px;color:var(--muted);display:none;line-height:1}
+.ac-clear:hover{color:var(--ink)}
+.ac-drop{position:absolute;top:calc(100% + 3px);left:0;min-width:210px;max-width:320px;max-height:240px;overflow-y:auto;background:var(--panel);border:1px solid var(--border);border-radius:8px;z-index:50;display:none;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+.ac-drop.open{display:block}
+.ac-item{display:flex;align-items:center;gap:6px;padding:5px 9px;cursor:pointer;font-size:12px}
+.ac-item:hover,.ac-item.ac-active{background:var(--accent-s)}
+
+/* ── Progress ── */
+#prog-wrap{height:2px;background:var(--panel2);display:none;width:120px;border-radius:1px;flex-shrink:0}
+#prog-bar{height:2px;background:var(--accent);width:0;transition:width .1s}
+
+/* ── Project KPI tiles ── */
+#kpiSection{padding:6px 14px 10px;border-bottom:1px solid var(--border2);display:none;flex-wrap:wrap;gap:8px;align-items:stretch}
+.pkpi{border:1px solid var(--border);border-radius:8px;padding:7px 11px;cursor:pointer;min-width:130px;background:var(--panel2);border-left:3px solid}
+.pkpi:hover{border-color:var(--accent)}
+.pkpi.on{outline:2px solid var(--accent);outline-offset:0}
+.pkpi-name{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+.pkpi-cost{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
+.pkpi-sub{font-size:10.5px;color:var(--dim);margin-top:1px}
+
+/* ── Timeline ── */
+#tlSection{padding:10px 14px;border-bottom:1px solid var(--border);display:none}
+#tlSection>h2{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px}
+.tl-outer{overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:var(--panel)}
+.tl-inner{display:flex}
+.tl-labels{flex-shrink:0;width:130px;border-right:1px solid var(--border2)}
+.tl-label{display:flex;align-items:center;gap:5px;padding:0 8px;font-size:11.5px;color:var(--muted);border-top:1px solid var(--border2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.tl-label:first-child{border-top:none}
+.tl-label:hover,.tl-label.on{color:var(--accent);background:var(--accent-s)}
+.tl-canvas{flex:1;position:relative;overflow:hidden;min-width:0;cursor:crosshair}
+.tl-drag{position:absolute;top:0;bottom:0;pointer-events:none;z-index:10;background:var(--accent-s);border-left:2px solid var(--accent);border-right:2px solid var(--accent)}
+.tl-axis{border-bottom:1px solid var(--border2);position:relative}
+.tl-tick{position:absolute;font-size:10px;color:var(--dim);transform:translateX(-50%);white-space:nowrap;padding-bottom:3px}
+.tl-row{position:absolute;left:0;right:0}
+.tl-sess{position:absolute;border-radius:3px;border:1px solid;cursor:pointer;overflow:hidden;display:flex;align-items:center}
+.tl-sess:hover{opacity:.8;z-index:5}
+.tl-stitle{font-size:10px;padding:0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;pointer-events:none;color:var(--ink)}
+.tl-turn{position:absolute;top:0;bottom:0;width:1px;background:rgba(0,0,0,.3);pointer-events:none}
+.tl-grid{position:absolute;top:0;bottom:0;width:1px;background:var(--border2);pointer-events:none}
+
+/* ── Table ── */
+#tblHead{display:none;padding:8px 14px 4px;align-items:center;justify-content:space-between;gap:8px}
+#tblLabel{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em}
+#tableSearchInp{border:1px solid var(--border);border-radius:4px;padding:4px 10px;background:transparent;color:var(--ink);font-size:12px;width:220px;outline:none}
+#tableSearchInp:focus{border-color:var(--accent)}
+#tableSearchInp::placeholder{color:var(--dim)}
+#tableSection{flex:1;padding:0 14px 20px;display:none}
+.pr-link{font-size:11px;color:var(--accent);text-decoration:none;white-space:nowrap}
+.pr-link:hover{text-decoration:underline}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden;min-width:860px}
+th{text-align:left;padding:5px 9px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);background:var(--panel2);cursor:pointer;user-select:none;white-space:nowrap}
+th:hover{color:var(--ink)}
+th .sa{margin-left:3px;opacity:.5;font-size:10px}
+td{padding:5px 9px;border-bottom:1px solid var(--border2);vertical-align:top}
+tr:last-child td{border-bottom:none}
+tr.srow{cursor:pointer}
+tr.srow:hover td{background:color-mix(in srgb,var(--accent) 5%,transparent)}
+tr.srow.open-row td{background:color-mix(in srgb,var(--accent) 6%,transparent)}
+td.dt{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;width:96px}
+td.dur{white-space:nowrap;color:var(--dim);font-size:11px;width:48px}
+td.proj{white-space:nowrap;width:1%}
+.proj-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:1px 6px;border-radius:999px;border:1px solid;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
+td.title{color:var(--ink);font-size:12.5px}
+.t-name{font-weight:500;display:flex;align-items:baseline;gap:5px}
+.t-sname{font-size:11px;color:var(--muted);font-weight:400}
+.t-sub{font-size:10.5px;color:var(--dim);margin-top:1px;font-family:var(--mono)}
+td.model{white-space:nowrap;color:var(--dim);font-size:11px;font-family:var(--mono);width:88px}
+td.cost{white-space:nowrap;font-size:11.5px;width:64px;font-variant-numeric:tabular-nums}
+td.turns{white-space:nowrap;color:var(--muted);font-size:11.5px;width:44px;text-align:center}
+td.ctasks{width:44px;text-align:center}
+td.queue{width:100px}
+.q-counts{display:flex;gap:3px;align-items:center;flex-wrap:wrap}
+.qc{font-size:11px;padding:1px 5px;border-radius:4px}
+.qc.open{background:var(--open-s);color:var(--open)}
+.qc.done{background:var(--done-s);color:var(--done)}
+.qc.ct{background:var(--accent-s);color:var(--accent);font-variant-numeric:tabular-nums}
+.qc[data-qstatus]{cursor:pointer;transition:box-shadow .1s}
+.qc[data-qstatus]:hover{box-shadow:0 0 0 1.5px currentColor}
+.qc.active{box-shadow:0 0 0 1.5px currentColor}
+
+/* ── Detail row ── */
+tr.detail-row td{padding:0;border-bottom:1px solid var(--border)}
+.detail-inner{padding:11px 13px 13px;background:var(--panel2);display:grid;grid-template-columns:1fr 290px;gap:14px}
+@media(max-width:680px){.detail-inner{grid-template-columns:1fr}}
+.ds h3{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.turn-block{margin-bottom:7px}
+.turn-label{font-size:11px;color:var(--dim);margin-bottom:2px;display:flex;align-items:center;gap:4px}
+.role-badge{font-size:9px;padding:0 4px;border-radius:3px;font-weight:700;letter-spacing:.04em;flex-shrink:0}
+.rb-user{background:var(--accent-s);color:var(--accent)}
+.rb-asst{background:var(--done-s);color:var(--done)}
+.rb-cmd{background:var(--panel3);color:var(--muted);border:1px solid var(--border)}
+.rb-agent{background:color-mix(in srgb,var(--open) 20%,transparent);color:var(--open)}
+.agent-block{margin-top:4px;padding:3px 7px;background:var(--panel3);border:1px solid var(--border2);border-radius:4px;font-size:11px;display:flex;align-items:center;gap:5px}
+.agent-desc{color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.agent-cost{color:var(--dim);font-size:10.5px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.agent-meta{color:var(--dim);font-size:10.5px;font-family:var(--mono);white-space:nowrap}
+.turn-text{background:var(--panel3);border:1px solid var(--border2);border-radius:5px;padding:7px 9px;font-size:12px;white-space:pre-wrap;word-break:break-word;max-height:160px;overflow-y:auto;line-height:1.5}
+.cmd-text{font-family:var(--mono);font-size:11px;color:var(--accent)}
+.q-row{display:flex;align-items:flex-start;gap:5px;padding:4px 0;border-top:1px solid var(--border2);font-size:12px}
+.q-row:first-child{border-top:none}
+.q-icon{flex-shrink:0;font-size:12px;line-height:1.4}
+.q-body{flex:1}
+.q-ctx{font-size:11px;color:var(--dim);margin-top:1px}
+.q-ts{font-size:10.5px;color:var(--dim)}
+.usage-footer{margin-top:8px;padding:5px 9px;background:var(--panel3);border:1px solid var(--border2);border-radius:5px;display:flex;align-items:center;gap:5px;font-size:11px;flex-wrap:wrap}
+.uf-model{font-family:var(--mono);color:var(--dim)}
+.uf-stat{color:var(--muted)}
+.uf-sep{color:var(--border)}
+.uf-cost{color:var(--ink);font-weight:600}
+.session-uuid{font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.copy-btn{font-size:12px;padding:1px 3px;border-radius:4px;border:1px solid transparent;cursor:pointer;background:none;opacity:.3;line-height:1}
+.copy-btn:hover{border-color:var(--border);background:var(--panel3);opacity:1;color:var(--accent)}
+
+/* ── Tool chips ── */
+.tool-chip{display:inline-flex;align-items:center;gap:3px;border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-size:11px;cursor:pointer;background:var(--panel2);font-family:var(--mono);white-space:nowrap}
+.tool-chip:hover{border-color:var(--accent)}
+.tool-chip.on,.tool-chip.sel{background:var(--accent-s);border-color:var(--accent);color:var(--accent)}
+.tool-chip.skill{border-color:var(--accent)55;color:var(--accent);background:var(--accent-s)55}
+.tool-chip.skill.on,.tool-chip.skill.sel{background:var(--accent);border-color:var(--accent);color:#fff}
+.tc-rm{opacity:.6;font-size:12px;margin-left:1px}
+.tc-rm:hover{opacity:1}
+/* ── Shared ── */
+.cdot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;vertical-align:middle}
+#tip{position:fixed;z-index:200;background:#1c2128;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:6px 9px;font-size:12px;max-width:400px;pointer-events:none;display:none;white-space:pre-wrap;word-break:break-word;box-shadow:0 4px 16px rgba(0,0,0,.5);line-height:1.5;max-height:240px;overflow-y:auto}
+#landing{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;text-align:center;gap:10px}
+#landing .icon{font-size:48px;line-height:1}
+#landing h2{font-size:18px;font-weight:700}
+#landing p{font-size:13px;color:var(--muted);max-width:400px;line-height:1.6}
+#landing .note{font-size:11.5px;color:var(--dim)}
+</style>
+</head>
+<body>
+<div id="tip"></div>
+<header>
+  <h1>Claude Sessions</h1>
+  <button type="button" class="hbtn" id="openBtn">Open ~/.claude</button>
+  <button type="button" class="hbtn" id="reloadBtn" style="display:none">↻ Reload</button>
+  <button type="button" class="hbtn" id="clearCacheBtn" style="display:none" title="Force full re-scan (merges into persistent cache)">↺ Rescan</button>
+  <button type="button" class="hbtn" id="analyticsBtn" style="display:none" title="Set ~/ClaudeAnalytics folder for persistent file cache">⊕ Analytics</button>
+  <button type="button" class="hbtn" id="addDirBtn" style="display:none">+ Add folder</button>
+  <span id="dirPills" style="display:inline-flex;gap:4px;flex-wrap:wrap"></span>
+  <div id="prog-wrap"><div id="prog-bar"></div></div>
+  <span id="status">Loading…</span>
+  <div class="grow"></div>
+  <input type="text" id="search" placeholder="Search sessions…" autocomplete="off">
+  <span id="filterInfo"></span>
+  <button type="button" class="hbtn" id="themeBtn" title="Toggle theme">◑</button>
+</header>
+
+<div id="stats"></div>
+<div id="filterBar"></div>
+<div id="kpiSection" style="display:none"></div>
+<section id="tlSection"></section>
+<div id="tblHead"><span id="tblLabel"></span><input id="tableSearchInp" type="text" placeholder="Search sessions…" autocomplete="off"></div>
+<section id="tableSection"></section>
+
+<div id="landing">
+  <div class="icon">🤖</div>
+  <h2>Claude Sessions Dashboard</h2>
+  <p>Visualize sessions, tasks, and costs across every project.</p>
+  <button type="button" class="hbtn primary" id="openMain" style="font-size:13.5px;padding:8px 18px;border-radius:8px">Open ~/.claude folder</button>
+  <p class="note">Chrome or Edge required · files stay local</p>
+</div>
+
+<input type="file" id="fileInput" webkitdirectory multiple style="display:none">
+
+<script>
+// ─── Constants ──────────────────────────────────────────────────────────────
+const PROJ_COLORS=['#7c3aed','#2ea043','#d29922','#f85149','#388bfd','#db61a2','#1abc9c','#e67e22','#0ea5e9','#a855f7','#22c55e','#f97316'];
+const COLOR_CSS={red:'#f85149',orange:'#d29922',yellow:'#e3b341',green:'#2ea043',blue:'#388bfd',purple:'#7c3aed',pink:'#db61a2',cyan:'#39d353',teal:'#1abc9c',white:'#c9d1d9',black:'#6e7681',gray:'#8b949e',grey:'#8b949e'};
+const TOOL_DESC={'Bash':'Run shell commands','Read':'Read files from disk','Edit':'Edit files (targeted diff)','Write':'Write/create files','Agent':'Spawn a subagent','Workflow':'Run multi-agent workflow','TaskCreate':'Create managed tasks','Skill':'Invoke a skill','WebFetch':'Fetch web content','WebSearch':'Search the web','Artifact':'Publish artifact','AskUserQuestion':'Ask user a clarifying question','ReportFindings':'Report code-review findings','PushNotification':'Send OS notification','LSP':'Language server queries','EnterPlanMode':'Enter plan mode','ExitPlanMode':'Approve plan and exit'};
+const PRICING={'opus-4-8':{in:15,cw:3.75,cr:1.50,out:75},'opus-4':{in:15,cw:3.75,cr:1.50,out:75},'opus-4-7':{in:15,cw:3.75,cr:1.50,out:75},'sonnet-5':{in:3,cw:0.375,cr:0.30,out:15},'sonnet-4-5':{in:3,cw:0.375,cr:0.30,out:15},'sonnet-4':{in:3,cw:0.375,cr:0.30,out:15},'haiku-4-5':{in:0.80,cw:0.10,cr:0.08,out:4},'haiku-4':{in:0.25,cw:0.03,cr:0.025,out:1.25}};
+// ponytail: updated by inferSkipWords() at load time; base list covers OS paths only
+let SKIP_WORDS=['Users','home','private','tmp'];
+function inferSkipWords(projDirNames){
+  if(!projDirNames.length)return;
+  const segs=projDirNames.map(n=>n.replace(/^-+/,'').split('-').filter(Boolean));
+  let i=0;
+  while(segs[0]&&i<segs[0].length&&segs.every(s=>s[i]===segs[0][i]))i++;
+  SKIP_WORDS=[...new Set(['Users','home','private','tmp',...(segs[0]||[]).slice(0,i)])];
+}
+const FUNNEL='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 4h18l-7 8v7l-4 2v-9z"/></svg>';
+
+// ─── State ──────────────────────────────────────────────────────────────────
+let rootHandles=[], analyticsHandle=null, uuidToName={}, allSessions=[], filteredSessions=[], tableFilteredSessions=[];
+let activeProject='all', activeDateFilter='all', activeTaskType='all';
+let activeToolFilters=new Set(), activeSessionFilter='', activeQueueStatus='';
+let customDateFrom=null, customDateTo=null;
+let searchQuery='', tableSearch='', sortCol='date', sortAsc=false, expandedUuid=null;
+let tlDragState=null;
+
+// ─── Theme ──────────────────────────────────────────────────────────────────
+document.getElementById('themeBtn').addEventListener('click',()=>{
+  const cur=document.documentElement.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+  document.documentElement.dataset.theme=cur==='dark'?'light':'dark';
+});
+
+// ─── Tooltip ────────────────────────────────────────────────────────────────
+const tipEl=document.getElementById('tip');let tipTout=null;
+function showTip(text,e){clearTimeout(tipTout);tipEl.textContent=text;tipEl.style.display='block';moveTip(e);}
+function moveTip(e){const tipW=Math.min(tipEl.scrollWidth||400,400);const x=e.clientX+14+tipW>window.innerWidth?e.clientX-8-tipW:e.clientX+14;const y=Math.min(e.clientY+14,window.innerHeight-260);tipEl.style.left=Math.max(4,x)+'px';tipEl.style.top=y+'px';}
+function hideTip(){tipTout=setTimeout(()=>{tipEl.style.display='none';},80);}
+document.addEventListener('mousemove',e=>{if(tipEl.style.display!=='none')moveTip(e);});
+function tipOn(el,text){el.addEventListener('mouseenter',e=>showTip(text,e));el.addEventListener('mouseleave',hideTip);}
+
+// ─── IndexedDB ──────────────────────────────────────────────────────────────
+function idbOpen(){return new Promise((ok,err)=>{const r=indexedDB.open('claude-dash',1);r.onupgradeneeded=e=>e.target.result.createObjectStore('kv');r.onsuccess=e=>ok(e.target.result);r.onerror=err;});}
+async function idbGet(key){const db=await idbOpen();return new Promise((ok,err)=>{const tx=db.transaction('kv','readonly');const q=tx.objectStore('kv').get(key);q.onsuccess=()=>ok(q.result);q.onerror=err;});}
+async function idbSet(key,val){const db=await idbOpen();return new Promise((ok,err)=>{const tx=db.transaction('kv','readwrite');tx.objectStore('kv').put(val,key);tx.oncomplete=ok;tx.onerror=err;});}
+
+// ─── Analytics dir ──────────────────────────────────────────────────────────
+async function getAnalyticsHandle(){
+  if(analyticsHandle)return analyticsHandle;
+  try{
+    const h=await idbGet('analytics-dir-handle');
+    if(!h)return null;
+    const perm=await h.queryPermission({mode:'readwrite'});
+    if(perm==='granted'){analyticsHandle=h;return h;}
+    const perm2=await h.requestPermission({mode:'readwrite'});
+    if(perm2==='granted'){analyticsHandle=h;return h;}
+  }catch{}
+  return null;
+}
+async function setupAnalyticsDir(){
+  try{
+    const h=await window.showDirectoryPicker({id:'claude-analytics',mode:'readwrite',startIn:'documents'});
+    await idbSet('analytics-dir-handle',h);
+    analyticsHandle=h;
+    document.getElementById('analyticsBtn').style.display='none';
+    document.getElementById('clearCacheBtn').style.display='';
+    return h;
+  }catch(e){if(e.name!=='AbortError')setStatus('Analytics dir setup failed: '+e.message,true);return null;}
+}
+
+// ─── Open dir ───────────────────────────────────────────────────────────────
+const fileInput=document.getElementById('fileInput');
+async function openDir(addMode=false){
+  if(window.showDirectoryPicker){
+    try{
+      const h=await window.showDirectoryPicker({id:'claude-home',mode:'read'});
+      if(!addMode)rootHandles=[];
+      rootHandles.push(h);
+      await idbSet('dir-handle-'+(rootHandles.length-1),h);
+      syncDirsUrl();
+      await load();return;
+    }catch(e){if(e.name==='AbortError')return;if(e.name!=='SecurityError'){setStatus('Error: '+e.message,true);return;}}
+  }
+  fileInput.click();
+}
+function syncDirsUrl(){
+  const p=new URLSearchParams(location.search);
+  if(rootHandles.length)p.set('dirs',rootHandles.map(h=>h.name).join(','));
+  else p.delete('dirs');
+  p.delete('nd');
+  try{history.replaceState(null,'',p.toString()?'?'+p:location.pathname);}catch{}
+}
+async function getStoredHandles(){
+  const handles=[];
+  // backward compat: try old key first
+  try{const h=await idbGet('dir-handle');if(h){handles.push(h);await idbSet('dir-handle-0',h);}}catch{}
+  let i=handles.length?1:0;
+  while(true){
+    try{const h=await idbGet('dir-handle-'+i);if(!h)break;if(!handles.find(x=>x===h))handles.push(h);i++;}
+    catch{break;}
+  }
+  return handles;
+}
+async function tryAutoLoad(){
+  setStatus('Reconnecting…');
+  try{
+    const handles=await getStoredHandles();
+    if(!handles.length){setStatus('Open your ~/.claude folder.');showLanding(true);return;}
+    const p=new URLSearchParams(location.search);
+    let toLoad;
+    const wantedDirs=p.get('dirs')?p.get('dirs').split(',').filter(Boolean):null;
+    const nd=p.get('nd')?+p.get('nd'):null;
+    if(wantedDirs&&wantedDirs.length){
+      toLoad=wantedDirs.map(name=>handles.find(h=>h.name===name)).filter(Boolean);
+      if(!toLoad.length)toLoad=handles.slice(0,1);
+    } else if(nd){
+      toLoad=handles.slice(0,nd);
+    } else {
+      toLoad=handles.slice(0,1);
+    }
+    const permed=[];
+    for(const h of toLoad){
+      const perm=await h.queryPermission({mode:'read'});
+      if(perm==='granted')permed.push(h);
+    }
+    if(!permed.length){
+      showReloadAs('Allow access',async()=>{
+        const permed2=[];
+        for(const h of toLoad){const p2=await h.requestPermission({mode:'read'});if(p2==='granted')permed2.push(h);}
+        if(!permed2.length){setStatus('Permission denied.',true);return;}
+        rootHandles=permed2;await load();
+      });
+      setStatus('Click "Allow access" to reload.');showLanding(true);return;
+    }
+    rootHandles=permed;
+    const cached=await loadCache();
+    if(cached){
+      allSessions=deserializeCache(cached.data);
+      document.getElementById('addDirBtn').style.display='';
+      document.getElementById('dirPills').innerHTML=rootHandles.map(h=>`<span style="font-size:11px;color:var(--muted);padding:1px 7px;border:1px solid var(--border2);border-radius:4px">${esc(h.name)}</span>`).join('');
+      showLanding(false);render();setStatus(`${allSessions.length} sessions (checking…)`);
+      const stale=await hasNewerFiles(rootHandles,cached.ts);
+      if(stale){setStatus('New data found, reloading…');await load();}
+      else{setStatus(`${allSessions.length} sessions`);}
+    } else {
+      await load();
+    }
+  }catch{setStatus('Open your ~/.claude folder.');showLanding(true);}
+}
+function showReloadAs(label,fn){const b=document.getElementById('reloadBtn');b.style.display='';b.textContent=label;b.onclick=fn;if(rootHandles.length)document.getElementById('clearCacheBtn').style.display='';}
+fileInput.addEventListener('change',async function(){if(!this.files.length)return;rootHandles=[];await loadFromFileList(this.files);});
+document.getElementById('openBtn').addEventListener('click',openDir);
+document.getElementById('openMain').addEventListener('click',openDir);
+document.getElementById('addDirBtn').addEventListener('click',()=>openDir(true));
+function showLanding(show){document.getElementById('landing').style.display=show?'':'none';}
+
+// ─── Session factory ─────────────────────────────────────────────────────────
+function mkSession(uuid,project){
+  const projectLabel=decodeProjectName(project);
+  const projectNorm=normalizeProject(projectLabel);
+  const _wtRaw=projectLabel!==projectNorm&&projectLabel.startsWith(projectNorm)?projectLabel.slice(projectNorm.length).replace(/^-+/,''):null;
+  const projectWorktree=_wtRaw?_wtRaw.replace(/^claude-worktrees-/,''):null;
+  return{uuid,project,projectLabel,projectNorm,projectWorktree,title:null,name:null,startedAt:null,lastActivityAt:null,model:null,color:null,usage:{in:0,out:0,cw:0,cr:0},userTurns:[],commands:[],queueItems:[],claudeTasks:[],lastAssistantText:null,prLinks:[],tools:[],skills:[],agents:[]};
+}
+function mergeJSONL(s,p){
+  if(p.title)s.title=p.title;
+  if(p.name&&!s.name)s.name=p.name;
+  if(p.startedAt&&!s.startedAt)s.startedAt=p.startedAt;
+  if(p.lastActivityAt&&(!s.lastActivityAt||p.lastActivityAt>s.lastActivityAt))s.lastActivityAt=p.lastActivityAt;
+  if(p.model&&!s.model)s.model=p.model;
+  if(p.color&&!s.color)s.color=p.color;
+  if(p.userTurns.length)s.userTurns=p.userTurns;
+  if(p.commands.length)s.commands=p.commands;
+  if(p.claudeTasks.length)s.claudeTasks.push(...p.claudeTasks);
+  if(p.lastAssistantText)s.lastAssistantText=p.lastAssistantText;
+  if(p.prLinks.length){const seen=new Set(s.prLinks);p.prLinks.forEach(u=>{if(!seen.has(u))s.prLinks.push(u);});}
+  if(p.tools.length){const seen=new Set(s.tools);p.tools.forEach(t=>{if(!seen.has(t))s.tools.push(t);});}
+  if(p.skills.length){const seen=new Set(s.skills);p.skills.forEach(t=>{if(!seen.has(t))s.skills.push(t);});}
+  s.usage.in+=p.usage.in;s.usage.out+=p.usage.out;s.usage.cw+=p.usage.cw;s.usage.cr+=p.usage.cr;
+}
+
+// ─── FSA Load ────────────────────────────────────────────────────────────────
+async function load(){
+  showLanding(false);
+  showReloadAs('↻ Reload',()=>rootHandles.length&&load());
+  setStatus('Scanning…');showProgress(true,0);
+  uuidToName={};const sessions=new Map();let done=0,total=0;
+  for(const rootHandle of rootHandles){
+    try{const sH=await rootHandle.getDirectoryHandle('sessions');for await(const[fn,fh]of sH){if(!fn.endsWith('.json')||fh.kind!=='file')continue;try{const d=JSON.parse(await(await fh.getFile()).text());if(d.sessionId&&d.name)uuidToName[d.sessionId]=d.name;}catch{}}}catch{}
+    try{const pH=await rootHandle.getDirectoryHandle('projects');const _pns=[];for await(const[pn,pd]of pH){if(pd.kind!=='directory')continue;_pns.push(pn);for await(const[fn]of pd){if(fn.endsWith('.jsonl'))total++;}}inferSkipWords(_pns);}catch{}
+    try{
+      const pH=await rootHandle.getDirectoryHandle('projects');
+      for await(const[proj,pd]of pH){
+        if(pd.kind!=='directory')continue;
+        const pendingAgentDirs=[];
+        for await(const[fn,fh]of pd){
+          if(fh.kind==='file'&&fn.endsWith('.jsonl')){
+            const uuid=fn.slice(0,-6);
+            try{const p=parseJSONL(await(await fh.getFile()).text());if(!sessions.has(uuid))sessions.set(uuid,mkSession(uuid,proj));const s=sessions.get(uuid);if(!s.name)s.name=uuidToName[uuid]||null;mergeJSONL(s,p);}catch{}
+            done++;if(done%20===0){setStatus(`Loading… ${done}/${total}`);showProgress(true,total?done/total:0);await tick();}
+          } else if(fh.kind==='directory'){
+            pendingAgentDirs.push([fn,fh]);
+          }
+        }
+        // Process agent dirs after all JOSNLs in this project are loaded
+        // (directory entries sort before .jsonl alphabetically, so we must do this in two passes)
+        for(const[fn,fh]of pendingAgentDirs){
+          const parentUuid=fn;
+          try{
+            const subH=await fh.getDirectoryHandle('subagents');
+            const subEntries=[];for await(const e of subH)subEntries.push(e);
+            const metaMap=new Map();
+            for(const[sfn,sfh]of subEntries){if(sfh.kind==='file'&&sfn.endsWith('.meta.json')){try{const m=JSON.parse(await(await sfh.getFile()).text());metaMap.set(sfn.replace(/^agent-/,'').replace(/\.meta\.json$/,''),m);}catch{}}}
+            for(const[sfn,sfh]of subEntries){
+              if(sfh.kind!=='file'||!sfn.endsWith('.jsonl'))continue;
+              const agentId=sfn.replace(/^agent-/,'').slice(0,-6);
+              try{const p=parseJSONL(await(await sfh.getFile()).text());const meta=metaMap.get(agentId)||{};if(sessions.has(parentUuid))sessions.get(parentUuid).agents.push({agentId,agentType:meta.agentType||'agent',description:meta.description||null,toolUseId:meta.toolUseId||null,spawnDepth:meta.spawnDepth||1,parentAgentId:meta.parentAgentId||null,usage:p.usage,model:p.model,effort:p.effort,tools:p.tools,lastAssistantText:p.lastAssistantText});}catch{}
+            }
+          }catch{}
+        }
+      }
+    }catch(e){console.warn('projects',e);}
+    try{const qH=await rootHandle.getDirectoryHandle('queue');for await(const[fn,fh]of qH){if(!fn.endsWith('.md')||fh.kind!=='file')continue;const uuid=fn.slice(0,-3);try{const items=parseQueueMD(await(await fh.getFile()).text());if(!sessions.has(uuid))sessions.set(uuid,mkSession(uuid,'queue-only'));sessions.get(uuid).queueItems=items;}catch{}}}catch{}
+  }
+  // Load task statuses from ~/.claude/tasks/
+  const taskMap=new Map();
+  for(const rootHandle of rootHandles){
+    try{
+      const tH=await rootHandle.getDirectoryHandle('tasks');
+      for await(const[,td]of tH){
+        if(td.kind!=='directory')continue;
+        try{
+          for await(const[fn,fh]of td){
+            if(!fn.endsWith('.json')||fh.kind!=='file')continue;
+            const d=JSON.parse(await(await fh.getFile()).text());
+            if(d.subject&&d.status)taskMap.set(d.subject.toLowerCase(),d.status);
+          }
+        }catch{}
+      }
+    }catch{}
+  }
+  for(const s of sessions.values()){
+    for(const t of s.claudeTasks){
+      const st=taskMap.get(t.subject.toLowerCase());
+      if(st)t.status=st;
+    }
+  }
+  allSessions=[...sessions.values()].sort((a,b)=>(b.lastActivityAt?.getTime()||b.startedAt?.getTime()||0)-(a.lastActivityAt?.getTime()||a.startedAt?.getTime()||0));
+  showProgress(false);
+  document.getElementById('addDirBtn').style.display='';
+  document.getElementById('dirPills').innerHTML=rootHandles.map(h=>`<span style="font-size:11px;color:var(--muted);padding:1px 7px;border:1px solid var(--border2);border-radius:4px" title="${esc(h.name)}">${esc(h.name)}</span>`).join('');
+  render();
+  saveCache(allSessions);
+}
+async function loadFromFileList(fileList){
+  showLanding(false);showReloadAs('↻ Reload',()=>fileInput.click());
+  setStatus('Scanning…');showProgress(true,0);
+  uuidToName={};const sessions=new Map();
+  const files=Array.from(fileList),jsonlFiles=[],queueFiles=[],sessFiles=[],agentJsonlFiles=[],agentMetaFiles=[];
+  for(const f of files){const p=f.webkitRelativePath.split('/');if(p[1]==='projects'&&p[3]?.endsWith('.jsonl'))jsonlFiles.push([f,p[2],p[3].slice(0,-6)]);else if(p[1]==='projects'&&p[4]==='subagents'&&p[5]?.endsWith('.jsonl'))agentJsonlFiles.push([f,p[2],p[3],p[5]]);else if(p[1]==='projects'&&p[4]==='subagents'&&p[5]?.endsWith('.meta.json'))agentMetaFiles.push([f,p[2],p[3],p[5]]);else if(p[1]==='queue'&&p[2]?.endsWith('.md'))queueFiles.push([f,p[2].slice(0,-3)]);else if(p[1]==='sessions'&&p[2]?.endsWith('.json'))sessFiles.push(f);}
+  for(const f of sessFiles){try{const d=JSON.parse(await f.text());if(d.sessionId&&d.name)uuidToName[d.sessionId]=d.name;}catch{}}
+  inferSkipWords([...new Set(jsonlFiles.map(([,proj])=>proj))]);
+  const tot=jsonlFiles.length;let dn=0;
+  for(const[f,proj,uuid]of jsonlFiles){
+    try{const p=parseJSONL(await f.text());if(!sessions.has(uuid))sessions.set(uuid,mkSession(uuid,proj));const s=sessions.get(uuid);if(!s.name)s.name=uuidToName[uuid]||null;mergeJSONL(s,p);}catch{}
+    dn++;if(dn%20===0){setStatus(`Loading… ${dn}/${tot}`);showProgress(true,tot?dn/tot:0);await tick();}
+  }
+  for(const[f,uuid]of queueFiles){try{const items=parseQueueMD(await f.text());if(!sessions.has(uuid))sessions.set(uuid,mkSession(uuid,'queue-only'));sessions.get(uuid).queueItems=items;}catch{}}
+  const metaMaps=new Map();
+  for(const[f,,parentUuid,fn]of agentMetaFiles){try{const m=JSON.parse(await f.text());const aid=fn.replace(/^agent-/,'').replace(/\.meta\.json$/,'');if(!metaMaps.has(parentUuid))metaMaps.set(parentUuid,new Map());metaMaps.get(parentUuid).set(aid,m);}catch{}}
+  for(const[f,,parentUuid,fn]of agentJsonlFiles){if(!sessions.has(parentUuid))continue;const agentId=fn.replace(/^agent-/,'').slice(0,-6);try{const p=parseJSONL(await f.text());const meta=(metaMaps.get(parentUuid)||new Map()).get(agentId)||{};sessions.get(parentUuid).agents.push({agentId,agentType:meta.agentType||'agent',description:meta.description||null,toolUseId:meta.toolUseId||null,spawnDepth:meta.spawnDepth||1,parentAgentId:meta.parentAgentId||null,usage:p.usage,model:p.model,effort:p.effort,tools:p.tools,lastAssistantText:p.lastAssistantText});}catch{}}
+  allSessions=[...sessions.values()].sort((a,b)=>(b.lastActivityAt?.getTime()||b.startedAt?.getTime()||0)-(a.lastActivityAt?.getTime()||a.startedAt?.getTime()||0));
+  showProgress(false);render();
+}
+function tick(){return new Promise(r=>setTimeout(r,0));}
+function setStatus(msg,err){const el=document.getElementById('status');el.textContent=msg;el.style.color=err?'var(--err)':'var(--muted)';}
+function showProgress(show,frac){document.getElementById('prog-wrap').style.display=show?'':'none';if(show&&frac!==undefined)document.getElementById('prog-bar').style.width=(frac*100)+'%';}
+
+// ─── Parsers ─────────────────────────────────────────────────────────────────
+function parseJSONL(text){
+  const r={title:null,name:null,startedAt:null,lastActivityAt:null,model:null,color:null,effort:null,usage:{in:0,out:0,cw:0,cr:0},userTurns:[],commands:[],claudeTasks:[],lastAssistantText:null,prLinks:[],_tools:new Set(),skills:[]};
+  for(const raw of text.split('\n')){
+    if(!raw.trim())continue;
+    let obj;try{obj=JSON.parse(raw);}catch{continue;}
+    const ts=obj.timestamp?new Date(obj.timestamp):null;
+    if(ts){
+      if(!r.startedAt)r.startedAt=ts;
+      if(!r.lastActivityAt||ts>r.lastActivityAt)r.lastActivityAt=ts;
+    }
+    if(obj.effort&&!r.effort)r.effort=obj.effort;
+    switch(obj.type){
+      case 'ai-title':if(!r.title)r.title=obj.aiTitle;break;
+      case 'custom-title':r.title=obj.customTitle;break;
+      case 'agent-name':if(!r.name)r.name=obj.agentName;break;
+      case 'agent-color':if(!r.color)r.color=(obj.agentColor||obj.color||'').toLowerCase();break;
+      case 'pr-link':{const u=obj.prUrl;if(u&&!r.prLinks.includes(u))r.prLinks.push(u);break;}
+      case 'assistant':{
+        const msg=obj.message;
+        if(msg?.model&&!r.model)r.model=msg.model.replace('claude-','').replace(/-\d{8}$/,'');
+        if(msg?.usage){const u=msg.usage;r.usage.in+=u.input_tokens||0;r.usage.out+=u.output_tokens||0;r.usage.cw+=u.cache_creation_input_tokens||0;r.usage.cr+=u.cache_read_input_tokens||0;}
+        if(msg?.content){
+          const txt=extractText(msg.content);
+          if(txt){
+            r.lastAssistantText=txt;
+            for(const m of txt.matchAll(/https:\/\/github\.com\/[^\s)>]+\/pull\/\d+/g)){const url=m[0].replace(/[.,;]$/,'');if(!r.prLinks.includes(url))r.prLinks.push(url);}
+          }
+          if(Array.isArray(msg.content)){for(const c of msg.content){
+            if(c?.type!=='tool_use')continue;
+            r._tools.add(c.name);
+            if(c.name==='TaskCreate'&&c.input?.subject)r.claudeTasks.push({subject:c.input.subject,ts});
+            if(c.name==='Skill'&&c.input?.skill&&!r.skills.includes(c.input.skill))r.skills.push(c.input.skill);
+            if((c.name==='Agent'||c.name==='Workflow')&&c.id&&r.userTurns.length>0)r.userTurns[r.userTurns.length-1].agentSpawns.push({toolUseId:c.id,label:(c.input?.description||c.input?.prompt||'').toString().slice(0,80)});
+          }}
+        }
+        break;
+      }
+      case 'user':{
+        const content=obj.message?.content;if(!content)break;
+        const txt=extractText(content);if(!txt||isSystem(txt))break;
+        if(isCommand(txt)){r.commands.push({...parseCmd(txt),ts});break;}
+        r.userTurns.push({text:txt.trim(),ts,agentSpawns:[]});
+        break;
+      }
+    }
+  }
+  r.tools=[...r._tools].sort();delete r._tools;
+  return r;
+}
+function extractText(c){if(typeof c==='string')return c;if(Array.isArray(c))return c.filter(b=>b?.type==='text').map(b=>b.text||'').join('\n').trim();return '';}
+const SYS=['<system-reminder>','<local-command','<bash-stdin>','<function_calls>','<user-prompt-submit-hook>','<task-notification>','<command-message>'];
+function isSystem(t){return!t||t.length<2||SYS.some(p=>t.startsWith(p));}
+function isCommand(t){return/^<command-message>/.test(t);}
+function parseCmd(t){const m=t.match(/<command-message>([^<]+)<\/command-message>\s*(?:<command-name>([^<]+)<\/command-name>)?(?:\s*<command-args>([^<]*)<\/command-args>)?/s);if(!m)return{name:t.slice(0,40),args:''};return{name:(m[2]||m[1]).trim(),args:(m[3]||'').trim().slice(0,120)};}
+function parseQueueMD(text){
+  const items=[];let cur=null;
+  for(const line of text.split('\n')){
+    const m=line.match(/^- \[([ x\-])\] (.+)/);
+    if(m){
+      cur={text:m[2].trim(),done:m[1]==='x',cancelled:m[1]==='-',movedTo:null,queued:null,completedAt:null,cancelledAt:null,ctx:null,reason:null,interpretation:null,idx:items.length+1};
+      items.push(cur);
+    } else if(cur){
+      const q=line.match(/^\s+queued:\s*(.+)/);if(q)cur.queued=q[1].trim();
+      const co=line.match(/^\s+completed:\s*(.+)/);if(co)cur.completedAt=co[1].trim();
+      const ca=line.match(/^\s+cancelled:\s*(.+)/);if(ca)cur.cancelledAt=ca[1].trim();
+      const c=line.match(/^\s+ctx:\s*(.+)/);if(c)cur.ctx=c[1].trim();
+      const mt=line.match(/^\s+moved-to:\s*(.+)/);if(mt)cur.movedTo=mt[1].trim();
+      const rn=line.match(/^\s+reason:\s*(.+)/);if(rn)cur.reason=rn[1].trim();
+      const interp=line.match(/^\s+interpretation:\s*(.+)/);if(interp)cur.interpretation=interp[1].trim();
+    }
+  }
+  return items;
+}
+
+function queueItemTip(i){
+  const icon=i.done?'✓':i.cancelled?'⊘':'▷';
+  const lines=[icon+' #'+i.idx+' '+i.text.slice(0,140)+(i.text.length>140?'…':'')];
+  if(i.interpretation)lines.push('  Intent: '+i.interpretation.slice(0,220)+(i.interpretation.length>220?'…':''));
+  if(i.reason)lines.push('  Reason: '+i.reason);
+  if(i.queued)lines.push('  Added: '+i.queued);
+  if(i.completedAt)lines.push('  Done: '+i.completedAt);
+  if(i.cancelledAt)lines.push('  Cancelled: '+i.cancelledAt);
+  return lines.join('\n');
+}
+// ─── Normalization ────────────────────────────────────────────────────────────
+function decodeProjectName(name){
+  const stripped=name.replace(/^-+/,'');
+  const parts=stripped.split('-');let i=0;
+  while(i<parts.length&&SKIP_WORDS.includes(parts[i]))i++;
+  return parts.slice(i).join('-')||stripped;
+}
+function normalizeProject(label){
+  let r=label;
+  // Strip worktree suffixes
+  r=r.replace(/--claude-worktrees.*/i,'').replace(/--[\w]+-wt$/i,'').replace(/--wt$/i,'');
+  // If path contains a UUID segment, take the part after the last UUID
+  const uuidM=r.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-(.+)/i);
+  if(uuidM)r=uuidM[1];
+  return r.replace(/^-+|-+$/g,'')||label;
+}
+function projColorHex(norm){let h=5381;for(let i=0;i<norm.length;i++)h=((h<<5)+h+norm.charCodeAt(i))>>>0;return PROJ_COLORS[h%PROJ_COLORS.length];}
+
+// ─── URL state ────────────────────────────────────────────────────────────────
+function readUrl(){
+  const p=new URLSearchParams(location.search);
+  if(p.get('project'))activeProject=p.get('project');
+  if(p.get('period'))activeDateFilter=p.get('period');
+  if(p.get('from'))customDateFrom=+p.get('from');
+  if(p.get('to'))customDateTo=+p.get('to');
+  if(p.get('type'))activeTaskType=p.get('type');
+  if(p.get('tools'))activeToolFilters=new Set(p.get('tools').split(',').filter(Boolean));
+  if(p.get('sort'))sortCol=p.get('sort');
+  if(p.get('asc'))sortAsc=p.get('asc')==='1';
+  if(p.get('q')){searchQuery=p.get('q');const el=document.getElementById('search');if(el)el.value=searchQuery;}
+  if(p.get('tq')){tableSearch=p.get('tq');const el=document.getElementById('tableSearchInp');if(el)el.value=tableSearch;}
+  if(p.get('session'))activeSessionFilter=p.get('session');
+  if(p.get('qstatus'))activeQueueStatus=p.get('qstatus');
+}
+function syncUrl(){
+  const p=new URLSearchParams();
+  if(activeProject!=='all')p.set('project',activeProject);
+  if(activeDateFilter!=='all')p.set('period',activeDateFilter);
+  if(activeDateFilter==='custom'){if(customDateFrom)p.set('from',customDateFrom);if(customDateTo)p.set('to',customDateTo);}
+  if(activeTaskType!=='all')p.set('type',activeTaskType);
+  if(activeToolFilters.size)p.set('tools',[...activeToolFilters].join(','));
+  if(activeSessionFilter)p.set('session',activeSessionFilter);
+  if(activeQueueStatus)p.set('qstatus',activeQueueStatus);
+  if(sortCol!=='date')p.set('sort',sortCol);
+  if(sortAsc)p.set('asc','1');
+  if(searchQuery)p.set('q',searchQuery);
+  if(tableSearch)p.set('tq',tableSearch);
+  try{history.replaceState(null,'',p.toString()?'?'+p:location.pathname);}catch{}
+}
+
+// ─── Filter summary (funnel in header) ────────────────────────────────────────
+function activeFilterLines(){
+  const lines=[];
+  if(activeProject!=='all')lines.push('project: '+activeProject);
+  if(activeDateFilter!=='all'){
+    if(activeDateFilter==='custom'){const fmt=ms=>ms?new Date(ms).toLocaleDateString('en-US',{month:'short',day:'numeric'}):'…';lines.push(`period: ${fmt(customDateFrom)} → ${fmt(customDateTo)}`);}
+    else{const names={hour:'last hour',today:'today',week:'this week',month:'this month'};lines.push('period: '+(names[activeDateFilter]||activeDateFilter));}
+  }
+  if(activeTaskType!=='all'){const names={chat:'chat',commands:'commands',queued:'queued',tasks:'claude tasks'};lines.push('type: '+(names[activeTaskType]||activeTaskType));}
+  if(activeToolFilters.size)lines.push('tools: '+[...activeToolFilters].join(', '));
+  if(activeSessionFilter)lines.push('session: '+activeSessionFilter.slice(0,8)+'…');
+  if(activeQueueStatus)lines.push('queue: '+activeQueueStatus);
+  if(searchQuery)lines.push('search: "'+searchQuery+'"');
+  if(tableSearch)lines.push('table search: "'+tableSearch+'"');
+  if(sortCol!=='date'||sortAsc)lines.push('sort: '+sortCol+(sortAsc?' ↑':' ↓'));
+  return lines;
+}
+function renderFilterInfo(){
+  const box=document.getElementById('filterInfo');
+  const lines=activeFilterLines();
+  if(!lines.length){box.innerHTML='';return;}
+  box.innerHTML=`<span class="fi">${FUNNEL} ${lines.length} filter${lines.length>1?'s':''}</span> · <a href="#" id="clearAll">clear all</a>`;
+  const fi=box.querySelector('.fi');
+  fi.addEventListener('mouseenter',e=>showTip('Filters applied:\n• '+lines.join('\n• '),e));
+  fi.addEventListener('mousemove',moveTip);
+  fi.addEventListener('mouseleave',hideTip);
+  document.getElementById('clearAll').onclick=e=>{e.preventDefault();clearAllFilters();};
+}
+function clearAllFilters(){
+  activeProject='all';activeDateFilter='all';activeTaskType='all';searchQuery='';tableSearch='';sortCol='date';sortAsc=false;expandedUuid=null;activeToolFilters=new Set();activeSessionFilter='';activeQueueStatus='';customDateFrom=null;customDateTo=null;_filterBarKey=null;
+  document.getElementById('search').value='';
+  const tsi=document.getElementById('tableSearchInp');if(tsi)tsi.value='';
+  syncUrl();render();
+}
+
+// ─── Filters ──────────────────────────────────────────────────────────────────
+function applyFilters(){
+  const q=searchQuery.toLowerCase();const now=Date.now();
+  filteredSessions=allSessions.filter(s=>{
+    if(activeProject!=='all'&&(s.projectNorm||s.projectLabel)!==activeProject)return false;
+    if(activeDateFilter!=='all'){
+      const ts=s.startedAt?.getTime();
+      if(!ts)return false;
+      const age=now-ts;
+      if(activeDateFilter==='hour'&&age>3600e3)return false;
+      else if(activeDateFilter==='today'){const d=s.startedAt,n=new Date();if(d.getFullYear()!==n.getFullYear()||d.getMonth()!==n.getMonth()||d.getDate()!==n.getDate())return false;}
+      else if(activeDateFilter==='week'&&age>7*86400e3)return false;
+      else if(activeDateFilter==='month'&&age>30*86400e3)return false;
+      else if(activeDateFilter==='custom'){
+        const from=customDateFrom,to=customDateTo;
+        if(from&&ts<from)return false;
+        if(to&&ts>to)return false;
+      }
+    }
+    if(activeTaskType==='chat'&&s.userTurns.length===0)return false;
+    if(activeTaskType==='commands'&&s.commands.length===0)return false;
+    if(activeTaskType==='queued'&&s.queueItems.length===0)return false;
+    if(activeTaskType==='tasks'&&s.claudeTasks.length===0)return false;
+    if(activeTaskType==='haspr'&&s.prLinks.length===0)return false;
+    if(activeQueueStatus==='open'&&!s.queueItems.some(i=>!i.done&&!i.cancelled))return false;
+    if(activeQueueStatus==='done'&&!s.queueItems.some(i=>i.done))return false;
+    if(activeQueueStatus==='moved'&&!s.queueItems.some(i=>i.cancelled&&i.reason&&/moved/i.test(i.reason)))return false;
+    if(activeQueueStatus==='cancelled'&&!s.queueItems.some(i=>i.cancelled&&(!i.reason||!/moved/i.test(i.reason))))return false;
+    if(activeToolFilters.size&&![...activeToolFilters].some(f=>s.tools.includes(f)||s.skills.includes(f)))return false;
+    if(!q)return true;
+    return(s.title||'').toLowerCase().includes(q)||(s.projectNorm||'').toLowerCase().includes(q)||(s.projectLabel||'').toLowerCase().includes(q)||(s.projectWorktree||'').toLowerCase().includes(q)||(s.name||'').toLowerCase().includes(q)||s.uuid.toLowerCase().includes(q)||(s.lastAssistantText||'').toLowerCase().includes(q)||s.userTurns.some(t=>t.text.toLowerCase().includes(q))||s.commands.some(c=>c.name.toLowerCase().includes(q))||s.queueItems.some(i=>i.text.toLowerCase().includes(q))||s.claudeTasks.some(t=>t.subject.toLowerCase().includes(q));
+  });
+  tableFilteredSessions=activeSessionFilter?filteredSessions.filter(s=>s.uuid===activeSessionFilter):filteredSessions;
+  filteredSessions.sort((a,b)=>{
+    let cmp=0;
+    if(sortCol==='date')cmp=(a.lastActivityAt?.getTime()||a.startedAt?.getTime()||0)-(b.lastActivityAt?.getTime()||b.startedAt?.getTime()||0);
+    else if(sortCol==='project')cmp=(a.projectNorm||'').localeCompare(b.projectNorm||'');
+    else if(sortCol==='title')cmp=(a.title||'').localeCompare(b.title||'');
+    else if(sortCol==='model')cmp=(a.model||'').localeCompare(b.model||'');
+    else if(sortCol==='cost')cmp=(calcCost(a.model,a.usage)||0)-(calcCost(b.model,b.usage)||0);
+    else if(sortCol==='turns')cmp=(a.userTurns.length+a.commands.length)-(b.userTurns.length+b.commands.length);
+    else if(sortCol==='ct')cmp=a.claudeTasks.length-b.claudeTasks.length;
+    else if(sortCol==='dur')cmp=((a.lastActivityAt?.getTime()||0)-(a.startedAt?.getTime()||0))-((b.lastActivityAt?.getTime()||0)-(b.startedAt?.getTime()||0));
+    else if(sortCol==='queue')cmp=(a.queueItems.filter(i=>!i.done&&!i.cancelled).length)-(b.queueItems.filter(i=>!i.done&&!i.cancelled).length);
+    return sortAsc?cmp:-cmp;
+  });
+}
+function allToolsSkills(){
+  const tools=new Set(),skills=new Set();
+  for(const s of tableFilteredSessions){s.tools.filter(t=>t!=='Skill').forEach(t=>tools.add(t));s.skills.forEach(sk=>skills.add(sk));}
+  return{tools:[...tools].sort(),skills:[...skills].sort()};
+}
+let _filterBarKey=null;
+function renderFilters(){
+  const bar=document.getElementById('filterBar');
+  const {tools,skills}=allToolsSkills();
+  const _key=JSON.stringify([activeDateFilter,activeTaskType,[...activeToolFilters].sort(),customDateFrom,customDateTo,...tools,...skills]);
+  if(_key===_filterBarKey){bar.style.display='flex';return;}
+  _filterBarKey=_key;
+  const periodOpts=[{k:'all',l:'All time'},{k:'hour',l:'Last hour'},{k:'today',l:'Today'},{k:'week',l:'This week'},{k:'month',l:'This month'},{k:'custom',l:'Custom'}];
+  const typeOpts=[{k:'all',l:'All'},{k:'chat',l:'Chat'},{k:'commands',l:'Commands'},{k:'queued',l:'Queued'},{k:'tasks',l:'Claude tasks'},{k:'haspr',l:'Has PR'}];
+  const selectedChips=[...activeToolFilters].map(f=>
+    `<span class="tool-chip sel${skills.includes(f)?' skill':''}" data-chip="${esc(f)}">${esc(f)}<span class="tc-rm">×</span></span>`
+  ).join('');
+  const customInputs=activeDateFilter==='custom'?
+    `<input type="date" id="customFrom" style="font-size:11px;border:1px solid var(--border);border-radius:4px;padding:2px 5px;background:var(--panel2)" value="${customDateFrom?new Date(customDateFrom).toISOString().slice(0,10):''}">
+     <span style="color:var(--dim);font-size:11px">→</span>
+     <input type="date" id="customTo" style="font-size:11px;border:1px solid var(--border);border-radius:4px;padding:2px 5px;background:var(--panel2)" value="${customDateTo?new Date(customDateTo).toISOString().slice(0,10):''}">`:''
+  bar.innerHTML=`
+    <span class="fl">Tools/Skills</span>
+    <div class="ac-wrap">
+      <input class="ac-inp" id="toolInp" type="text" autocomplete="off" placeholder="${activeToolFilters.size?activeToolFilters.size+' selected':'All tools/skills'}" style="min-width:130px">
+      ${activeToolFilters.size?`<span class="ac-clear" id="toolClr" style="display:inline">×</span>`:''}
+      <div class="ac-drop" id="toolDrop"></div>
+    </div>
+    ${selectedChips}
+    <span class="fl" style="margin-left:4px">Period</span>
+    ${periodOpts.map(o=>`<button class="pill${activeDateFilter===o.k?' on':''}" data-period="${o.k}">${o.l}</button>`).join('')}
+    ${customInputs}
+    <span class="fl" style="margin-left:4px">Type</span>
+    ${typeOpts.map(o=>`<button class="pill${activeTaskType===o.k?' on':''}" data-type="${o.k}">${o.l}</button>`).join('')}
+  `;
+  bar.querySelectorAll('[data-period]').forEach(b=>b.addEventListener('click',()=>{activeDateFilter=b.dataset.period;syncUrl();render();}));
+  if(activeDateFilter==='custom'){
+    const f=document.getElementById('customFrom'),t=document.getElementById('customTo');
+    if(f)f.onchange=e=>{customDateFrom=e.target.value?new Date(e.target.value).getTime():null;syncUrl();render();};
+    if(t)t.onchange=e=>{customDateTo=e.target.value?new Date(e.target.value+'T23:59:59').getTime():null;syncUrl();render();};
+  }
+  bar.querySelectorAll('[data-type]').forEach(b=>b.addEventListener('click',()=>{activeTaskType=activeTaskType===b.dataset.type&&b.dataset.type!=='all'?'all':b.dataset.type;syncUrl();render();}));
+  bar.querySelectorAll('[data-chip]').forEach(chip=>{
+    chip.querySelector('.tc-rm').addEventListener('mousedown',e=>{e.preventDefault();activeToolFilters.delete(chip.dataset.chip);syncUrl();render();});
+  });
+  const inp=document.getElementById('toolInp'),drop=document.getElementById('toolDrop');
+  const clr=document.getElementById('toolClr');
+  if(clr)clr.addEventListener('click',()=>{activeToolFilters=new Set();syncUrl();render();});
+  function showToolDrop(filter){
+    const q=(filter||'').toLowerCase();
+    const matchSkills=skills.filter(s=>!q||s.toLowerCase().includes(q));
+    const matchTools=tools.filter(t=>!q||t.toLowerCase().includes(q));
+    if(!matchSkills.length&&!matchTools.length){drop.classList.remove('open');return;}
+    const mkItem=(name,isSk)=>{const on=activeToolFilters.has(name);return`<div class="ac-item${on?' ac-active':''}" data-t="${esc(name)}" data-sk="${isSk?1:0}"><span style="font-size:10px;opacity:.5">${on?'✓':' '}</span><span class="${isSk?'':''}${isSk?'':''}${isSk?'tool-chip skill':'tool-chip'}" style="pointer-events:none;border:none;background:none;padding:0">${esc(name)}</span></div>`;};
+    drop.innerHTML=[...matchSkills.map(s=>mkItem(s,true)),...matchTools.map(t=>mkItem(t,false))].join('');
+    drop.classList.add('open');
+    drop.querySelectorAll('.ac-item[data-t]').forEach(item=>item.addEventListener('mousedown',e=>{e.preventDefault();const name=item.dataset.t;if(activeToolFilters.has(name))activeToolFilters.delete(name);else activeToolFilters.add(name);syncUrl();render();}));
+  }
+  inp.addEventListener('focus',()=>showToolDrop(inp.value));
+  inp.addEventListener('input',()=>showToolDrop(inp.value));
+  inp.addEventListener('blur',()=>setTimeout(()=>drop.classList.remove('open'),150));
+  bar.style.display='flex';
+}
+
+// ─── Project KPI tiles ────────────────────────────────────────────────────────
+function renderProjectKPIs(){
+  const box=document.getElementById('kpiSection');
+  const byProj=new Map();
+  for(const s of filteredSessions){
+    const k=s.projectNorm||s.projectLabel;
+    if(!byProj.has(k))byProj.set(k,{cost:0,sessions:0,ms:0,color:projColorHex(k)});
+    const p=byProj.get(k);
+    const c=calcCost(s.model,s.usage);
+    if(c!==null)p.cost+=c;
+    p.sessions++;
+    if(s.startedAt&&s.lastActivityAt)p.ms+=s.lastActivityAt.getTime()-s.startedAt.getTime();
+  }
+  if(!byProj.size){box.style.display='none';return;}
+  const sorted=[...byProj.entries()].sort((a,b)=>b[1].cost-a[1].cost).slice(0,12);
+  box.innerHTML=sorted.map(([name,d])=>{
+    const costStr=d.cost<0.01?'$'+d.cost.toFixed(4):'$'+d.cost.toFixed(2);
+    const timeStr=d.ms>0?fmtDuration(0,d.ms):'—';
+    const on=activeProject===name?' on':'';
+    return`<div class="pkpi${on}" data-proj="${esc(name)}" style="border-left-color:${d.color}"><div class="pkpi-name" title="${esc(name)}">${esc(name)}</div><div class="pkpi-cost" style="color:${d.color}">${costStr}</div><div class="pkpi-sub">${d.sessions} session${d.sessions!==1?'s':''} · ${timeStr}</div></div>`;
+  }).join('');
+  box.style.display='flex';
+  box.querySelectorAll('.pkpi[data-proj]').forEach(el=>el.addEventListener('click',()=>{
+    activeProject=activeProject===el.dataset.proj?'all':el.dataset.proj;syncUrl();render();
+  }));
+}
+
+// ─── Render ───────────────────────────────────────────────────────────────────
+function render(){
+  applyFilters();
+  const fs=filteredSessions,total=allSessions.length;
+  const fProjs=new Set(fs.map(s=>s.projectNorm||s.projectLabel)).size;
+  const openQ=fs.reduce((n,s)=>n+s.queueItems.filter(i=>!i.done).length,0);
+  const doneQ=fs.reduce((n,s)=>n+s.queueItems.filter(i=>i.done).length,0);
+  const ct=fs.reduce((n,s)=>n+s.claudeTasks.length,0);
+  const cost=fs.reduce((n,s)=>n+(calcCost(s.model,s.usage)||0),0);
+  const isFiltered=fs.length<total;
+
+  setStatus(`${total} sessions`);
+  document.getElementById('search').style.display='';
+  const stats=document.getElementById('stats');stats.style.display='flex';
+  stats.innerHTML=`<span><span class="sv">${fs.length}</span>${isFiltered?`of ${total} `:' '}sessions</span><span class="sdot">·</span><span><span class="sv">${fProjs}</span>projects</span><span class="sdot">·</span><span style="color:var(--open)"><span class="sv">${openQ}</span>open</span><span class="sdot">·</span><span style="color:var(--done)"><span class="sv">${doneQ}</span>done</span><span class="sdot">·</span><span style="color:var(--accent)"><span class="sv">${ct}</span>claude tasks</span><span class="sdot">·</span><span><span class="sv">$${cost.toFixed(2)}</span>cost</span>`;
+
+  renderFilters();renderProjectKPIs();renderFilterInfo();
+  document.getElementById('tlSection').style.display='block';
+  document.getElementById('tableSection').style.display='block';
+  renderTimeline();renderTable();
+}
+
+// ─── Timeline ─────────────────────────────────────────────────────────────────
+function renderTimeline(){
+  const sec=document.getElementById('tlSection');
+  const withDates=filteredSessions.filter(s=>s.startedAt);
+  if(!withDates.length){sec.innerHTML='<p style="color:var(--dim);text-align:center;padding:14px">No sessions with timestamps.</p>';return;}
+  const tMin=Math.min(...withDates.map(s=>s.startedAt.getTime()));
+  const tMaxRaw=Math.max(...withDates.map(s=>(s.lastActivityAt||s.startedAt).getTime()));
+  const tMax=tMaxRaw+(tMaxRaw-tMin)*0.02+600000;
+  const tSpan=Math.max(tMax-tMin,1);
+  const projMap=new Map();
+  for(const s of withDates){const k=s.projectNorm||s.projectLabel;if(!projMap.has(k))projMap.set(k,[]);projMap.get(k).push(s);}
+  const projNames=[...projMap.keys()].sort();
+  const ROW_H=28,BAR_H=18,AXIS_H=24;
+  const TICKS=6;
+  const ticks=Array.from({length:TICKS+1},(_,i)=>tMin+tSpan*i/TICKS);
+  function pct(ms){return((ms-tMin)/tSpan*100).toFixed(4)+'%';}
+  function pctW(ms1,ms2){return(Math.max(0,ms2-ms1)/tSpan*100).toFixed(4)+'%';}
+
+  const labelRows=[`<div style="height:${AXIS_H}px"></div>`];
+  const canvasRows=[];
+  const axisTicks=ticks.map(t=>{const d=new Date(t);const lbl=tSpan>14*86400e3?d.toLocaleDateString('en-US',{month:'short',day:'numeric'}):tSpan>86400e3?d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'2-digit'}):d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});return`<span class="tl-tick" style="left:${pct(t)}">${esc(lbl)}</span>`;}).join('');
+  canvasRows.push(`<div class="tl-axis" style="height:${AXIS_H}px">${axisTicks}</div>`);
+  const gridLines=ticks.slice(1,-1).map(t=>`<span class="tl-grid" style="left:${pct(t)}"></span>`).join('');
+
+  projNames.forEach(proj=>{
+    const color=projColorHex(proj);
+    const isActive=activeProject===proj;
+    labelRows.push(`<div class="tl-label${isActive?' on':''}" style="height:${ROW_H}px" data-proj="${esc(proj)}"><span class="cdot" style="background:${color}"></span><span title="${esc(proj)}">${esc(proj.length>16?proj.slice(0,15)+'…':proj)}</span></div>`);
+    const bars=projMap.get(proj).map(s=>{
+      const sMs=s.startedAt.getTime();
+      const eMs=s.lastActivityAt?s.lastActivityAt.getTime():sMs+1800000;
+      const cost=calcCost(s.model,s.usage);
+      const tip=[s.title||'(untitled)',fmtDate(s.startedAt)+(s.lastActivityAt?' → '+fmtDate(s.lastActivityAt):''),`${s.userTurns.length+s.commands.length} turns`,cost!==null?'$'+(cost<0.01?cost.toFixed(4):cost.toFixed(2)):'',s.model||''].filter(Boolean).join('\n');
+      const turnTicks=s.userTurns.filter(t=>t.ts).map(t=>{const p=(t.ts.getTime()-sMs)/Math.max(1,eMs-sMs)*100;return p>=0&&p<=100?`<span class="tl-turn" style="left:${p.toFixed(2)}%"></span>`:''}).join('');
+      return`<div class="tl-sess" style="position:absolute;left:${pct(sMs)};width:${pctW(sMs,eMs)};top:${(ROW_H-BAR_H)/2}px;height:${BAR_H}px;background:${color}22;border-color:${color}" data-uuid="${s.uuid}" data-tip="${esc(tip)}"><span class="tl-stitle">${esc(s.title||'(untitled)')}</span>${turnTicks}</div>`;
+    }).join('');
+    canvasRows.push(`<div style="position:relative;height:${ROW_H}px;border-top:1px solid var(--border2)">${gridLines}${bars}</div>`);
+  });
+
+  const totalH=AXIS_H+projNames.length*ROW_H;
+  sec.innerHTML=`<h2>${withDates.length} session${withDates.length!==1?'s':''} · ${projNames.length} projects</h2>
+    <div class="tl-outer"><div class="tl-inner" style="min-height:${totalH}px">
+      <div class="tl-labels">${labelRows.join('')}</div>
+      <div class="tl-canvas">${canvasRows.join('')}</div>
+    </div></div>`;
+
+  sec.querySelectorAll('[data-tip]').forEach(el=>tipOn(el,el.dataset.tip));
+  sec.querySelectorAll('.tl-label[data-proj]').forEach(el=>el.addEventListener('click',()=>{
+    activeProject=activeProject===el.dataset.proj?'all':el.dataset.proj;syncUrl();render();
+  }));
+  sec.querySelectorAll('.tl-sess[data-uuid]').forEach(el=>el.addEventListener('click',e=>{
+    e.stopPropagation();const uuid=el.dataset.uuid;
+    activeSessionFilter=activeSessionFilter===uuid?'':uuid;
+    syncUrl();render();
+  }));
+  const canvas=sec.querySelector('.tl-canvas');
+  if(canvas)canvas.addEventListener('mousedown',e=>{
+    if(e.button!==0||e.target.closest('.tl-sess'))return;
+    e.preventDefault();
+    const b=canvas.getBoundingClientRect();
+    const startFrac=Math.max(0,Math.min(1,(e.clientX-b.left)/b.width));
+    const drag=document.createElement('div');drag.className='tl-drag';
+    drag.style.left=(startFrac*100)+'%';drag.style.width='0';
+    canvas.appendChild(drag);
+    tlDragState={canvas,startFrac,drag,tMin,tSpan};
+  });
+}
+
+// ─── Table ────────────────────────────────────────────────────────────────────
+function renderTable(){
+  const sec=document.getElementById('tableSection');
+  if(!tableFilteredSessions.length){document.getElementById('tblHead').style.display='none';sec.innerHTML='<p style="color:var(--dim);padding:20px">No sessions match.</p>';return;}
+  const cols=[
+    {key:'date',label:'Date',w:'88px'},{key:'dur',label:'Dur',w:'46px'},
+    {key:'project',label:'Project',w:'1%'},{key:'title',label:'Session'},
+    {key:'model',label:'Model',w:'86px'},{key:'cost',label:'Cost',w:'62px'},
+    {key:'turns',label:'Turns',w:'44px'},{key:'ct',label:'Tasks',w:'44px'},
+    {key:'queue',label:'Queue',w:'98px'},{key:'pr',label:'PR',w:'50px',nosort:true},
+  ];
+  const thead=cols.map(c=>{if(c.nosort)return`<th style="${c.w?'width:'+c.w:''}">${c.label}</th>`;const arrow=sortCol===c.key?(sortAsc?'▲':'▼'):'';return`<th data-col="${c.key}" style="${c.w?'width:'+c.w:''}">${c.label}<span class="sa">${arrow}</span></th>`;}).join('');
+  const label=activeSessionFilter?'1 session (filtered)':filteredSessions.length+' session'+(filteredSessions.length!==1?'s':'')+(activeProject!=='all'?' · '+esc(activeProject):'');
+  document.getElementById('tblLabel').textContent=label;
+  document.getElementById('tblHead').style.display='flex';
+  const tq=tableSearch.toLowerCase();
+  const displaySessions=tq?tableFilteredSessions.filter(s=>(s.title||'').toLowerCase().includes(tq)||(s.projectNorm||'').toLowerCase().includes(tq)||(s.projectLabel||'').toLowerCase().includes(tq)||(s.projectWorktree||'').toLowerCase().includes(tq)||(s.name||'').toLowerCase().includes(tq)||s.uuid.toLowerCase().includes(tq)||(s.lastAssistantText||'').toLowerCase().includes(tq)||s.userTurns.some(t=>t.text.toLowerCase().includes(tq))||s.queueItems.some(i=>i.text.toLowerCase().includes(tq))||s.claudeTasks.some(t=>t.subject.toLowerCase().includes(tq))):tableFilteredSessions;
+  sec.innerHTML=`<div class="tbl-wrap"><table id="mainTable"><thead><tr>${thead}</tr></thead><tbody>${displaySessions.map(s=>sessionRow(s)).join('')}</tbody></table></div>`;
+  sec.querySelectorAll('th[data-col]').forEach(th=>th.addEventListener('click',()=>{if(sortCol===th.dataset.col)sortAsc=!sortAsc;else{sortCol=th.dataset.col;sortAsc=th.dataset.col!=='date';}syncUrl();render();}));
+  sec.querySelectorAll('tr.srow').forEach(tr=>tr.addEventListener('click',()=>toggleRow(tr.dataset.uuid)));
+  sec.querySelectorAll('[data-tip]').forEach(el=>tipOn(el,el.dataset.tip));
+  sec.querySelectorAll('.copy-btn').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();navigator.clipboard.writeText(btn.dataset.copy).then(()=>{const old=btn.textContent;btn.textContent='✓';setTimeout(()=>{btn.textContent=old;},1200);});}));
+  sec.querySelectorAll('.qc[data-qstatus]').forEach(el=>el.addEventListener('click',e=>{e.stopPropagation();const st=el.dataset.qstatus;activeQueueStatus=activeQueueStatus===st?'':st;syncUrl();render();}));
+  if(expandedUuid&&displaySessions.find(s=>s.uuid===expandedUuid)){const tr=sec.querySelector(`tr[data-uuid="${expandedUuid}"]`);if(tr)insertDetailRow(tr,allSessions.find(s=>s.uuid===expandedUuid));}
+}
+function sessionRow(s){
+  const title=s.title||(s.userTurns[0]?.text.slice(0,80))||'(untitled)';
+  const norm=s.projectNorm||s.projectLabel;
+  const color=projColorHex(norm);
+  const sessionColor=s.color?(COLOR_CSS[s.color]||s.color):null;
+  const worktree=s.projectWorktree;
+  const openN=s.queueItems.filter(i=>!i.done&&!i.cancelled).length,doneN=s.queueItems.filter(i=>i.done).length;
+  const cancelledN=s.queueItems.filter(i=>i.cancelled).length;
+  const movedN=s.queueItems.filter(i=>i.cancelled&&i.reason&&/moved/i.test(i.reason)).length;
+  const pureN=cancelledN-movedN;
+  const qBadges=[
+    openN?`<span class="qc open${activeQueueStatus==='open'?' active':''}" data-qstatus="open" data-tip="${esc(s.queueItems.filter(i=>!i.done&&!i.cancelled).map(queueItemTip).join('\n─────────────────\n'))}">${openN} open</span>`:'',
+    doneN?`<span class="qc done${activeQueueStatus==='done'?' active':''}" data-qstatus="done" data-tip="${esc(s.queueItems.filter(i=>i.done).map(queueItemTip).join('\n─────────────────\n'))}">${doneN} done</span>`:'',
+    movedN?`<span class="qc${activeQueueStatus==='moved'?' active':''}" data-qstatus="moved" data-tip="${esc(s.queueItems.filter(i=>i.cancelled&&i.reason&&/moved/i.test(i.reason)).map(queueItemTip).join('\n─────────────────\n'))}" style="background:color-mix(in srgb,var(--dim) 15%,transparent);color:var(--dim)">${movedN} moved</span>`:'',
+    pureN?`<span class="qc${activeQueueStatus==='cancelled'?' active':''}" data-qstatus="cancelled" data-tip="${esc(s.queueItems.filter(i=>i.cancelled&&(!i.reason||!/moved/i.test(i.reason))).map(queueItemTip).join('\n─────────────────\n'))}" style="background:color-mix(in srgb,var(--err) 12%,transparent);color:var(--err)">${pureN} cancelled</span>`:'',
+  ].filter(Boolean).join(' ');
+  const cost=calcCost(s.model,s.usage);
+  const costStr=cost!==null?(cost<0.01?'$'+cost.toFixed(4):'$'+cost.toFixed(2)):'—';
+  const costColor=cost===null?'var(--dim)':cost>1?'var(--err)':cost>0.1?'var(--open)':'var(--done)';
+  const dur=s.startedAt&&s.lastActivityAt?fmtDuration(s.startedAt.getTime(),s.lastActivityAt.getTime()):'—';
+  const ctTip=s.claudeTasks.map(t=>t.subject).join('\n');
+  const lastReply=s.lastAssistantText?s.lastAssistantText.trim().slice(0,100).replace(/\n+/g,' '):'';
+  return`<tr class="srow" data-uuid="${s.uuid}">
+    <td class="dt" data-tip="${s.startedAt?esc('started: '+fmtDate(s.startedAt)):''}">
+      <div>${s.lastActivityAt?fmtDate(s.lastActivityAt):s.startedAt?fmtDate(s.startedAt):'—'}</div>
+      ${s.startedAt&&s.lastActivityAt&&s.startedAt.toDateString()!==s.lastActivityAt.toDateString()?`<div style="font-size:10px;color:var(--dim)">${fmtDate(s.startedAt)}</div>`:''}
+    </td>
+    <td class="dur" data-tip="${s.startedAt&&s.lastActivityAt?esc(fmtDate(s.startedAt)+' → '+fmtDate(s.lastActivityAt)):''}">${dur}</td>
+    <td class="proj">
+      <span class="proj-badge" style="color:${color};border-color:${color}40;background:${color}18" data-tip="${esc(s.project)}"><span class="cdot" style="background:${color}"></span>${esc(norm)}</span>
+      ${worktree?`<div class="t-sub" style="margin-top:2px" data-tip="${esc(s.projectLabel)}">${esc(worktree)}</div>`:''}
+    </td>
+    <td class="title">
+      <div class="t-name">${sessionColor?`<span class="cdot" style="background:${sessionColor}"></span>`:''} ${esc(title.slice(0,80))}${title.length>80?'…':''} <button class="copy-btn" data-copy="${esc(s.name||title)}" data-tip="Copy to search" style="margin-left:3px;vertical-align:middle">⧉</button></div>
+      ${s.name&&s.name!==s.title?`<div class="t-sname">${esc(s.name)}</div>`:''}
+      ${lastReply?`<div class="t-sub" data-tip="${esc(s.lastAssistantText||'')}">${esc(lastReply)}${(s.lastAssistantText||'').length>100?'…':''}</div>`:''}
+      <div class="t-sub" style="opacity:.6" data-tip="${esc(s.uuid)}">${s.uuid.slice(0,8)}…</div>
+    </td>
+    <td class="model">${esc(s.model||'—')}</td>
+    <td class="cost" style="color:${costColor}">${costStr}</td>
+    <td class="turns">${s.userTurns.length+s.commands.length}</td>
+    <td class="ctasks">${s.claudeTasks.length>0?`<span class="qc ct" data-tip="${esc(ctTip)}">${s.claudeTasks.length}</span>`:'<span style="color:var(--dim)">—</span>'}</td>
+    <td class="queue"><div class="q-counts">${qBadges||'<span style="color:var(--dim);font-size:11px">—</span>'}</div></td>
+    <td>${s.prLinks.length?s.prLinks.map(url=>{const m=url.match(/\/pull\/(\d+)/);return`<a class="pr-link" href="${url}" target="_blank" rel="noopener">⎇ #${m?m[1]:'?'}</a>`;}).join('<br>'):'<span style="color:var(--dim)">—</span>'}</td>
+  </tr>`;
+}
+function toggleRow(uuid){
+  const sec=document.getElementById('tableSection');
+  const existing=sec.querySelector(`tr.detail-row[data-for="${uuid}"]`);
+  if(existing){existing.remove();sec.querySelector(`tr[data-uuid="${uuid}"]`)?.classList.remove('open-row');expandedUuid=null;return;}
+  sec.querySelectorAll('tr.detail-row').forEach(r=>r.remove());
+  sec.querySelectorAll('tr.srow.open-row').forEach(r=>r.classList.remove('open-row'));
+  const tr=sec.querySelector(`tr[data-uuid="${uuid}"]`);if(!tr)return;
+  tr.classList.add('open-row');expandedUuid=uuid;
+  const s=allSessions.find(x=>x.uuid===uuid);if(s)insertDetailRow(tr,s);
+}
+function insertDetailRow(tr,s){
+  const detail=document.createElement('tr');detail.className='detail-row';detail.dataset.for=s.uuid;
+  const worktree=s.projectWorktree;
+  const lastReplyHtml=s.lastAssistantText?`<div class="turn-block"><div class="turn-label"><span class="role-badge rb-asst">assistant</span>Last reply</div><div class="turn-text" style="max-height:120px;font-size:11.5px">${esc(s.lastAssistantText.trim().slice(0,800))}</div></div>`:'';
+  const allTurns=[...s.userTurns].reverse().map((t,i)=>{const n=s.userTurns.length-i;const spawnHtml=(t.agentSpawns||[]).map(sp=>{const ag=(s.agents||[]).find(a=>a.toolUseId===sp.toolUseId);const cost=ag?calcCost(ag.model,ag.usage):null;const tok=ag?(ag.usage.in+ag.usage.out+ag.usage.cw+ag.usage.cr):0;const effortBadge=ag?.effort&&ag.effort!=='normal'?`<span class="agent-meta" style="opacity:.7">${esc(ag.effort)}</span>`:'';const toolsHtml=ag?.tools?.length?`<span class="agent-meta" style="opacity:.6">${esc(ag.tools.slice(0,5).join(' · '))}</span>`:'';const tip=ag?.lastAssistantText?` data-tip="${esc(ag.lastAssistantText.trim().slice(0,300))}"`:' ';return`<div class="agent-block"><span class="role-badge rb-agent">${esc(ag?.agentType||'agent')}</span><span class="agent-desc"${tip}>${esc(ag?.description||sp.label||'')}</span>${effortBadge}${toolsHtml}${ag?.model?`<span class="agent-meta">${esc(ag.model)}</span>`:''} ${tok>0?`<span class="agent-meta">${fmtK(tok)}tok</span>`:''}${cost!==null?`<span class="agent-cost"> · $${cost<0.01?cost.toFixed(4):cost.toFixed(2)}</span>`:''}</div>`;}).join('');return`<div class="turn-block"><div class="turn-label"><span class="role-badge rb-user">user</span>Turn ${n}${t.ts?' · '+fmtDate(t.ts):''}</div><div class="turn-text">${esc(t.text)}</div>${spawnHtml}</div>`;});
+  const cmdTurns=[...s.commands].reverse().map(c=>`<div class="turn-block"><div class="turn-label"><span class="role-badge rb-cmd">cmd</span>Command${c.ts?' · '+fmtDate(c.ts):''}</div><div class="turn-text cmd-text">${esc(c.name)}${c.args?' '+esc(c.args):''}</div></div>`);
+  const turnsHtml=[...allTurns,...cmdTurns].join('')||'<div style="color:var(--dim);font-size:12px">No user turns.</div>';
+  const qHtml=[...s.claudeTasks.map(t=>{
+    const statusColor={completed:'var(--done)',in_progress:'var(--accent)',pending:'var(--open)'}[t.status]||'var(--dim)';
+    const statusLabel={completed:'done',in_progress:'active',pending:'pending'}[t.status]||'';
+    const tIcon={completed:'✓',in_progress:'◈',pending:'○'}[t.status]||'◈';
+    const tColor={completed:'var(--done)',in_progress:'var(--accent)',pending:'var(--open)'}[t.status]||'var(--dim)';
+    return`<div class="q-row"><span class="q-icon" style="color:${tColor}">${tIcon}</span><div class="q-body"><div>${esc(t.subject)}${statusLabel?` <span style="font-size:10px;padding:1px 5px;border-radius:3px;background:color-mix(in srgb,${statusColor} 20%,transparent);color:${statusColor}">${statusLabel}</span>`:''}</div>${t.ts?`<div class="q-ts">${esc(fmtDate(t.ts))}</div>`:''}</div></div>`;
+  }),...s.queueItems.map(i=>{
+    const icon=i.done?'✓':i.cancelled?'⊘':'▷';
+    const color=i.done?'var(--done)':i.cancelled?'var(--dim)':'var(--open)';
+    const movedToHtml=i.movedTo&&i.movedTo!=='pending'?
+      ` <span class="q-moved" data-uuid="${esc(i.movedTo)}" style="font-size:10.5px;color:var(--accent);cursor:pointer;text-decoration:underline" title="Filter to session">→ ${esc(i.movedTo.slice(0,8))}…</span>`:'';
+    return`<div class="q-row" data-tip="${esc(queueItemTip(i))}"><span class="q-icon" style="color:${color}">${icon}</span><div class="q-body"><div>${esc(i.text)}${movedToHtml}</div>${i.ctx?`<div class="q-ctx">${esc(i.ctx)}</div>`:''}</div></div>`;
+  })].join('')||'<div style="color:var(--dim);font-size:12px">No tasks.</div>';
+  const u=s.usage,hasU=u.in+u.out+u.cw+u.cr>0;
+  const cost=hasU?calcCost(s.model,u):null;
+  const colorDot=s.color&&COLOR_CSS[s.color]?`<span class="cdot" style="background:${COLOR_CSS[s.color]};margin-right:3px"></span>`:'';
+  const pricing=getPricing(s.model);
+  const costBreak=pricing&&hasU?`\nPricing: $${pricing.in}/MTok in · $${pricing.cw}/MTok cw · $${pricing.cr}/MTok cr · $${pricing.out}/MTok out\nRaw tokens: ${fmtK(u.in)} in + ${fmtK(u.cw)} cw + ${fmtK(u.cr)} cr + ${fmtK(u.out)} out`:'';
+  const usageHtml=hasU?`<div class="usage-footer">${colorDot}<span class="uf-model">${esc(s.model||'—')}</span><span class="uf-sep">·</span><span class="uf-stat" title="${esc('input'+costBreak)}">${fmtK(u.in)} in</span><span class="uf-sep">·</span><span class="uf-stat">${fmtK(u.out)} out</span>${u.cr>0?`<span class="uf-sep">·</span><span class="uf-stat">${fmtK(u.cr)} cached</span>`:''}<span class="uf-sep">·</span><span class="uf-cost" data-tip="${esc(costBreak)}">${cost!==null?'$'+(cost<0.01?cost.toFixed(4):cost.toFixed(2)):'—'}</span></div>`:'';
+  const prHtml=s.prLinks.length?`<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">${s.prLinks.map(url=>{const m=url.match(/\/pull\/(\d+)/);return`<a href="${url}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;padding:2px 7px;border-radius:4px;border:1px solid var(--border);background:var(--panel3);color:var(--accent);text-decoration:none">⎇ PR #${m?m[1]:'?'}</a>`;}).join('')}</div>`:'';
+  const toolTags=s.tools.filter(t=>t!=='Skill');
+  const toolsHtml=(toolTags.length||s.skills.length)?`<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:3px">${[...s.skills.map(sk=>`<span class="tool-chip skill" data-tool="${esc(sk)}" data-tip="${esc('Skill: '+sk)}" style="cursor:pointer">${esc(sk)}</span>`),...toolTags.map(t=>`<span class="tool-chip" data-tool="${esc(t)}" data-tip="${esc(TOOL_DESC[t]||'Built-in tool')}" style="cursor:pointer">${esc(t)}</span>`)].join('')}</div>`:'';
+  const worktreeHtml=worktree?`<div style="margin-bottom:6px;font-size:11px;color:var(--muted)">worktree: <span style="font-family:var(--mono)">${esc(worktree)}</span></div>`:'';
+  detail.innerHTML=`<td colspan="10"><div class="detail-inner"><div class="ds">${s.name&&s.name!==s.title?`<div style="margin-bottom:8px;font-size:11px;color:var(--muted)">name: ${esc(s.name)}</div>`:''}<h3>Turns · ${s.userTurns.length+s.commands.length}</h3>${lastReplyHtml}${turnsHtml}</div><div class="ds">${worktreeHtml}${prHtml}${usageHtml}${toolsHtml}<div class="session-uuid">${s.uuid}<button class="copy-btn" data-copy="${s.uuid}" data-tip="Copy session ID">⧉</button></div><h3 style="margin-top:10px">Tasks · ${s.claudeTasks.length+s.queueItems.length}</h3>${qHtml}</div></div></td>`;
+  tr.after(detail);
+  detail.querySelectorAll('.q-moved[data-uuid]').forEach(el=>{
+    el.addEventListener('click',e=>{e.stopPropagation();activeSessionFilter=el.dataset.uuid;syncUrl();render();});
+  });
+  detail.querySelectorAll('.copy-btn').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();navigator.clipboard.writeText(btn.dataset.copy).then(()=>{const old=btn.textContent;btn.textContent='✓';setTimeout(()=>{btn.textContent=old;},1200);});}));
+  detail.querySelectorAll('.tool-chip[data-tool]').forEach(pill=>{
+    tipOn(pill,pill.dataset.tip);
+    pill.addEventListener('click',e=>{e.stopPropagation();const t=pill.dataset.tool;if(activeToolFilters.has(t))activeToolFilters.delete(t);else activeToolFilters.add(t);syncUrl();render();});
+  });
+  detail.querySelectorAll('[data-tip]').forEach(el=>tipOn(el,el.dataset.tip));
+}
+
+// ─── Utilities ───────────────────────────────────────────────────────────────
+function fmtDate(d){return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});}
+function fmtDuration(ms1,ms2){const m=Math.round((ms2-ms1)/60000);if(m<1)return'<1m';if(m<60)return m+'m';const h=Math.floor(m/60),rem=m%60;if(h<24)return h+'h'+(rem?rem+'m':'');const d=Math.floor(h/24),remH=h%24;return d+'d'+(remH?remH+'h':'');}
+function fmtK(n){return n>=1000?(n/1000).toFixed(1)+'k':String(n);}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function getPricing(model){if(!model)return null;let p=PRICING[model];if(!p){const k=Object.keys(PRICING).find(k=>model.startsWith(k));if(k)p=PRICING[k];}return p||null;}
+function calcCost(model,usage){const p=getPricing(model);if(!p)return null;return(usage.in*p.in+usage.cw*p.cw+usage.cr*p.cr+usage.out*p.out)/1e6;}
+
+// ─── Session cache ────────────────────────────────────────────────────────────────
+function cacheKey(){return'claude-sess-v3-'+rootHandles.map(h=>h.name).join('|');}
+function serializeCache(sessions){
+  return sessions.map(s=>({...s,
+    startedAt:s.startedAt?.toISOString()||null,
+    lastActivityAt:s.lastActivityAt?.toISOString()||null,
+    userTurns:s.userTurns.map(t=>({...t,ts:t.ts?.toISOString()||null})),
+    commands:s.commands.map(c=>({...c,ts:c.ts?.toISOString()||null})),
+    claudeTasks:s.claudeTasks.map(t=>({...t,ts:t.ts?.toISOString()||null})),
+  }));
+}
+function deserializeCache(data){
+  return data.map(s=>({...s,
+    startedAt:s.startedAt?new Date(s.startedAt):null,
+    lastActivityAt:s.lastActivityAt?new Date(s.lastActivityAt):null,
+    userTurns:(s.userTurns||[]).map(t=>({...t,ts:t.ts?new Date(t.ts):null})),
+    commands:(s.commands||[]).map(c=>({...c,ts:c.ts?new Date(c.ts):null})),
+    claudeTasks:(s.claudeTasks||[]).map(t=>({...t,ts:t.ts?new Date(t.ts):null})),
+    agents:s.agents||[],
+  }));
+}
+async function hasNewerFiles(handles,cacheTs){
+  for(const h of handles){
+    try{
+      const pH=await h.getDirectoryHandle('projects');
+      for await(const[,pd]of pH){
+        if(pd.kind!=='directory')continue;
+        for await(const[fn,fh]of pd){
+          if(fh.kind==='file'&&fn.endsWith('.jsonl')){
+            const f=await fh.getFile();
+            if(f.lastModified>cacheTs)return true;
+          } else if(fh.kind==='directory'){
+            // Subagent JSONL files are not reflected in parent JSONL mtime
+            try{
+              const subH=await fh.getDirectoryHandle('subagents');
+              for await(const[sfn,sfh]of subH){
+                if(!sfn.endsWith('.jsonl')||sfh.kind!=='file')continue;
+                const sf=await sfh.getFile();
+                if(sf.lastModified>cacheTs)return true;
+              }
+            }catch{}
+          }
+        }
+      }
+    }catch{}
+  }
+  return false;
+}
+async function saveCache(sessions){
+  const h=await getAnalyticsHandle();
+  if(!h){
+    try{localStorage.setItem(cacheKey(),JSON.stringify({ts:Date.now(),data:serializeCache(sessions)}));}catch{}
+    return;
+  }
+  try{
+    let existing={};
+    try{
+      const fh=await h.getFileHandle('session-cache.json');
+      const raw=await(await fh.getFile()).text();
+      const c=JSON.parse(raw);
+      existing=c.sessions||{};
+    }catch{}
+    // Merge: current data wins per UUID; old UUIDs are preserved (additive only)
+    const serialized=serializeCache(sessions);
+    for(const s of serialized)existing[s.uuid]=s;
+    const fh=await h.getFileHandle('session-cache.json',{create:true});
+    const w=await fh.createWritable();
+    await w.write(JSON.stringify({ts:Date.now(),sessions:existing}));
+    await w.close();
+  }catch(e){console.warn('saveCache',e);}
+}
+async function loadCache(){
+  const h=await getAnalyticsHandle();
+  if(!h){
+    try{const raw=localStorage.getItem(cacheKey());if(!raw)return null;const c=JSON.parse(raw);return c?.ts&&c?.data?c:null;}catch{return null;}
+  }
+  try{
+    const fh=await h.getFileHandle('session-cache.json');
+    const raw=await(await fh.getFile()).text();
+    const c=JSON.parse(raw);
+    if(!c?.ts||!c?.sessions)return null;
+    return{ts:c.ts,data:Object.values(c.sessions)};
+  }catch{return null;}
+}
+
+// ─── Event wiring ─────────────────────────────────────────────────────────────
+document.getElementById('clearCacheBtn').addEventListener('click',()=>load());
+document.getElementById('analyticsBtn').addEventListener('click',async()=>{await setupAnalyticsDir();if(analyticsHandle)load();});
+let _searchDebounce=null,_tSearchDebounce=null;
+document.getElementById('search').addEventListener('input',e=>{
+  searchQuery=e.target.value.trim();
+  clearTimeout(_searchDebounce);
+  _searchDebounce=setTimeout(()=>{syncUrl();render();},200);
+});
+document.getElementById('tableSearchInp').addEventListener('input',e=>{
+  tableSearch=e.target.value;
+  clearTimeout(_tSearchDebounce);
+  _tSearchDebounce=setTimeout(()=>{syncUrl();renderTable();renderFilterInfo();},200);
+});
+
+// ─── Timeline drag ────────────────────────────────────────────────────────────
+document.addEventListener('mousemove',e=>{
+  if(!tlDragState)return;
+  const{canvas,startFrac,drag}=tlDragState;
+  const b=canvas.getBoundingClientRect();
+  const cur=Math.max(0,Math.min(1,(e.clientX-b.left)/b.width));
+  const lo=Math.min(startFrac,cur),hi=Math.max(startFrac,cur);
+  drag.style.left=(lo*100)+'%';drag.style.width=((hi-lo)*100)+'%';
+});
+document.addEventListener('mouseup',e=>{
+  if(!tlDragState)return;
+  const{canvas,drag,startFrac,tMin,tSpan}=tlDragState;
+  const b=canvas.getBoundingClientRect();
+  const cur=Math.max(0,Math.min(1,(e.clientX-b.left)/b.width));
+  const lo=Math.min(startFrac,cur),hi=Math.max(startFrac,cur);
+  tlDragState=null;drag.remove();
+  if(hi-lo<0.005)return;
+  customDateFrom=Math.round(tMin+lo*tSpan);customDateTo=Math.round(tMin+hi*tSpan);
+  activeDateFilter='custom';syncUrl();render();
+});
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+readUrl();
+getAnalyticsHandle().then(h=>{if(!h)document.getElementById('analyticsBtn').style.display='';});
+tryAutoLoad();
+</script>
+</body>
+</html>
