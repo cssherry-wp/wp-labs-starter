@@ -350,12 +350,15 @@ Return a single JSON object with the following fields.
   available. Then summarize what was worked on and the overall outcome.
 
 "completed_tasks": JSON array of strings — tasks or queue items completed.
+  One string per item — never group multiple items into a single summary sentence.
   Prefix items drawn from the <queue-items> block with "[queue] ".
 
 "incomplete_tasks": JSON array of strings — tasks started or queued but unfinished.
-  Always include open items from the <queue-items> block (lines starting with "- [ ]");
-  exclude cancelled items (lines with "cancelled:" metadata).
-  Prefix items drawn from the <queue-items> block with "[queue] ".
+  One string per item — never group multiple items into a single summary sentence.
+  For each open item in the <queue-items> block (lines starting with "- [ ]"), copy
+  its text verbatim as a separate array entry prefixed with "[queue] ".
+  Exclude cancelled items (lines with "cancelled:" metadata).
+  Example: ["[queue] Refactor auth middleware", "[queue] Add rate limiting to /api/search"]
 
 "improvement_suggestions": JSON array of finding objects. If nothing notable, return [].
   Each object:
