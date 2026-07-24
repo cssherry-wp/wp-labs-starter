@@ -61,6 +61,16 @@ Prefer one commit per task — each task's work is its own commit. Keep a comple
 amendment for that same task), squash it into that task's original commit rather than leaving a
 separate fixup commit. A finished task should show up as exactly one commit in the log.
 
+## Issue linking
+
+If the commit addresses a tracker issue, add a reference at the end of the commit body:
+
+- **GitHub**: trailer on its own line — `Closes #123` when this commit resolves the issue,
+  `Refs #123` when it relates but doesn't close it
+- **Jira**: prefix the subject line — `PROJ-123: <summary>` — and add `Refs PROJ-123` as a
+  trailer when a commit shares multiple issues
+- Omit entirely when no issue applies; do not create an issue just to have one to reference
+
 ## After the final commit
 
 Always push after the final commit: `git push` (or `git push -u origin <branch>` for a new branch).

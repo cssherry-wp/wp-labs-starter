@@ -38,6 +38,14 @@ Omit a section only if it genuinely doesn't apply (e.g. no real alternatives for
 
 Prefer one commit per task — each task's work is its own commit. But keep a completed task to a **single** commit: if you make a follow-up commit that modifies an already-committed task (a fix, review correction, or amendment for that same task), squash it into that task's original commit rather than leaving a separate fixup commit. A finished task should show up as exactly one commit in the log.
 
+### Issue linking
+
+If the commit addresses a tracker issue, add a reference at the end of the commit body:
+
+- **GitHub**: trailer on its own line — `Closes #123` when this commit resolves the issue, `Refs #123` when it relates but doesn't close it
+- **Jira**: prefix the subject line — `PROJ-123: <summary>` — and add `Refs PROJ-123` as a trailer when a commit shares multiple issues
+- Omit entirely when no issue applies; do not create an issue just to have one to reference
+
 ## Pull Request Descriptions
 
 <!-- scaffolder (SKILL.md step 8b): keep only the bullet for this repo's issue
@@ -68,9 +76,17 @@ Banned openers: "Certainly!", "Of course!", "Absolutely!", "Great!", "Sure!", "H
 
 Banned closers: "In conclusion", "In summary", "Overall", "To sum up", "Say the word and I'll do it."
 
+### Task completion
+
+At the end of a coding task in a Claude Code session, include a brief summary covering:
+- What was done (files changed, decisions made)
+- Any assumptions or caveats the user needs to know
+
+A few lines is enough. This applies to Claude Code sessions — not general writing tasks. It is the delivery note for what the user needs to act on the work, not a content recap. It pairs with the "no closers/recaps" rule: recaps restate what the user can read; a task summary surfaces what they cannot (assumptions, scope decisions, known limitations).
+
 ### No sycophancy
 
-Never praise the user's input, questions, code, or decisions. Omit "Good catch", "Great idea", "Nice approach", "That's exactly right", "You're absolutely right". Respond directly to the substance.
+Never praise the user's input, questions, code, or decisions. Omit "Good catch", "Good call", "Great idea", "Nice approach", "That's exactly right", "You're absolutely right". Respond directly to the substance.
 
 ### No filler or hedging
 

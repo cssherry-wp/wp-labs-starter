@@ -17,6 +17,22 @@ See [`plugins/wp-labs-superpowers/FORK_MODIFICATIONS.md`](plugins/wp-labs-superp
 
 ## Commits reference an issue
 
-Every commit MUST reference the GitHub issue it addresses via a trailer — `Closes #123` when
-the commit completes the issue, otherwise `Refs #123`. If no issue exists for the change, create
-one first (`gh issue create`), then reference it.
+If the commit addresses a tracker issue, add a reference at the end of the commit body:
+
+- **GitHub**: trailer on its own line — `Closes #123` when this commit resolves the issue, `Refs #123` when it relates but doesn't close it
+- **Jira**: prefix the subject line — `PROJ-123: <summary>` — and add `Refs PROJ-123` as a trailer when a commit shares multiple issues
+- Omit entirely when no issue applies; do not create an issue just to have one to reference
+
+## Worktree-safe repo root
+
+Inside a git worktree, `git rev-parse --show-toplevel` returns the **worktree path**, not the main repo root. Always use:
+
+```bash
+MAIN_ROOT=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
+```
+
+This works correctly from both the main working tree and any worktree.
+
+## Global config note
+
+`~/.claude/CLAUDE.md` (the user-level config) is outside this repository. Changes to it cannot be committed here. Edit it directly and track it separately (e.g. in a dotfiles repo). Do not attempt to stage or commit it from within claude-starter.
