@@ -7,3 +7,11 @@ updates:
     groups:
       all-actions:
         patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/plugins/wp-labs-sdlc/skills/session-dashboard/tests"
+    schedule: { interval: "weekly" }
+    labels: ["dependencies"]
+    groups:
+      all-python:
+        patterns: ["*"]

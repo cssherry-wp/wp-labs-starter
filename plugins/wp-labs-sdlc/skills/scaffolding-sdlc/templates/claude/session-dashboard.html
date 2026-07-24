@@ -186,7 +186,7 @@ tr.detail-row td{padding:0;border-bottom:1px solid var(--border)}
 .tc-rm:hover{opacity:1}
 /* ── Shared ── */
 .cdot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;vertical-align:middle}
-#tip{position:fixed;z-index:200;background:#1c2128;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:6px 9px;font-size:12px;max-width:400px;pointer-events:none;display:none;white-space:pre-wrap;word-break:break-word;box-shadow:0 4px 16px rgba(0,0,0,.5);line-height:1.5;max-height:240px;overflow-y:auto}
+#tip{position:fixed;z-index:200;background:var(--panel2);color:var(--ink);border:1px solid var(--border);border-radius:6px;padding:6px 9px;font-size:12px;max-width:400px;pointer-events:none;display:none;white-space:pre-wrap;word-break:break-word;box-shadow:0 4px 16px rgba(0,0,0,.5);line-height:1.5;max-height:240px;overflow-y:auto}
 #landing{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;text-align:center;gap:10px}
 #landing .icon{font-size:48px;line-height:1}
 #landing h2{font-size:18px;font-weight:700}
@@ -783,7 +783,7 @@ function renderFilters(){
     const matchSkills=skills.filter(s=>!q||s.toLowerCase().includes(q));
     const matchTools=tools.filter(t=>!q||t.toLowerCase().includes(q));
     if(!matchSkills.length&&!matchTools.length){drop.classList.remove('open');return;}
-    const mkItem=(name,isSk)=>{const on=activeToolFilters.has(name);return`<div class="ac-item${on?' ac-active':''}" data-t="${esc(name)}" data-sk="${isSk?1:0}"><span style="font-size:10px;opacity:.5">${on?'✓':' '}</span><span class="${isSk?'':''}${isSk?'':''}${isSk?'tool-chip skill':'tool-chip'}" style="pointer-events:none;border:none;background:none;padding:0">${esc(name)}</span></div>`;};
+    const mkItem=(name,isSk)=>{const on=activeToolFilters.has(name);return`<div class="ac-item${on?' ac-active':''}" data-t="${esc(name)}" data-sk="${isSk?1:0}"><span style="font-size:10px;opacity:.5">${on?'✓':' '}</span><span class="${isSk?'tool-chip skill':'tool-chip'}" style="pointer-events:none;border:none;background:none;padding:0">${esc(name)}</span></div>`;};
     drop.innerHTML=[...matchSkills.map(s=>mkItem(s,true)),...matchTools.map(t=>mkItem(t,false))].join('');
     drop.classList.add('open');
     drop.querySelectorAll('.ac-item[data-t]').forEach(item=>item.addEventListener('mousedown',e=>{e.preventDefault();const name=item.dataset.t;if(activeToolFilters.has(name))activeToolFilters.delete(name);else activeToolFilters.add(name);syncUrl();render();}));

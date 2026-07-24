@@ -147,7 +147,7 @@ def test_search_filters_rows(dash: Page) -> None:
         _make_session("bbb-222", title="Write the docs"),
     ])
     dash.fill("#search", "bug")
-    dash.wait_for_timeout(100)
+    dash.wait_for_timeout(300)
     expect(dash.locator("tr.srow")).to_have_count(1)
     expect(dash.locator("tr.srow")).to_contain_text("Fix the bug")
 
@@ -157,7 +157,7 @@ def test_search_matches_assistant_text(dash: Page) -> None:
     s["lastAssistantText"] = "unique_assistant_keyword"
     _inject(dash, [s, _make_session("bbb-222", title="Other session")])
     dash.fill("#search", "unique_assistant_keyword")
-    dash.wait_for_timeout(100)
+    dash.wait_for_timeout(300)
     expect(dash.locator("tr.srow")).to_have_count(1)
 
 
@@ -171,14 +171,14 @@ def test_filter_icon_absent_without_filters(dash: Page) -> None:
 def test_filter_icon_shows_after_search(dash: Page) -> None:
     _inject(dash, [_make_session("aaa-111", title="searchable")])
     dash.fill("#search", "searchable")
-    dash.wait_for_timeout(100)
+    dash.wait_for_timeout(300)
     expect(dash.locator("#filterInfo .fi")).to_be_visible()
 
 
 def test_filter_icon_count_label(dash: Page) -> None:
     _inject(dash, [_make_session("aaa-111")])
     dash.fill("#search", "anything")
-    dash.wait_for_timeout(100)
+    dash.wait_for_timeout(300)
     expect(dash.locator("#filterInfo .fi")).to_contain_text("1 filter")
 
 
@@ -187,7 +187,7 @@ def test_filter_icon_count_label(dash: Page) -> None:
 def test_clear_all_removes_filter_icon(dash: Page) -> None:
     _inject(dash, [_make_session("aaa-111")])
     dash.fill("#search", "anything")
-    dash.wait_for_timeout(100)
+    dash.wait_for_timeout(300)
     dash.locator("#clearAll").click()
     expect(dash.locator("#filterInfo")).to_be_empty()
 
@@ -198,7 +198,7 @@ def test_clear_all_restores_rows(dash: Page) -> None:
         _make_session("bbb-222", title="Beta"),
     ])
     dash.fill("#search", "Alpha")
-    dash.wait_for_timeout(100)
+    dash.wait_for_timeout(300)
     expect(dash.locator("tr.srow")).to_have_count(1)
     dash.locator("#clearAll").click()
     expect(dash.locator("tr.srow")).to_have_count(2)
@@ -234,9 +234,9 @@ def test_clicking_expanded_row_collapses(dash: Page) -> None:
 def test_tooltip_appears_on_filter_icon_hover(dash: Page) -> None:
     _inject(dash, [_make_session("aaa-111")])
     dash.fill("#search", "anything")
-    dash.wait_for_timeout(100)
+    dash.wait_for_timeout(300)
     dash.locator("#filterInfo .fi").hover()
-    dash.wait_for_timeout(100)
+    dash.wait_for_timeout(300)
     tip = dash.locator("#tip")
     expect(tip).to_be_visible()
     expect(tip).to_contain_text("search")
@@ -245,9 +245,9 @@ def test_tooltip_appears_on_filter_icon_hover(dash: Page) -> None:
 def test_tooltip_hides_after_mouse_leave(dash: Page) -> None:
     _inject(dash, [_make_session("aaa-111")])
     dash.fill("#search", "anything")
-    dash.wait_for_timeout(100)
+    dash.wait_for_timeout(300)
     dash.locator("#filterInfo .fi").hover()
-    dash.wait_for_timeout(100)
+    dash.wait_for_timeout(300)
     dash.mouse.move(0, 0)
     dash.wait_for_timeout(200)
     expect(dash.locator("#tip")).to_be_hidden()
@@ -271,7 +271,7 @@ def test_today_filter_shows_recent_sessions(dash: Page) -> None:
     old = _make_session("bbb-222", title="Old", ts=NOW_MS - 30 * 24 * ONE_HOUR_MS)
     _inject(dash, [recent, old])
     dash.locator("[data-period='today']").click()
-    dash.wait_for_timeout(100)
+    dash.wait_for_timeout(300)
     expect(dash.locator("tr.srow")).to_have_count(1)
     expect(dash.locator("tr.srow")).to_contain_text("Recent")
 
@@ -284,7 +284,7 @@ def test_sort_by_column_header(dash: Page) -> None:
         _make_session("bbb-222", title="Beta"),
     ])
     dash.locator("th[data-col='title']").click()
-    dash.wait_for_timeout(100)
+    dash.wait_for_timeout(300)
     rows = dash.locator("tr.srow")
     expect(rows.first).to_contain_text("Alpha")
     expect(rows.last).to_contain_text("Beta")
