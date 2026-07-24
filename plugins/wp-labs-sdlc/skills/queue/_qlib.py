@@ -71,6 +71,33 @@ def cancel_block(block: str, stamp: str, reason: str, moved_to: str | None = Non
     )
 
 
+def migrate_blocks(src_text: str, item_nums: set[int], stamp: str, dst_sid: str) -> tuple[str, list[str]]:
+    """Cancel open items in item_nums and return (updated_src_text, fresh_block_list).
+
+    Args:
+        src_text: Raw source queue file content.
+        item_nums: Set of 1-indexed open item numbers to migrate.
+        stamp: ISO-format cancellation timestamp.
+        dst_sid: Destination session ID written into moved-to field.
+
+    Returns:
+        Tuple of (updated source text with items cancelled, list of fresh block strings).
+    """
+    blocks = split_blocks(src_text)
+    local_n, new_src, fresh = 0, [], []
+    for block in blocks:
+        if block.startswith('- [ ]'):
+            local_n += 1
+            if local_n in item_nums:
+                new_src.append(cancel_block(block, stamp, 'Moved after exit', dst_sid))
+                fresh.append(block.rstrip())
+            else:
+                new_src.append(block)
+        else:
+            new_src.append(block)
+    return ''.join(new_src), fresh
+
+
 def write_group(path: str, num: int, group: str) -> None:
     """Assign or overwrite the group on open item num (1-indexed).
 
