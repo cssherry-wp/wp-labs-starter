@@ -45,7 +45,7 @@ diff-cover: diff-cover-python diff-cover-js
 diff-cover-python:
 	uv run --extra dev diff-cover coverage.xml --compare-branch=origin/main --fail-under=90
 diff-cover-js:
-	cd frontend && diff-cover coverage/lcov.info --compare-branch=origin/main --fail-under=90
+	uv run --extra dev diff-cover frontend/coverage/lcov.info --compare-branch=origin/main --fail-under=90
 
 install-hooks:
 	@if [ -d ../.git ]; then ln -sf ../../.sdlc-hooks/pre-commit ../.git/hooks/pre-commit && echo "pre-commit installed"; else echo "not a git repo"; fi
