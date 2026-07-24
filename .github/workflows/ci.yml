@@ -13,6 +13,7 @@ jobs:
     outputs:
       dashboard: ${{ steps.filter.outputs.dashboard }}
       bash-tests: ${{ steps.filter.outputs.bash-tests }}
+      python: ${{ steps.filter.outputs.python }}
     steps:
       - uses: actions/checkout@v5
       - uses: dorny/paths-filter@v3
@@ -26,22 +27,56 @@ jobs:
               - '**/test-*'
               - '**/*.test.sh'
               - '**/*.jq'
+            python:
+              - '**/*.py'
+              - '**/pyproject.toml'
 
   python-lint:
-    name: Python lint & typecheck (session-dashboard)
+    name: Python lint & typecheck
     needs: changes
-    if: needs.changes.outputs.dashboard == 'true'
+    if: needs.changes.outputs.python == 'true'
     runs-on: ubuntu-latest
     permissions: { contents: read }
-    defaults:
-      run:
-        working-directory: plugins/wp-labs-sdlc/skills/session-dashboard/tests
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v5
-      - run: uv sync --locked
-      - run: uv run ruff check
-      - run: uv run mypy .
+      - name: Lint & typecheck all Python projects
+        run: |
+          find . -name pyproject.toml \
+            -not -path '*/templates/*' \
+            -not -path '*/.venv/*' \
+            -not -path '*/.claude/*' \
+            | sort \
+            | while read -r f; do
+                dir=$(dirname "$f")
+                echo "::group::$dir"
+                (cd "$dir" && uv sync --locked && uv run ruff check && uv run mypy .)
+                echo "::endgroup::"
+              done
+
+  python-test:
+    name: Python tests (non-Playwright)
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v5
+      - name: Test all non-Playwright Python projects
+        run: |
+          find . -name pyproject.toml \
+            -not -path '*/templates/*' \
+            -not -path '*/.venv/*' \
+            -not -path '*/.claude/*' \
+            | sort \
+            | while read -r f; do
+                grep -q playwright "$f" && continue
+                dir=$(dirname "$f")
+                echo "::group::$dir"
+                (cd "$dir" && uv sync --locked && uv run pytest)
+                echo "::endgroup::"
+              done
 
   dashboard:
     name: Playwright (session-dashboard)
