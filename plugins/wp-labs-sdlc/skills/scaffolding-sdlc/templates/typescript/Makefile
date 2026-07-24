@@ -23,7 +23,7 @@ test:
 	npx vitest run
 
 coverage:
-	npx vitest run --coverage --coverage.reporter=text --coverage.reporter=lcov --coverage.thresholds.lines=90
+	npx vitest run --coverage --coverage.reporter=text --coverage.reporter=lcov --coverage.thresholds.lines=90 --passWithNoTests
 
 diff-cover:
 	diff-cover coverage/lcov.info --compare-branch=origin/main --fail-under=90

@@ -73,7 +73,7 @@ jobs:
       - if: steps.detect.outputs.present == 'true'
         run: make coverage
       - if: steps.detect.outputs.present == 'true'
-        run: pip install --quiet diff-cover
+        run: pip install --quiet "diff-cover>=9,<10"
       - if: steps.detect.outputs.present == 'true'
         run: make diff-cover
 
@@ -109,7 +109,7 @@ jobs:
       - if: steps.detect.outputs.present == 'true'
         run: npm run coverage
       - if: steps.detect.outputs.present == 'true'
-        run: pip install --quiet diff-cover
+        run: pip install --quiet "diff-cover>=9,<10"
       - if: steps.detect.outputs.present == 'true'
         run: diff-cover coverage/lcov.info --compare-branch=origin/main --fail-under=90
 
