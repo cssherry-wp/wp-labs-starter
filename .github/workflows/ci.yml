@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    outputs:
+      dashboard: ${{ steps.filter.outputs.dashboard }}
+      jq: ${{ steps.filter.outputs.jq }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            dashboard:
+              - 'plugins/wp-labs-sdlc/skills/session-dashboard/**'
+              - 'plugins/wp-labs-sdlc/skills/scaffolding-sdlc/templates/claude/session-dashboard.html'
+            jq:
+              - 'plugins/wp-labs-sdlc/skills/scaffolding-sdlc/templates/github/workflows/build-review-payload.jq'
+              - 'plugins/wp-labs-sdlc/skills/scaffolding-sdlc/tests/**'
+
+  dashboard:
+    name: Playwright (session-dashboard)
+    needs: changes
+    if: needs.changes.outputs.dashboard == 'true'
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    defaults:
+      run:
+        working-directory: plugins/wp-labs-sdlc/skills/session-dashboard/tests
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --locked
+      - run: uv run playwright install chromium --with-deps
+      - run: uv run pytest
+
+  jq:
+    name: JQ tests (build-review-payload)
+    needs: changes
+    if: needs.changes.outputs.jq == 'true'
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@v5
+      - run: bash plugins/wp-labs-sdlc/skills/scaffolding-sdlc/tests/build-review-payload.test.sh
