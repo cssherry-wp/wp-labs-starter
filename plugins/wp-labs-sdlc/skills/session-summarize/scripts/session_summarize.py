@@ -76,10 +76,9 @@ CREATE TABLE IF NOT EXISTS summaries (
     summary_text TEXT,
     completed_tasks TEXT,
     incomplete_tasks TEXT,
-    improvement_suggestions TEXT,
     unusual_flags TEXT,
     applied_improvements TEXT DEFAULT '[]',
-    unapplied_improvements TEXT,
+    unapplied_improvements TEXT DEFAULT '[]',
     input_tokens INTEGER DEFAULT 0,
     output_tokens INTEGER DEFAULT 0,
     cache_write_tokens INTEGER DEFAULT 0,
@@ -113,6 +112,7 @@ def init_db(db_path: Path | str) -> sqlite3.Connection:
         ("cache_write_tokens", "INTEGER DEFAULT 0"),
         ("cache_read_tokens", "INTEGER DEFAULT 0"),
         ("cost_usd", "REAL"),
+        ("unapplied_improvements", "TEXT DEFAULT '[]'"),
     ]:
         try:
             con.execute(f"ALTER TABLE summaries ADD COLUMN {col} {ddl}")
@@ -634,8 +634,11 @@ def write_summary(
     result: dict[str, Any],
     usage: dict[str, Any],
     now_iso: str,
-) -> tuple[int, list[dict], list[dict]]:
+) -> tuple[int, list[dict]]:
     """Insert one summaries row and link it to session_ids.
+
+    All suggestions start in unapplied_improvements; apply_improvements
+    moves applied ones to applied_improvements.
 
     Args:
         con: Open database connection.
@@ -645,25 +648,22 @@ def write_summary(
         now_iso: ISO timestamp string for created_at.
 
     Returns:
-        Tuple of (summary_id, auto_apply_findings, unapplied_findings).
+        Tuple of (summary_id, all suggestions).
     """
     suggestions = result.get("improvement_suggestions") or []
-    auto_apply = [s for s in suggestions if (s.get("confidence") or 0) > 75]
-    unapplied = [s for s in suggestions if (s.get("confidence") or 0) <= 75]
 
     cur = con.execute(
         """INSERT INTO summaries
            (created_at,summary_text,completed_tasks,incomplete_tasks,
-            improvement_suggestions,unusual_flags,unapplied_improvements,applied_improvements,
+            unusual_flags,unapplied_improvements,applied_improvements,
             input_tokens,output_tokens,cache_write_tokens,cache_read_tokens,cost_usd)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             now_iso, result.get("summary_text", ""),
             json.dumps(result.get("completed_tasks") or []),
             json.dumps(result.get("incomplete_tasks") or []),
-            json.dumps(auto_apply),
             json.dumps(result.get("unusual_flags") or []),
-            json.dumps(unapplied),
+            json.dumps(suggestions),
             json.dumps([]),
             usage.get("input_tokens", 0),
             usage.get("output_tokens", 0),
@@ -678,7 +678,7 @@ def write_summary(
             "INSERT OR IGNORE INTO session_summary_items (session_id,summary_id) VALUES (?,?)",
             (sid, summary_id),
         )
-    return summary_id, auto_apply, unapplied
+    return summary_id, suggestions
 
 
 # ---------------------------------------------------------------------------
@@ -810,13 +810,16 @@ def apply_improvements(
     claude_dir: Path,
     now_iso: str,
     dry_run: bool,
-) -> list[dict]:
-    """Write improvement findings to their target files and update the DB.
+) -> tuple[list[dict], list[dict]]:
+    """Write high-confidence findings to files; update applied/unapplied DB columns.
+
+    Findings with confidence > 75 are attempted; the rest stay unapplied.
+    Both DB columns store full finding objects (not index references).
 
     Args:
         con: Open database connection.
-        summary_id: ID of the summaries row to update with applied results.
-        suggestions: List of finding dicts with confidence > 75.
+        summary_id: ID of the summaries row to update.
+        suggestions: All finding dicts from the LLM.
         project: Encoded project directory name.
         workspace: Actual cwd path from the session, or None.
         claude_dir: ~/.claude directory path.
@@ -824,13 +827,18 @@ def apply_improvements(
         dry_run: If True, print what would be written but skip file writes.
 
     Returns:
-        List of applied-improvement records {index, applied_at, result}.
+        Tuple of (applied findings, unapplied findings).
     """
     applied: list[dict] = []
+    unapplied: list[dict] = []
     files_changed: list[str] = []
     project_root = _find_project_root(workspace, project)
 
-    for i, finding in enumerate(suggestions):
+    for finding in suggestions:
+        if (finding.get("confidence") or 0) <= 75:
+            unapplied.append(finding)
+            continue
+
         action = finding.get("action_type", "")
         target = finding.get("target", "unknown.md")
         content = finding.get("content", "")
@@ -838,13 +846,14 @@ def apply_improvements(
 
         dest = _resolve_improvement_dest(action, target, project_root, claude_dir, project)
         if dest is None:
+            unapplied.append(finding)
             continue
 
         marker = f"\n<!-- session-summarize: {desc[:80]} -->\n" if action == "CLAUDE.md" else ""
 
         if dry_run:
             print(f"  [dry-run] Would write to {dest}")
-            applied.append({"index": i, "applied_at": now_iso, "result": "dry-run"})
+            applied.append({**finding, "applied_at": now_iso, "result": "dry-run"})
             continue
 
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -857,31 +866,34 @@ def apply_improvements(
                 files_changed.append(idx_path)
 
         files_changed.append(str(dest))
-        applied.append({"index": i, "applied_at": now_iso, "result": "written"})
+        applied.append({**finding, "applied_at": now_iso, "result": "written"})
         print(f"  ✅ {finding.get('category')}: {desc} → [{action}] {target}")
 
     if not dry_run and files_changed:
         _git_commit_improvements(files_changed)
 
-    con.execute("UPDATE summaries SET applied_improvements=? WHERE id=?", (json.dumps(applied), summary_id))
+    con.execute(
+        "UPDATE summaries SET applied_improvements=?, unapplied_improvements=? WHERE id=?",
+        (json.dumps(applied), json.dumps(unapplied), summary_id),
+    )
     con.commit()
-    return applied
+    return applied, unapplied
 
 
-def print_findings_report(auto_apply: list[dict], unapplied: list[dict]) -> None:
+def print_findings_report(applied: list[dict], unapplied: list[dict]) -> None:
     """Print a human-readable summary of improvement findings.
 
     Args:
-        auto_apply: Findings that were applied (confidence > 75).
-        unapplied: Findings that were stored but not applied.
+        applied: Findings that were written to files.
+        unapplied: Findings that were not applied (low confidence or skipped).
     """
-    if auto_apply:
-        print("\nFindings (applied, confidence > 75):")
-        for i, f in enumerate(auto_apply, 1):
+    if applied:
+        print("\nFindings (applied):")
+        for i, f in enumerate(applied, 1):
             print(f"  {i}. ✅ {f.get('category')}: {f.get('description')} → [{f.get('action_type')}] {f.get('target')}")
     if unapplied:
-        print("\nFindings (unapplied, confidence ≤ 75 — stored for review):")
-        for i, f in enumerate(unapplied, len(auto_apply) + 1):
+        print("\nFindings (unapplied — stored for review):")
+        for i, f in enumerate(unapplied, len(applied) + 1):
             print(f"  {i}. ⏸ {f.get('description')} (confidence: {f.get('confidence', '?')})")
 
 
@@ -923,11 +935,10 @@ def _run_second_pass(
     try:
         result2, usage2 = summarize_batch(full_items, queue_dir, full_uuids=full_set)
         full_ids = [session_ids[uuid] for uuid in full_set if uuid in session_ids]
-        summary_id2, auto2, unapplied2 = write_summary(con, full_ids, result2, usage2, now_iso)
+        summary_id2, suggestions2 = write_summary(con, full_ids, result2, usage2, now_iso)
         con.commit()
-        if auto2:
-            apply_improvements(con, summary_id2, auto2, project, workspace, claude_dir, now_iso, dry_run)
-        print_findings_report(auto2, unapplied2)
+        applied2, unapplied2 = apply_improvements(con, summary_id2, suggestions2, project, workspace, claude_dir, now_iso, dry_run)
+        print_findings_report(applied2, unapplied2)
     except Exception as e:
         print(f"  ⚠ Second pass failed: {e}", file=sys.stderr)
 
@@ -967,15 +978,14 @@ def _process_batch(
         return
 
     needs_full = result.get("needs_full_context") or []
-    summary_id, auto_apply, unapplied = write_summary(con, list(session_ids.values()), result, usage, now_iso)
+    summary_id, suggestions = write_summary(con, list(session_ids.values()), result, usage, now_iso)
     con.commit()  # sessions + summary committed atomically; LLM failure above leaves both uncommitted
 
     if needs_full:
         _run_second_pass(batch, session_ids, needs_full, queue_dir, con, project, workspace, claude_dir, now_iso, dry_run)
 
-    if auto_apply:
-        apply_improvements(con, summary_id, auto_apply, project, workspace, claude_dir, now_iso, dry_run)
-    print_findings_report(auto_apply, unapplied)
+    applied, unapplied = apply_improvements(con, summary_id, suggestions, project, workspace, claude_dir, now_iso, dry_run)
+    print_findings_report(applied, unapplied)
 
 
 def main() -> None:
