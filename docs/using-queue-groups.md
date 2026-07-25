@@ -42,19 +42,13 @@ Open `~/.claude/queue/<session-id>.md` — each tagged item contains a `group:` 
 
 ## 3. Filter the list to a single group
 
-```bash
-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q list <session-id> --group ci-fixes
-```
-
-Only items whose `group:` field matches exactly are shown.
+During drain (Mode B), Claude automatically filters items by group. You can also ask:
+"Show me only the ci-fixes group" and Claude will filter before presenting triage options.
 
 ## 4. Assign or reassign a group manually
 
-```bash
-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue/q write-group <session-id> <n> "docs"
-```
-
-`<n>` is the 1-indexed open-item number. If the item already has a group, this overwrites it.
+Reply to the group-confirmation table with `<n> <new-group>` to reassign any item before
+drain proceeds. Claude calls the assignment internally.
 
 ## 5. How drain (Mode B) handles groups
 
@@ -89,7 +83,8 @@ After `/queue migrate` imports items from another session, Claude runs the same 
 
 | Command | What it does |
 |---------|-------------|
-| `q add <sid> --group <name> "<ask>"` | Capture with group |
-| `q write-group <sid> <n> "<name>"` | Assign/overwrite group on item N |
-| `q list <sid>` | List all open items; shows `[group]` badges |
-| `q list <sid> --group <name>` | Filter to a single group |
+| `/queue --group <name> <ask>` | Capture with group |
+| `/queue` (drain) | Assign groups via confirmation table |
+| `/queue list` | List all open items; shows `[group]` badges |
+| *(internal)* `q list --group <name>` | Claude uses this to filter during drain |
+| *(internal)* `q write-group <n> <name>` | Claude uses this to assign/overwrite groups |

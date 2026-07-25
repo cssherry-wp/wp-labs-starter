@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SC2015: A && B || C is intentional — pass() only calls printf and cannot fail,
+# so the "C may run when A is true" scenario cannot occur here.
 # Integration tests for the q queue helper subcommands.
 set -euo pipefail
 
@@ -153,6 +155,46 @@ open_count=$(grep -c '^\- \[ \]' "$TMP/queue/$BUG2_SID.md" 2>/dev/null || echo 0
 [ "$open_count" -eq 1 ] \
   && pass "bug2: item count unchanged after blocked self-migration" \
   || fail "bug2: expected 1 open item, got $open_count (duplication occurred)"
+
+# --- Test 16: add rejects empty session id ---
+out=$(CLAUDE_CONFIG_DIR="$TMP" "$Q" add "" "Some ask" "$TMP" 2>&1 || true)
+echo "$out" | grep -q 'Empty session id' \
+  && pass "add: rejects empty session id" || fail "add: expected rejection, got: $out"
+
+# --- Test 17: add --group strips embedded newlines ---
+SID_NL='test-newline-group'
+CLAUDE_CONFIG_DIR="$TMP" "$Q" add "$SID_NL" --group $'ci-fixes\nmalicious' "Some ask" "$TMP" > /dev/null
+group_lines=$(grep '^  group:' "$TMP/queue/$SID_NL.md" | wc -l)
+[ "$group_lines" -eq 1 ] \
+  && pass "add --group: newline stripped from group name" \
+  || fail "add --group: expected 1 group line, got $group_lines"
+
+# --- Test 18: mark-cancelled --reason strips embedded newlines ---
+SID_NL2='test-newline-reason'
+CLAUDE_CONFIG_DIR="$TMP" "$Q" add "$SID_NL2" "Cancel with newline reason" "$TMP" > /dev/null
+CLAUDE_CONFIG_DIR="$TMP" "$Q" mark-cancelled "$SID_NL2" --reason $'Bad\nreason' 1 > /dev/null
+reason_lines=$(grep '^  reason:' "$TMP/queue/$SID_NL2.md" | wc -l)
+[ "$reason_lines" -eq 1 ] \
+  && pass "mark-cancelled --reason: newline stripped from reason" \
+  || fail "mark-cancelled --reason: expected 1 reason line, got $reason_lines"
+
+# --- Test 19: add with empty ask prints nothing-queued, writes no item ---
+SID_EMPTY='test-empty-ask-xyz'
+out=$(CLAUDE_CONFIG_DIR="$TMP" "$Q" add "$SID_EMPTY" "" "$TMP")
+echo "$out" | grep -q 'Nothing queued' \
+  && pass "add: empty ask prints nothing-queued" \
+  || fail "add: expected nothing-queued message, got: $out"
+[ ! -f "$TMP/queue/$SID_EMPTY.md" ] \
+  && pass "add: no file created for empty ask" \
+  || fail "add: file was created despite empty ask"
+
+# --- Test 20: write-group with backslash in name written literally ---
+SID_BS='test-backslash-grp'
+CLAUDE_CONFIG_DIR="$TMP" "$Q" add "$SID_BS" "Backslash group test" "$TMP" > /dev/null
+CLAUDE_CONFIG_DIR="$TMP" "$Q" write-group "$SID_BS" 1 'ci\1fixes'
+grep -q 'group: ci\\1fixes' "$TMP/queue/$SID_BS.md" \
+  && pass "write-group: backslash in name written literally" \
+  || fail "write-group: backslash not handled, got: $(grep group "$TMP/queue/$SID_BS.md" || echo '(none)')"
 
 echo ""
 echo "All tests passed."

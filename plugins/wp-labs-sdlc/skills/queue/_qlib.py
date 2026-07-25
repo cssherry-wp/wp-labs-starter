@@ -1,6 +1,10 @@
 """Shared helpers for the q queue script."""
 import re
+import sys
 
+# ponytail: no file locking; concurrent writes to the same session file can silently
+# lose one update. Acceptable for personal-queue use; add fcntl.flock if concurrent
+# access becomes a concern.
 _BLOCK_RE = re.compile(r'(?=^- \[)', re.MULTILINE)
 
 
@@ -89,7 +93,7 @@ def migrate_blocks(src_text: str, item_nums: set[int], stamp: str, dst_sid: str)
         if block.startswith('- [ ]'):
             local_n += 1
             if local_n in item_nums:
-                new_src.append(cancel_block(block, stamp, 'Moved after exit', dst_sid))
+                new_src.append(cancel_block(block, stamp, 'Migrated', dst_sid))
                 fresh.append(block.rstrip())
             else:
                 new_src.append(block)
@@ -114,13 +118,78 @@ def write_group(path: str, num: int, group: str) -> None:
             n += 1
             if n == num:
                 group_name = group.strip()
-                if 'group:' in block:
+                if re.search(r'^  group:', block, re.MULTILINE):
                     block = re.sub(
                         r'^  group: [^\n]*',
-                        f'  group: {group_name}',
+                        lambda m: f'  group: {group_name}',
                         block, count=1, flags=re.MULTILINE,
                     )
                 else:
                     block = block.rstrip() + f'\n  group: {group_name}\n\n'
         result.append(block)
     open(path, 'w').write(''.join(result))
+
+
+def now_stamp() -> str:
+    """Return the current timestamp in queue format (YYYY-MM-DD HH:MM:SS)."""
+    from datetime import datetime
+    return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+
+def parse_refs(args: list[str]) -> tuple[set[int], dict[str, set[int]]]:
+    """Split sid8:n ref strings into local item numbers and per-sid groups.
+
+    Args:
+        args: List of bare integers (e.g. '3') or sid-prefixed refs (e.g. 'abc12345:2').
+
+    Returns:
+        Tuple of (local_nums, by_sid) where local_nums is a set of bare item numbers
+        and by_sid maps sid prefix to a set of item numbers.
+    """
+    local_nums: set[int] = set()
+    by_sid: dict[str, set[int]] = {}
+    for arg in args:
+        if ':' in arg:
+            parts = arg.split(':')
+            if len(parts) != 2:
+                print(f'Invalid ref (expected sid8:n): {arg}', file=sys.stderr); continue
+            sid_prefix, n_str = parts
+            if not sid_prefix:
+                print(f'Invalid ref (empty sid): {arg}', file=sys.stderr); continue
+            try:
+                by_sid.setdefault(sid_prefix, set()).add(int(n_str))
+            except ValueError:
+                print(f'Invalid ref: {arg}', file=sys.stderr)
+        else:
+            try:
+                local_nums.add(int(arg))
+            except ValueError:
+                print(f'Invalid item number: {arg}', file=sys.stderr)
+    return local_nums, by_sid
+
+
+def find_session_file(
+    queue_dir: str,
+    sid_prefix: str,
+    exclude: str | None = None,
+) -> str | None:
+    """Find the first queue file whose name matches sid_prefix (full or 8-char prefix).
+
+    Args:
+        queue_dir: Path to the queue directory.
+        sid_prefix: Full session ID or 8-char prefix to match.
+        exclude: Session ID filename stem to skip (e.g. current session).
+
+    Returns:
+        Full path to the matching file, or None if not found.
+    """
+    import os
+    for fname in os.listdir(queue_dir):
+        if not fname.endswith('.md') or fname == 'pending.md':
+            continue
+        stem = fname[:-3]
+        if exclude and stem == exclude:
+            continue
+        if stem == sid_prefix or stem[:len(sid_prefix)] == sid_prefix:
+            return os.path.join(queue_dir, fname)
+    return None

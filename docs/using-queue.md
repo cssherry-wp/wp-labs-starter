@@ -64,7 +64,9 @@ Pass a session ID prefix to filter: `/queue migrate abc12345`.
 /queue clear
 ```
 
-Cancels all open items in the current session and parks fresh copies in `pending.md`. The next session's start hook automatically renames `pending.md` → `<new-session-id>.md`, so the items surface as if queued in the new session. Use this to close a session cleanly without losing work.
+Cancels all open items in the current session and parks fresh copies in `pending.md`.
+At the start of your next session, Claude automatically moves the parked items into
+the new session's queue. Use this to close a session cleanly without losing work.
 
 ## Groups
 

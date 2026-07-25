@@ -8,6 +8,11 @@ set -euo pipefail
 # ponytail: mtime-based. `date -r <file>` reads the mtime portably on both
 # BSD (macOS) and GNU coreutils.
 _queue_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue"
+_input=$(cat)
+_session_id=$(printf '%s' "$_input" | jq -r '.session_id // empty' 2>/dev/null || true)
+_sentinel="${_queue_dir}/.setup-${_session_id}"
+[ -n "$_session_id" ] && [ -f "$_sentinel" ] && exit 0
+
 _archive_dir="${CLAUDE_ANALYTICS_DIR:-$HOME/ClaudeAnalytics}"
 if [ -d "$_queue_dir" ]; then
   mkdir -p "$_archive_dir" 2> /dev/null || true
@@ -18,6 +23,7 @@ if [ -d "$_queue_dir" ]; then
       echo "queue housekeeping: archived $(basename "$_qf") (last edit ${_last_edit}) -> ${_dest}" >&2
     fi
   done < <(find "$_queue_dir" -maxdepth 1 -type f -name '*.md' -mtime +30 -print0 2> /dev/null)
+  find "$_queue_dir" -maxdepth 1 -name '.setup-*' -mtime +7 -delete 2>/dev/null || true
 fi
 
 # Queue migration check: collect queue files with open items from other sessions.
@@ -136,4 +142,5 @@ IMPORTANT: Tell the user about these open items and ask if they want to migrate 
 }$queue_msg"
 fi
 
-jq -n --arg v "$msg" '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":$v}}'
+jq -n --arg v "$msg" '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":$v}}'
+[ -n "$_session_id" ] && touch "$_sentinel"

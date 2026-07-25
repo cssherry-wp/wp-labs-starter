@@ -11,7 +11,7 @@ mkdir -p "$QUEUE_DIR"
 # UUIDs only use alphanumerics and hyphens; nothing else is valid.
 _validate_sid() {
   local sid="$1"
-  [ -z "$sid" ] && return 0
+  [ -z "$sid" ] && { printf 'Empty session id\n' >&2; exit 1; }
   [[ "$sid" =~ ^[a-zA-Z0-9_-]+$ ]] || { printf 'Invalid session id: %s\n' "$sid" >&2; exit 1; }
 }
 
@@ -28,11 +28,12 @@ add)
       --high)  PRI=high;   shift   ;;
       --med)   PRI=med;    shift   ;;
       --low)   PRI=low;    shift   ;;
-      --group) GROUP="$2"; shift 2 ;;
+      --group) GROUP="${2//$'\n'/ }"; shift 2 ;;
       *)       break               ;;
     esac
   done
   ASK="${1:-}"; CTX="${2:-$(pwd)}"
+  [ -n "$ASK" ] || { echo 'Nothing queued — no ask text provided.'; exit 0; }
   FILE="$QUEUE_DIR/$SID.md"
   STAMP=$(date '+%Y-%m-%d %H:%M:%S')
 
@@ -154,38 +155,21 @@ migrate-items)
 
   python3 - "$SCRIPT_DIR" "$SID" "$QUEUE_DIR" "$@" <<'PY'
 import sys, os
-from datetime import datetime
 sys.path.insert(0, sys.argv[1])
-from _qlib import migrate_blocks
+from _qlib import migrate_blocks, parse_refs, find_session_file, now_stamp
 
 cur_sid, queue_dir = sys.argv[2], sys.argv[3]
 refs = sys.argv[4:]
-stamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+stamp = now_stamp()
 dst_path = os.path.join(queue_dir, cur_sid + '.md')
 
-by_sid = {}
-for ref in refs:
-    parts = ref.split(':')
-    if len(parts) != 2:
-        print(f'Invalid ref (expected sid8:n): {ref}', file=sys.stderr); continue
-    sid_prefix, n_str = parts[0], parts[1]
-    if not sid_prefix:
-        print(f'Invalid ref (empty sid): {ref}', file=sys.stderr); continue
-    try:
-        n = int(n_str)
-    except ValueError:
-        print(f'Invalid ref (non-integer n): {ref}', file=sys.stderr); continue
-    by_sid.setdefault(sid_prefix, set()).add(n)
+_, by_sid = parse_refs(refs)
 
 total = 0
 for sid_prefix, item_nums in by_sid.items():
-    matching = [f for f in os.listdir(queue_dir)
-                if f.endswith('.md') and f != 'pending.md'
-                and f != (cur_sid + '.md')  # never migrate from self
-                and (f[:-3] == sid_prefix or f[:len(sid_prefix)] == sid_prefix)]
-    if not matching:
+    src_path = find_session_file(queue_dir, sid_prefix, exclude=cur_sid)
+    if not src_path:
         print(f'Session not found: {sid_prefix}'); continue
-    src_path = os.path.join(queue_dir, matching[0])
 
     updated_src, fresh_items = migrate_blocks(open(src_path).read(), item_nums, stamp, cur_sid)
     if fresh_items:
@@ -257,33 +241,14 @@ mark-done)
   SID="$1"; shift; _validate_sid "$SID"; FILE="$QUEUE_DIR/$SID.md"
   python3 - "$SCRIPT_DIR" "$FILE" "$QUEUE_DIR" "$@" <<'PY'
 import sys, re, os
-from datetime import datetime
 sys.path.insert(0, sys.argv[1])
-from _qlib import split_blocks
+from _qlib import split_blocks, parse_refs, find_session_file, now_stamp
 
 path, queue_dir = sys.argv[2], sys.argv[3]
 args = sys.argv[4:]
-stamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+stamp = now_stamp()
 
-local_nums, by_sid = set(), {}
-for arg in args:
-    if ':' in arg:
-        parts = arg.split(':')
-        if len(parts) == 2:
-            if not parts[0]:
-                print(f'Invalid ref (empty sid): {arg}', file=sys.stderr)
-            else:
-                try:
-                    by_sid.setdefault(parts[0], set()).add(int(parts[1]))
-                except ValueError:
-                    print(f'Invalid ref: {arg}', file=sys.stderr)
-        else:
-            print(f'Invalid ref (expected sid8:n): {arg}', file=sys.stderr)
-    else:
-        try:
-            local_nums.add(int(arg))
-        except ValueError:
-            print(f'Invalid item number: {arg}', file=sys.stderr)
+local_nums, by_sid = parse_refs(args)
 
 def mark_done_in(file_path, item_nums):
     if not os.path.isfile(file_path):
@@ -305,12 +270,10 @@ total = 0
 if local_nums:
     total += mark_done_in(path, local_nums)
 for sid_prefix, item_nums in by_sid.items():
-    matching = [f for f in os.listdir(queue_dir)
-                if f.endswith('.md') and f != 'pending.md'
-                and (f[:-3] == sid_prefix or f[:len(sid_prefix)] == sid_prefix)]
-    if not matching:
+    src_path = find_session_file(queue_dir, sid_prefix)
+    if not src_path:
         print(f'Session not found: {sid_prefix}'); continue
-    total += mark_done_in(os.path.join(queue_dir, matching[0]), item_nums)
+    total += mark_done_in(src_path, item_nums)
 
 print(f'Marked done: {total} item(s).')
 PY
@@ -321,16 +284,15 @@ mark-cancelled)
   SID="$1"; shift; _validate_sid "$SID"; FILE="$QUEUE_DIR/$SID.md"
   [ -f "$FILE" ] || { echo "No queue file: $FILE"; exit 0; }
   REASON="Cancelled"
-  if [ "${1:-}" = "--reason" ]; then REASON="$2"; shift 2; fi
+  if [ "${1:-}" = "--reason" ]; then REASON="${2//$'\n'/ }"; shift 2; fi
   python3 - "$SCRIPT_DIR" "$FILE" "$REASON" "$@" <<'PY'
 import sys, re
-from datetime import datetime
 sys.path.insert(0, sys.argv[1])
-from _qlib import split_blocks, cancel_block
+from _qlib import split_blocks, cancel_block, now_stamp
 
 path, reason = sys.argv[2], sys.argv[3]
 nums = set(int(x) for x in sys.argv[4:])
-stamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+stamp = now_stamp()
 
 n, result = 0, []
 for block in split_blocks(open(path).read()):
@@ -351,12 +313,12 @@ clear)
   [ -f "$FILE" ] || { echo "No queue file: $FILE"; exit 0; }
   python3 - "$SCRIPT_DIR" "$FILE" "$PENDING" "$SID" <<'PY'
 import sys, re
-from datetime import datetime, date
+from datetime import date
 sys.path.insert(0, sys.argv[1])
-from _qlib import split_blocks, cancel_block
+from _qlib import split_blocks, cancel_block, now_stamp
 
 src, pending, sid = sys.argv[2], sys.argv[3], sys.argv[4]
-stamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+stamp = now_stamp()
 
 new_src, pending_items = [], []
 for block in split_blocks(open(src).read()):
@@ -396,7 +358,7 @@ rename-pending)
 
 write-group)
   # q write-group <session-id> <item-n> "<group name>"  — assigns or overwrites group on item N
-  SID="$1"; NUM="$2"; GROUP="$3"; FILE="$QUEUE_DIR/$SID.md"
+  SID="$1"; NUM="$2"; GROUP="$3"; _validate_sid "$SID"; FILE="$QUEUE_DIR/$SID.md"
   [ -f "$FILE" ] || { echo "No queue file: $FILE" >&2; exit 1; }
   python3 - "$SCRIPT_DIR" "$FILE" "$NUM" "$GROUP" <<'PY'
 import sys

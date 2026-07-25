@@ -1,6 +1,6 @@
 import os, tempfile, sys
 sys.path.insert(0, os.path.dirname(__file__))
-from _qlib import cancel_block, migrate_blocks, parse_block_meta, split_blocks, write_group
+from _qlib import cancel_block, find_session_file, migrate_blocks, parse_block_meta, parse_refs, split_blocks, write_group
 
 
 def _tmp(content):
@@ -158,6 +158,73 @@ def test_write_group_strips_whitespace():
     os.unlink(path)
 
 
+# --- parse_refs ---
+
+def test_parse_refs_bare_numbers():
+    local, by_sid = parse_refs(['1', '3'])
+    assert local == {1, 3}
+    assert by_sid == {}
+
+def test_parse_refs_sid_refs():
+    local, by_sid = parse_refs(['abc12345:2', 'abc12345:4'])
+    assert local == set()
+    assert by_sid == {'abc12345': {2, 4}}
+
+def test_parse_refs_mixed():
+    local, by_sid = parse_refs(['1', 'abc12345:2'])
+    assert local == {1}
+    assert by_sid == {'abc12345': {2}}
+
+
+# --- find_session_file ---
+
+def test_find_session_file_exact():
+    import tempfile, os
+    d = tempfile.mkdtemp()
+    open(os.path.join(d, 'abc12345-xxxx.md'), 'w').close()
+    result = find_session_file(d, 'abc12345-xxxx')
+    assert result and result.endswith('abc12345-xxxx.md')
+    import shutil; shutil.rmtree(d)
+
+def test_find_session_file_prefix():
+    import tempfile, os
+    d = tempfile.mkdtemp()
+    open(os.path.join(d, 'abc12345-xxxx.md'), 'w').close()
+    result = find_session_file(d, 'abc12345')
+    assert result is not None
+    import shutil; shutil.rmtree(d)
+
+def test_find_session_file_exclude():
+    import tempfile, os
+    d = tempfile.mkdtemp()
+    open(os.path.join(d, 'abc12345-xxxx.md'), 'w').close()
+    result = find_session_file(d, 'abc12345', exclude='abc12345-xxxx')
+    assert result is None
+    import shutil; shutil.rmtree(d)
+
+
+# --- write_group edge cases ---
+
+def test_write_group_group_in_interpretation():
+    path = _tmp(
+        "- [ ] Fix test\n"
+        "  queued: 2026-01-01 00:00:00\n"
+        "  interpretation: sort by group: category\n"
+        "  ctx: foo\n\n"
+    )
+    write_group(path, 1, 'my-group')
+    content = open(path).read()
+    assert 'group: my-group' in content
+    os.unlink(path)
+
+def test_write_group_backslash_in_name():
+    path = _tmp("- [ ] Fix test\n  queued: 2026-01-01 00:00:00\n  group: old\n\n")
+    write_group(path, 1, r'ci\1fixes')
+    content = open(path).read()
+    assert r'group: ci\1fixes' in content
+    os.unlink(path)
+
+
 if __name__ == '__main__':
     test_migrate_blocks_cancels_and_returns_fresh()
     test_migrate_blocks_leaves_unselected_open()
@@ -180,4 +247,12 @@ if __name__ == '__main__':
     test_write_group_overwrites_existing()
     test_write_group_targets_correct_item()
     test_write_group_strips_whitespace()
+    test_write_group_group_in_interpretation()
+    test_write_group_backslash_in_name()
+    test_parse_refs_bare_numbers()
+    test_parse_refs_sid_refs()
+    test_parse_refs_mixed()
+    test_find_session_file_exact()
+    test_find_session_file_prefix()
+    test_find_session_file_exclude()
     print('All tests passed.')
