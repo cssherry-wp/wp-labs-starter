@@ -13,8 +13,8 @@ This repo is itself the marketplace (`.claude-plugin/marketplace.json`). It ship
 | Plugin | What it gives you |
 |---|---|
 | **wp-labs-standards** | Coding-standard skills (`general-coding-guidelines`, `python-style`, `typescript-style`, `css-style`, `sql-style`, `team-docs-convention`) **plus** the common-task workflows `/commit` (structured commit-message format), `change-review` (broad review dispatcher — see [review-skills map](plugins/wp-labs-standards/skills/change-review/review-skills-map.md)), `github-pr-prepare`, and `github-pr-review`. A `PreToolUse` hook also injects the matching standard **deterministically by file type** on every edit (see [Deterministic standards](#deterministic-standards)). |
-| **wp-labs-sdlc** `v0.3` | The `scaffolding-sdlc` skill with two modes: **repo mode** bootstraps a repo's full SDLC (runnable starter app, Makefile, pre-commit hook, GitHub Actions CI/security/Claude-PR-automation, Dependabot, PR-status labels, PR auto-rebase, optional hosting with Docker + Azure Bicep); **`--setup-claude` mode** configures the global `~/.claude/` environment on a fresh machine (settings, plugins, `CLAUDE.md`, glob-scoped coding rules). See [Setting up a new machine](#setting-up-a-new-machine). |
-| **wp-labs-superpowers** | A fork of [superpowers](https://github.com/obra/superpowers) with our docs-path convention baked in. **Enabled by default** (the stock `superpowers@claude-plugins-official` is disabled to avoid duplicate skill names). See [`plugins/wp-labs-superpowers/FORK.md`](plugins/wp-labs-superpowers/FORK.md). |
+| **wp-labs-sdlc** `v0.3` | The `scaffolding-sdlc` skill with two modes: **repo mode** bootstraps a repo's full SDLC (runnable starter app, Makefile, pre-commit hook, GitHub Actions CI/security/Claude-PR-automation, Dependabot, PR-status labels, PR auto-rebase, optional hosting with Docker + Azure Bicep — see [Setting up project SDLC](docs/setting-up-project-sdlc.md)); **`--setup-claude` mode** configures the global `~/.claude/` environment on a fresh machine (settings, plugins, `CLAUDE.md`, glob-scoped coding rules — see [Setting up a new machine](#setting-up-a-new-machine)). Also ships the `/queue` skill — a session-scoped follow-up backlog for deferring tasks without breaking flow (see [Using /queue](docs/using-queue.md)). |
+| **wp-labs-superpowers** | A fork of [superpowers](https://github.com/obra/superpowers) with our docs-path convention baked in. **Enabled by default** (the stock `superpowers@claude-plugins-official` is disabled to avoid duplicate skill names). See [`plugins/wp-labs-superpowers/FORK.md`](plugins/wp-labs-superpowers/FORK.md) and [spec → plan lifecycle](docs/superpowers-spec-lifecycle.md). |
 
 We also use a curated set of **external** plugins (see [Recommended setup](#recommended-setup)).
 
@@ -137,7 +137,9 @@ The `scaffolding-sdlc` templates include:
 `wp-labs-superpowers` is the default: it has our docs-path convention baked in (specs to
 `.superpowers/01-specs/`, plans to `.superpowers/02-plans/`). The stock
 `superpowers@claude-plugins-official` is disabled in the team template. If you prefer stock
-superpowers, disable the fork and enable the stock one — but never run both.
+superpowers, disable the fork and enable the stock one — but never run both. See
+[spec → plan lifecycle](docs/superpowers-spec-lifecycle.md) for how the lifecycle works and how
+the fork is maintained.
 
 ### If you already have personal copies of these skills
 
@@ -149,8 +151,4 @@ plugin is enabled.
 
 - Bump a plugin's `version` in its `.claude-plugin/plugin.json` when you change it; the team picks
   up changes on `/plugin update` (or `/plugin marketplace update wp-labs-starter`).
-- The superpowers fork refreshes itself: a weekly GitHub Actions workflow
-  ([`.github/workflows/refresh-superpowers-fork.yml`](.github/workflows/refresh-superpowers-fork.yml))
-  tracks the superpowers snapshot pinned by `anthropics/claude-plugins-official` and opens a PR when
-  a new version appears. Run it on demand from the Actions tab, or locally via
-  `scripts/refresh-superpowers-fork.sh` (see [`FORK.md`](plugins/wp-labs-superpowers/FORK.md)).
+- The superpowers fork auto-refreshes weekly — see [spec → plan lifecycle](docs/superpowers-spec-lifecycle.md) and [`FORK.md`](plugins/wp-labs-superpowers/FORK.md) for details.

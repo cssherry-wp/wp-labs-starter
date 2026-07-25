@@ -1,0 +1,195 @@
+"""Shared helpers for the q queue script."""
+import re
+import sys
+
+# ponytail: no file locking; concurrent writes to the same session file can silently
+# lose one update. Acceptable for personal-queue use; add fcntl.flock if concurrent
+# access becomes a concern.
+_BLOCK_RE = re.compile(r'(?=^- \[)', re.MULTILINE)
+
+
+def split_blocks(text: str) -> list[str]:
+    """Split a queue file into item blocks on '- [' boundaries.
+
+    Args:
+        text: Raw file contents.
+
+    Returns:
+        List of string blocks; the first may be an empty preamble.
+    """
+    return _BLOCK_RE.split(text)
+
+
+def parse_block_meta(lines: list[str]) -> tuple[dict[str, str], list[str], list[str]]:
+    """Parse sub-bullets, metadata fields, and interpretation from a block's body lines.
+
+    Args:
+        lines: Lines from the block excluding the first '- [ ] ask' line.
+
+    Returns:
+        Tuple of (meta dict, sub-bullet list, interpretation lines list).
+    """
+    meta: dict[str, str] = {}
+    sub: list[str] = []
+    interp_lines: list[str] = []
+    in_interp = False
+    for line in lines:
+        s = line.strip()
+        if in_interp:
+            if line.startswith('    '):
+                interp_lines.append(s)
+                continue
+            else:
+                in_interp = False
+        if s.startswith('- '):
+            sub.append(s[2:])
+        elif s.startswith('interpretation:'):
+            interp_lines.append(s[len('interpretation:'):].strip())
+            in_interp = True
+        elif ': ' in s and not in_interp:
+            k, v = s.split(': ', 1)
+            meta[k] = v
+    return meta, sub, interp_lines
+
+
+def cancel_block(block: str, stamp: str, reason: str, moved_to: str | None = None) -> str:
+    """Replace '- [ ]' with '- [-]' and append cancellation metadata after the queued line.
+
+    Args:
+        block: Raw item block text starting with '- [ ]'.
+        stamp: ISO-format cancellation timestamp.
+        reason: Human-readable reason string.
+        moved_to: Destination session ID or 'pending', if the item was relocated.
+
+    Returns:
+        Updated block with cancellation fields inserted.
+    """
+    cancelled = block.replace('- [ ]', '- [-]', 1)
+    suffix = f'\n  cancelled: {stamp}\n  reason: {reason}'
+    if moved_to:
+        suffix += f'\n  moved-to: {moved_to}'
+    return re.sub(
+        r'^  queued: [^\n]+',
+        lambda m: m.group() + suffix,
+        cancelled, count=1, flags=re.MULTILINE,
+    )
+
+
+def migrate_blocks(src_text: str, item_nums: set[int], stamp: str, dst_sid: str) -> tuple[str, list[str]]:
+    """Cancel open items in item_nums and return (updated_src_text, fresh_block_list).
+
+    Args:
+        src_text: Raw source queue file content.
+        item_nums: Set of 1-indexed open item numbers to migrate.
+        stamp: ISO-format cancellation timestamp.
+        dst_sid: Destination session ID written into moved-to field.
+
+    Returns:
+        Tuple of (updated source text with items cancelled, list of fresh block strings).
+    """
+    blocks = split_blocks(src_text)
+    local_n, new_src, fresh = 0, [], []
+    for block in blocks:
+        if block.startswith('- [ ]'):
+            local_n += 1
+            if local_n in item_nums:
+                new_src.append(cancel_block(block, stamp, 'Migrated', dst_sid))
+                fresh.append(block.rstrip())
+            else:
+                new_src.append(block)
+        else:
+            new_src.append(block)
+    return ''.join(new_src), fresh
+
+
+def write_group(path: str, num: int, group: str) -> None:
+    """Assign or overwrite the group on open item num (1-indexed).
+
+    Args:
+        path: Absolute path to the queue .md file.
+        num: 1-indexed item number (counts only open `- [ ]` blocks).
+        group: Group name string; stripped of surrounding whitespace before writing.
+    """
+    text = open(path).read()
+    blocks = split_blocks(text)
+    n, result = 0, []
+    for block in blocks:
+        if block.startswith('- [ ]'):
+            n += 1
+            if n == num:
+                group_name = group.strip()
+                if re.search(r'^  group:', block, re.MULTILINE):
+                    block = re.sub(
+                        r'^  group: [^\n]*',
+                        lambda m: f'  group: {group_name}',
+                        block, count=1, flags=re.MULTILINE,
+                    )
+                else:
+                    block = block.rstrip() + f'\n  group: {group_name}\n\n'
+        result.append(block)
+    open(path, 'w').write(''.join(result))
+
+
+def now_stamp() -> str:
+    """Return the current timestamp in queue format (YYYY-MM-DD HH:MM:SS)."""
+    from datetime import datetime
+    return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+
+def parse_refs(args: list[str]) -> tuple[set[int], dict[str, set[int]]]:
+    """Split sid8:n ref strings into local item numbers and per-sid groups.
+
+    Args:
+        args: List of bare integers (e.g. '3') or sid-prefixed refs (e.g. 'abc12345:2').
+
+    Returns:
+        Tuple of (local_nums, by_sid) where local_nums is a set of bare item numbers
+        and by_sid maps sid prefix to a set of item numbers.
+    """
+    local_nums: set[int] = set()
+    by_sid: dict[str, set[int]] = {}
+    for arg in args:
+        if ':' in arg:
+            parts = arg.split(':')
+            if len(parts) != 2:
+                print(f'Invalid ref (expected sid8:n): {arg}', file=sys.stderr); continue
+            sid_prefix, n_str = parts
+            if not sid_prefix:
+                print(f'Invalid ref (empty sid): {arg}', file=sys.stderr); continue
+            try:
+                by_sid.setdefault(sid_prefix, set()).add(int(n_str))
+            except ValueError:
+                print(f'Invalid ref: {arg}', file=sys.stderr)
+        else:
+            try:
+                local_nums.add(int(arg))
+            except ValueError:
+                print(f'Invalid item number: {arg}', file=sys.stderr)
+    return local_nums, by_sid
+
+
+def find_session_file(
+    queue_dir: str,
+    sid_prefix: str,
+    exclude: str | None = None,
+) -> str | None:
+    """Find the first queue file whose name matches sid_prefix (full or 8-char prefix).
+
+    Args:
+        queue_dir: Path to the queue directory.
+        sid_prefix: Full session ID or 8-char prefix to match.
+        exclude: Session ID filename stem to skip (e.g. current session).
+
+    Returns:
+        Full path to the matching file, or None if not found.
+    """
+    import os
+    for fname in os.listdir(queue_dir):
+        if not fname.endswith('.md') or fname == 'pending.md':
+            continue
+        stem = fname[:-3]
+        if exclude and stem == exclude:
+            continue
+        if stem == sid_prefix or stem[:len(sid_prefix)] == sid_prefix:
+            return os.path.join(queue_dir, fname)
+    return None
