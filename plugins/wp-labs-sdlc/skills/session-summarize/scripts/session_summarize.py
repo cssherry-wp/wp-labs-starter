@@ -345,10 +345,15 @@ Return a single JSON object with the following fields.
   to give a useful summary. Omit or use [] if truncated context is sufficient.
   Only request what you genuinely need — each request triggers an extra API call.
 
-"summary_text": narrative string. Put outcomes first: list commits, PRs, and issues
-  referenced in the transcript or in the <refs> block (GitHub PRs/issues, Jira tickets, Bitbucket PRs) with their actual identifiers.
-  Never invent git hashes, PR numbers, or branch names. Include real links when
-  available. Then summarize what was worked on and the overall outcome.
+"summary_text": narrative string. Put outcomes first: list every PR and issue
+  referenced in the transcript or in the <refs> block (GitHub PRs/issues, Jira
+  tickets, Bitbucket PRs). For each PR, always include the full URL (use the URL
+  from <refs> when present) and tag its relationship to this session:
+  [created] if the PR was opened during the session,
+  [reviewing] if the session was responding to review comments or performing a review,
+  [updating] if the session pushed commits to an existing PR.
+  Never invent git hashes, PR numbers, branch names, or URLs. Then summarize
+  what was worked on and the overall outcome.
 
 "completed_tasks": JSON array of strings — tasks or queue items completed.
   One string per item — never group multiple items into a single summary sentence.
@@ -498,25 +503,29 @@ _REF_RE = re.compile(
 def _extract_refs(jsonl_path: Path | str) -> list[str]:
     """Scan a session JSONL for GitHub, Jira, and Bitbucket references.
 
+    Full URLs are preserved when present so the LLM can include them in
+    summary_text. Inline-only refs (e.g. "PR #84" without a URL) are stored
+    as '#84' — the repo context needed for a URL is not available.
+
     Args:
         jsonl_path: Path to the .jsonl session file.
 
     Returns:
-        Sorted deduplicated list of ref strings like '#84', 'PROJECT-123', or 'BB-PR#5'.
+        Sorted deduplicated list of ref strings: full URLs when available,
+        '#N' for inline-only GitHub refs, 'PROJECT-KEY' for inline-only Jira.
     """
     refs: set[str] = set()
     with open(jsonl_path, encoding="utf-8", errors="replace") as f:
         for line in f:
             for m in _REF_RE.finditer(line):
-                gh = m.group("gh_num") or m.group("gh_inline")
-                jira = m.group("jira_key")
-                bb = m.group("bb_num")
-                if gh:
-                    refs.add(f"#{gh}")
-                elif jira:
-                    refs.add(jira.upper())
-                elif bb:
-                    refs.add(f"BB-PR#{bb}")
+                if m.group("gh_num"):
+                    refs.add(m.group(0))          # full https://github.com/…/pull/N URL
+                elif m.group("gh_inline"):
+                    refs.add(f"#{m.group('gh_inline')}")
+                elif m.group("jira_key"):
+                    refs.add(m.group(0))          # full https://…atlassian.net/browse/KEY URL
+                elif m.group("bb_num"):
+                    refs.add(m.group(0))          # full https://bitbucket.org/…/pull-requests/N URL
     return sorted(refs)
 
 

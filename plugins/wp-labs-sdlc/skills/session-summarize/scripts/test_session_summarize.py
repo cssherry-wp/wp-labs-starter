@@ -14,6 +14,7 @@ from session_summarize import (
     _MAX_TOOL_RESULT,
     _assistant_parts,
     _build_transcript,
+    _extract_refs,
     _extract_turns,
     _find_project_root,
     _process_batch,
@@ -621,6 +622,61 @@ class TestResolveImprovementDestPathTraversal(unittest.TestCase):
             dest = _resolve_improvement_dest("Rules", "python.md", None, claude_dir, "-proj")
             self.assertIsNotNone(dest)
             self.assertEqual(dest.name, "python.md")
+
+
+class TestExtractRefs(unittest.TestCase):
+    """_extract_refs preserves full URLs and deduplicates."""
+
+    def _refs(self, lines: list[str]) -> list[str]:
+        with tempfile.NamedTemporaryFile(suffix=".jsonl", mode="w", delete=False) as f:
+            for line in lines:
+                f.write(json.dumps({"type": "user", "message": {"content": [{"type": "text", "text": line}]}}) + "\n")
+            path = f.name
+        try:
+            return _extract_refs(path)
+        finally:
+            Path(path).unlink(missing_ok=True)
+
+    def test_github_pr_url_preserved(self) -> None:
+        """A full GitHub PR URL is returned verbatim."""
+        url = "https://github.com/org/repo/pull/84"
+        refs = self._refs([f"Created {url}"])
+        self.assertIn(url, refs)
+
+    def test_github_issue_url_preserved(self) -> None:
+        """A full GitHub issue URL is returned verbatim."""
+        url = "https://github.com/org/repo/issues/42"
+        refs = self._refs([f"Fixes {url}"])
+        self.assertIn(url, refs)
+
+    def test_inline_only_ref_stored_as_number(self) -> None:
+        """An inline '#N' ref with no URL is stored as '#N'."""
+        refs = self._refs(["Closes #99"])
+        self.assertIn("#99", refs)
+        self.assertFalse(any("github.com" in r for r in refs))
+
+    def test_jira_url_preserved(self) -> None:
+        """A full Jira URL is returned verbatim."""
+        url = "https://myorg.atlassian.net/browse/PROJ-123"
+        refs = self._refs([f"See {url}"])
+        self.assertIn(url, refs)
+
+    def test_bitbucket_url_preserved(self) -> None:
+        """A full Bitbucket PR URL is returned verbatim."""
+        url = "https://bitbucket.org/org/repo/pull-requests/7"
+        refs = self._refs([f"Review {url}"])
+        self.assertIn(url, refs)
+
+    def test_deduplication(self) -> None:
+        """The same URL mentioned multiple times appears only once."""
+        url = "https://github.com/org/repo/pull/5"
+        refs = self._refs([f"{url} and {url} again"])
+        self.assertEqual(refs.count(url), 1)
+
+    def test_empty_file_returns_empty(self) -> None:
+        """A JSONL with no refs returns an empty list."""
+        refs = self._refs(["Just a normal message, no references."])
+        self.assertEqual(refs, [])
 
 
 if __name__ == "__main__":
