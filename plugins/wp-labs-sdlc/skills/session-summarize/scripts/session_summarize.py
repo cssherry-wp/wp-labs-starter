@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS summaries (
     unusual_flags TEXT,
     applied_improvements TEXT DEFAULT '[]',
     unapplied_improvements TEXT DEFAULT '[]',
+    personal_learnings TEXT DEFAULT '[]',
     input_tokens INTEGER DEFAULT 0,
     output_tokens INTEGER DEFAULT 0,
     cache_write_tokens INTEGER DEFAULT 0,
@@ -119,6 +120,7 @@ def init_db(db_path: Path | str) -> sqlite3.Connection:
         ("sessions", "away_summary", "TEXT"),
         ("summaries", "first_start", "TEXT"),
         ("summaries", "last_end", "TEXT"),
+        ("summaries", "personal_learnings", "TEXT DEFAULT '[]'"),
     ]
     for table, col, ddl in migrations:
         try:
@@ -376,6 +378,14 @@ Return a single JSON object with the following fields.
     "content": "exact text to write or append, ready to use as-is",
     "confidence": integer 0-100
   }
+
+"personal_learnings": JSON array of learning objects — things the developer
+  should remember for next time, drawn from what actually happened in the session.
+  Each object: {"category": "Workflow" | "Technical" | "Tooling", "learning": "one-sentence takeaway"}
+  - Workflow: approach or sequencing lessons (what order to do things, what to check first, etc.)
+  - Technical: library behavior, API quirks, language details, debugging patterns
+  - Tooling: Claude Code, git, gh, shell commands, or tool-specific patterns worth remembering
+  If nothing notable, return [].
 
 "unusual_flags": JSON array of strings — errors, unexpected behavior, anything
   a developer should know. If nothing notable, return [].
@@ -810,9 +820,9 @@ def write_summary(
     cur = con.execute(
         """INSERT INTO summaries
            (created_at,first_start,last_end,summary_text,completed_tasks,incomplete_tasks,
-            unusual_flags,unapplied_improvements,applied_improvements,
+            unusual_flags,unapplied_improvements,applied_improvements,personal_learnings,
             input_tokens,output_tokens,cache_write_tokens,cache_read_tokens,cost_usd)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             now_iso, first_start, last_end, result.get("summary_text", ""),
             json.dumps(result.get("completed_tasks") or []),
@@ -820,6 +830,7 @@ def write_summary(
             json.dumps(result.get("unusual_flags") or []),
             json.dumps(suggestions),
             json.dumps([]),
+            json.dumps(result.get("personal_learnings") or []),
             usage.get("input_tokens", 0),
             usage.get("output_tokens", 0),
             usage.get("cache_write_tokens", 0),

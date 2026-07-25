@@ -624,6 +624,66 @@ class TestResolveImprovementDestPathTraversal(unittest.TestCase):
             self.assertEqual(dest.name, "python.md")
 
 
+class TestPersonalLearnings(unittest.TestCase):
+    """personal_learnings is stored and grouped by category."""
+
+    def test_learnings_stored_in_db(self) -> None:
+        """personal_learnings from the LLM response is serialised into the summaries row."""
+        con = _mem_db()
+        learnings = [
+            {"category": "Workflow", "learning": "Always grep callers before patching a shared helper."},
+            {"category": "Technical", "learning": "sqlite3 ALTER TABLE silently ignores duplicate column adds."},
+            {"category": "Tooling", "learning": "Use --output-format json with claude -p to get usage metadata."},
+        ]
+        write_summary(con, [], {
+            "summary_text": "", "completed_tasks": [], "incomplete_tasks": [],
+            "improvement_suggestions": [], "unusual_flags": [],
+            "personal_learnings": learnings,
+        }, {}, "2026-01-01T00:00:00+00:00")
+        con.commit()
+        raw = con.execute("SELECT personal_learnings FROM summaries").fetchone()[0]
+        stored = json.loads(raw)
+        self.assertEqual(len(stored), 3)
+        categories = {item["category"] for item in stored}
+        self.assertEqual(categories, {"Workflow", "Technical", "Tooling"})
+
+    def test_missing_learnings_defaults_to_empty(self) -> None:
+        """When the LLM omits personal_learnings, the column stores '[]'."""
+        con = _mem_db()
+        write_summary(con, [], {
+            "summary_text": "", "completed_tasks": [], "incomplete_tasks": [],
+            "improvement_suggestions": [], "unusual_flags": [],
+        }, {}, "2026-01-01T00:00:00+00:00")
+        con.commit()
+        raw = con.execute("SELECT personal_learnings FROM summaries").fetchone()[0]
+        self.assertEqual(json.loads(raw), [])
+
+    def test_migration_adds_column_to_existing_db(self) -> None:
+        """init_db adds personal_learnings to a DB that predates the column."""
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+        try:
+            # Bootstrap a DB without personal_learnings
+            con = sqlite3.connect(db_path)
+            con.executescript("""
+                CREATE TABLE IF NOT EXISTS summaries (
+                    id INTEGER PRIMARY KEY,
+                    created_at TEXT NOT NULL,
+                    summary_text TEXT
+                );
+            """)
+            con.commit()
+            con.close()
+            # init_db should add the column via migration
+            con2 = init_db(db_path)
+            cols = {row[1] for row in con2.execute("PRAGMA table_info(summaries)")}
+            con2.close()
+            self.assertIn("personal_learnings", cols)
+        finally:
+            Path(db_path).unlink(missing_ok=True)
+
+
 class TestExtractRefs(unittest.TestCase):
     """_extract_refs preserves full URLs and deduplicates."""
 
