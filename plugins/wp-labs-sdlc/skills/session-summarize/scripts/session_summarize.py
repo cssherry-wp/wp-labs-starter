@@ -1142,6 +1142,7 @@ def _process_batch(
         result, usage = summarize_batch(batch, queue_dir, archive_dir=archive_dir, model=model)
     except Exception as e:
         print(f"  ⚠ LLM summarization failed: {e}", file=sys.stderr)
+        con.rollback()  # discard upserted sessions so they're retried next run
         return
 
     needs_full = result.get("needs_full_context") or []
