@@ -551,15 +551,15 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "pytest", specifier = ">=8" },
-    { name = "pytest-playwright", specifier = ">=0.5" },
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "pytest-playwright", specifier = ">=0.8.0" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = ">=1.10" },
-    { name = "pytest", specifier = ">=8" },
-    { name = "ruff", specifier = ">=0.5" },
+    { name = "mypy", specifier = ">=2.3.0" },
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "ruff", specifier = ">=0.16.0" },
 ]
 
 [[package]]

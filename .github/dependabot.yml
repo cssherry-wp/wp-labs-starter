@@ -8,7 +8,7 @@ updates:
       all-actions:
         patterns: ["*"]
 
-  - package-ecosystem: "pip"
+  - package-ecosystem: "uv"
     directory: "/plugins/wp-labs-sdlc/skills/session-dashboard/tests"
     schedule: { interval: "weekly" }
     labels: ["dependencies"]
