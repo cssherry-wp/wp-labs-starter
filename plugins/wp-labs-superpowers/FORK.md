@@ -6,8 +6,8 @@ plugin essentials and customized with the team docs-path convention.
 ## Upstream base
 
 - Source: `obra/superpowers` (the commit pinned by `anthropics/claude-plugins-official`)
-- Version: **6.1.1**
-- Base commit: **`d884ae04edebef577e82ff7c4e143debd0bbec99`**
+- Version: **6.2.0**
+- Base commit: **`3dcbd5c4b48e02263fbf4a3c01e3fe4f81d584d9`**
 - License: MIT (see `LICENSE`)
 
 ## What diverges from upstream
@@ -18,8 +18,8 @@ plugin essentials and customized with the team docs-path convention.
 2. **Slimmed to plugin essentials** — kept `.claude-plugin/`, `skills/`, `hooks/`, `LICENSE`,
    `README.md`; removed upstream dev/CI/test files, the upstream project's own `docs/`, and
    other-harness directories.
-3. **Team workflow overlays** — spec→tracker (brainstorming), plan→tracker (writing-plans),
-   feature-docs (finishing-a-development-branch), and diff-cover gate + test conventions
+3. **Team workflow overlays** — spec→issue (brainstorming), plan→comment (writing-plans),
+   feature-docs (finishing-a-development-branch), and diff-coverage + test conventions
    (test-driven-development) are appended from `team-overlays/` after each rebuild.
 
 ## Why a fork (vs the overlay)
