@@ -1,4 +1,4 @@
-"""Unit tests for session_summarize.py — LLM calls mocked, DB in :memory:."""
+"""Unit tests for summarize_ai_usage.py — LLM calls mocked, DB in :memory:."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from session_summarize import (
+from summarize_ai_usage import (
     MAX_BATCH,
     _MAX_TOOL_RESULT,
     _assistant_parts,
@@ -18,6 +18,7 @@ from session_summarize import (
     _extract_turns,
     _find_project_root,
     _process_batch,
+    _save_learnings_to_obsidian,
     _user_parts,
     init_db,
     _resolve_improvement_dest,
@@ -101,7 +102,7 @@ def _write_jsonl(path: Path, entries: list[dict]) -> None:
 def _mem_db() -> sqlite3.Connection:
     """Return an in-memory database with the schema applied."""
     con = sqlite3.connect(":memory:")
-    from session_summarize import SCHEMA
+    from summarize_ai_usage import SCHEMA
     con.executescript(SCHEMA)
     con.commit()
     return con
@@ -157,7 +158,7 @@ class TestPartialRescan(unittest.TestCase):
             # Persist 2 files as already processed
             for f in files[:2]:
                 rel = str(f.relative_to(tmp))
-                from session_summarize import sha256_file
+                from summarize_ai_usage import sha256_file
                 h = sha256_file(f)
                 upsert_session(con, rel, "-proj", h, extract_metadata(f))
             con.commit()
@@ -328,7 +329,7 @@ class TestTranscriptExtraction(unittest.TestCase):
 
     def test_assistant_text_blocks_trimmed_independently(self) -> None:
         """Each assistant text block is trimmed independently; tool names are preserved."""
-        from session_summarize import _MAX_ASST_TEXT
+        from summarize_ai_usage import _MAX_ASST_TEXT
         content = [
             {"type": "text", "text": "a" * (_MAX_ASST_TEXT * 2)},
             {"type": "tool_use", "name": "Read"},
@@ -385,10 +386,10 @@ class TestSecondPassTriggered(unittest.TestCase):
             _write_jsonl(f, [_USER, _ASSISTANT])
             con = _mem_db()
 
-            with patch("session_summarize.call_claude", side_effect=[(first_response, {}), (second_response, {})]) as mock_call:
+            with patch("summarize_ai_usage.call_claude", side_effect=[(first_response, {}), (second_response, {})]) as mock_call:
                 _process_batch(
                     [(f, f"{f.parent.name}/{f.name}", "-proj", "hash", extract_metadata(f))],
-                    queue_dir, con, Path(tmp) / "claude", "2026-01-01T00:00:00+00:00", False,
+                    queue_dir, con, Path(tmp) / "claude", "2026-01-01T00:00:00+00:00", False, "claude-sonnet-4-6",
                 )
                 self.assertEqual(mock_call.call_count, 2, "second pass must fire")
 
@@ -407,10 +408,10 @@ class TestDBWrites(unittest.TestCase):
             _write_jsonl(f, [_USER, _ASSISTANT])
             con = _mem_db()
 
-            with patch("session_summarize.call_claude", return_value=(_GOOD_LLM_JSON, {})):
+            with patch("summarize_ai_usage.call_claude", return_value=(_GOOD_LLM_JSON, {})):
                 _process_batch(
                     [(f, f"-proj/{f.name}", "-proj", "hash", extract_metadata(f))],
-                    queue_dir, con, Path(tmp) / "claude", "2026-01-01T00:00:00+00:00", True,
+                    queue_dir, con, Path(tmp) / "claude", "2026-01-01T00:00:00+00:00", True, "claude-sonnet-4-6",
                 )
 
             self.assertEqual(con.execute("SELECT COUNT(*) FROM sessions").fetchone()[0], 1)
@@ -452,7 +453,7 @@ class TestDBWrites(unittest.TestCase):
 
 
 class TestApplyEachActionType(unittest.TestCase):
-    """Each of the 5 action_type values writes to the correct path."""
+    """apply_improvements queues high-confidence findings as brief files in pending/."""
 
     def _make_finding(self, action: str, target: str) -> dict:
         return {
@@ -461,25 +462,17 @@ class TestApplyEachActionType(unittest.TestCase):
             "content": f"# content for {action}", "confidence": 95,
         }
 
-    def test_apply_each_action_type(self) -> None:
-        """All 5 action types write to their expected destination paths."""
+    def test_apply_queues_briefs(self) -> None:
+        """High-confidence findings are written as brief .md files in ai-improvements/pending/."""
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            # Create a git root so Skill/Hook and CLAUDE.local.md can resolve
-            git_root = root / "repo"
-            (git_root / ".git").mkdir(parents=True)
-            claude_dir = root / "claude"
+            claude_dir = Path(tmp) / "claude"
             claude_dir.mkdir()
-
-            project = "-test-repo"
-            workspace = str(git_root)
+            pending_dir = claude_dir / "ai-improvements" / "pending"
 
             findings = [
                 self._make_finding("CLAUDE.md", "CLAUDE.md"),
                 self._make_finding("Rules", "python.md"),
                 self._make_finding("Memory", "user_role.md"),
-                self._make_finding("Skill/Hook", "my-skill.md"),
-                self._make_finding("CLAUDE.local.md", "CLAUDE.local.md"),
             ]
 
             con = _mem_db()
@@ -490,14 +483,45 @@ class TestApplyEachActionType(unittest.TestCase):
             con.commit()
             summary_id = con.execute("SELECT id FROM summaries").fetchone()[0]
 
-            apply_improvements(con, summary_id, findings, project, workspace,
-                               claude_dir, "2026-01-01T00:00:00+00:00", dry_run=False)
+            queued, unapplied = apply_improvements(
+                con, summary_id, findings, "-test-repo", None,
+                claude_dir, "2026-01-01T00:00:00+00:00", apply_changes=True,
+            )
 
-            self.assertTrue((git_root / "CLAUDE.md").exists(), "CLAUDE.md")
-            self.assertTrue((claude_dir / "rules" / "python.md").exists(), "Rules")
-            self.assertTrue((claude_dir / "projects" / project / "memory" / "user_role.md").exists(), "Memory")
-            self.assertTrue((git_root / ".superpowers" / "01-specs" / "my-skill.md").exists(), "Skill/Hook")
-            self.assertTrue((git_root / "CLAUDE.local.md").exists(), "CLAUDE.local.md")
+            self.assertEqual(len(queued), 3)
+            self.assertEqual(len(unapplied), 0)
+            briefs = list(pending_dir.glob("*.md"))
+            self.assertEqual(len(briefs), 3)
+            # Brief content includes the action_type and target
+            text = briefs[0].read_text(encoding="utf-8")
+            self.assertIn("action_type:", text)
+            self.assertIn("target:", text)
+
+    def test_low_confidence_stays_unapplied(self) -> None:
+        """Findings with confidence <= 75 are not queued even with apply_changes=True."""
+        with tempfile.TemporaryDirectory() as tmp:
+            claude_dir = Path(tmp) / "claude"
+            claude_dir.mkdir()
+            findings = [{
+                "category": "Friction", "action_type": "CLAUDE.md",
+                "description": "low confidence finding", "target": "CLAUDE.md",
+                "content": "some content", "confidence": 50,
+            }]
+            con = _mem_db()
+            _, _ = write_summary(con, [], {
+                "summary_text": "", "completed_tasks": [], "incomplete_tasks": [],
+                "improvement_suggestions": findings, "unusual_flags": [],
+            }, {}, "2026-01-01T00:00:00+00:00")
+            con.commit()
+            summary_id = con.execute("SELECT id FROM summaries").fetchone()[0]
+
+            queued, unapplied = apply_improvements(
+                con, summary_id, findings, "-proj", None,
+                claude_dir, "2026-01-01T00:00:00+00:00", apply_changes=True,
+            )
+
+            self.assertEqual(len(queued), 0)
+            self.assertEqual(len(unapplied), 1)
 
 
 class TestDryRun(unittest.TestCase):
@@ -516,10 +540,10 @@ class TestDryRun(unittest.TestCase):
             _write_jsonl(f, [_USER, _ASSISTANT])
             con = _mem_db()
 
-            with patch("session_summarize.call_claude", return_value=(_GOOD_LLM_JSON, {})):
+            with patch("summarize_ai_usage.call_claude", return_value=(_GOOD_LLM_JSON, {})):
                 _process_batch(
                     [(f, f"-proj/{f.name}", "-proj", "hash", extract_metadata(f))],
-                    queue_dir, con, claude_dir, "2026-01-01T00:00:00+00:00", dry_run=True,
+                    queue_dir, con, claude_dir, "2026-01-01T00:00:00+00:00", False, "claude-sonnet-4-6",
                 )
 
             # DB updated
@@ -545,10 +569,10 @@ class TestSessionsNotCommittedOnLLMFailure(unittest.TestCase):
 
             # First run — LLM fails; connection is closed without committing
             con = init_db(db_path)
-            with patch("session_summarize.call_claude", side_effect=RuntimeError("timeout")):
+            with patch("summarize_ai_usage.call_claude", side_effect=RuntimeError("timeout")):
                 _process_batch(
                     [(f, f"-proj/{f.name}", "-proj", "hash", extract_metadata(f))],
-                    queue_dir, con, Path(tmp) / "claude", "2026-01-01T00:00:00+00:00", False,
+                    queue_dir, con, Path(tmp) / "claude", "2026-01-01T00:00:00+00:00", False, "claude-sonnet-4-6",
                 )
             con.close()  # rolls back uncommitted session rows
 
@@ -737,6 +761,46 @@ class TestExtractRefs(unittest.TestCase):
         """A JSONL with no refs returns an empty list."""
         refs = self._refs(["Just a normal message, no references."])
         self.assertEqual(refs, [])
+
+
+class TestSaveLearningsToObsidian(unittest.TestCase):
+    """_save_learnings_to_obsidian writes dated markdown to the vault directory."""
+
+    def test_writes_file_with_all_categories(self) -> None:
+        """All three categories appear as headings in the output file."""
+        learnings = [
+            {"category": "Workflow", "learning": "Check callers before patching shared helpers."},
+            {"category": "Technical", "learning": "sqlite3 ALTER TABLE ignores duplicate columns."},
+            {"category": "Tooling", "learning": "Pass --output-format json to get usage metadata."},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            obsidian_dir = Path(tmp) / "vault"
+            path = _save_learnings_to_obsidian(learnings, obsidian_dir, "-myproject", "2026-01-15T10:30:00+00:00")
+            self.assertIsNotNone(path)
+            assert path is not None
+            self.assertTrue(path.exists())
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("## Workflow", text)
+            self.assertIn("## Technical", text)
+            self.assertIn("## Tooling", text)
+            self.assertIn("Check callers before patching shared helpers.", text)
+
+    def test_empty_learnings_returns_none(self) -> None:
+        """Empty learnings list writes nothing and returns None."""
+        with tempfile.TemporaryDirectory() as tmp:
+            obsidian_dir = Path(tmp) / "vault"
+            result = _save_learnings_to_obsidian([], obsidian_dir, "-proj", "2026-01-15T10:00:00+00:00")
+            self.assertIsNone(result)
+            self.assertFalse(obsidian_dir.exists())
+
+    def test_creates_obsidian_dir_if_missing(self) -> None:
+        """The vault directory is created when it does not exist."""
+        learnings = [{"category": "Workflow", "learning": "Test learning."}]
+        with tempfile.TemporaryDirectory() as tmp:
+            obsidian_dir = Path(tmp) / "does" / "not" / "exist"
+            path = _save_learnings_to_obsidian(learnings, obsidian_dir, "-proj", "2026-01-15T10:00:00+00:00")
+            self.assertIsNotNone(path)
+            self.assertTrue(obsidian_dir.exists())
 
 
 if __name__ == "__main__":

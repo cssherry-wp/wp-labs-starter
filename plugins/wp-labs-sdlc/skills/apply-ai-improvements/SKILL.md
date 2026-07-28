@@ -1,16 +1,16 @@
 ---
-name: apply-session-improvements
+name: apply-ai-improvements
 description: >-
-  Review pending improvement briefs queued by session-summarize, brainstorm the
+  Review pending improvement briefs queued by summarize-ai-usage, brainstorm the
   best approach for each, and apply them to CLAUDE.md, rules, memory, or skill
-  spec files. Briefs are in ~/.claude/session-improvements/pending/.
+  spec files. Briefs are in ~/.claude/ai-improvements/pending/.
 user-invocable: true
 allowed-tools: Bash, Read, Edit, Write
 ---
 
-# /apply-session-improvements — apply queued session improvement briefs
+# /apply-ai-improvements — apply queued session improvement briefs
 
-Each brief was written by `/session-summarize --apply-changes` when it found a
+Each brief was written by `/summarize-ai-usage --apply-changes` when it found a
 high-confidence improvement. The suggested content is an LLM starting point,
 not a final answer — read the existing target file first and adapt.
 
@@ -19,7 +19,7 @@ not a final answer — read the existing target file first and adapt.
 **1. List pending briefs**
 
 ```bash
-ls -t ~/.claude/session-improvements/pending/*.md 2>/dev/null || echo "(none)"
+ls -t ~/.claude/ai-improvements/pending/*.md 2>/dev/null || echo "(none)"
 ```
 
 If none, stop.
@@ -34,10 +34,13 @@ Decide how to apply based on `action_type`:
 - **Memory** — write or append to the suggested memory file; add a pointer line
   to `MEMORY.md` in the same directory if the file is new.
 - **CLAUDE.md** / **CLAUDE.local.md** — append only the genuinely new guidance,
-  wrapped in `<!-- session-summarize: <description> -->` markers.
+  wrapped in `<!-- summarize-ai-usage: <description> -->` markers.
 - **Rules** — write to `~/.claude/rules/<target>`.
 - **Skill/Hook** — the suggested content is a rough spec; use the brainstorming
   skill to design the skill properly before writing anything.
+- **Personal learning** — save as a dated markdown file to the Obsidian vault
+  (`--obsidian-dir` path if configured, otherwise skip or ask the user for the
+  vault path).
 
 **3. Git commit if inside a repo**
 
@@ -51,7 +54,7 @@ If that succeeds, stage and commit from the root:
 
 ```bash
 git -C <root> add <file>
-git -C <root> commit -m "chore: apply session-summarize improvement"
+git -C <root> commit -m "chore: apply ai-improvement"
 ```
 
 If the file is not inside a git repo, skip the commit and log a note.
@@ -59,7 +62,7 @@ If the file is not inside a git repo, skip the commit and log a note.
 **4. Move applied briefs to done**
 
 ```bash
-mv <brief-path> ~/.claude/session-improvements/done/
+mv <brief-path> ~/.claude/ai-improvements/done/
 ```
 
 ## Principle

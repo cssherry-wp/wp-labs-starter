@@ -1,4 +1,4 @@
-# Session Summarize
+# Summarize AI Usage
 
 **Goal:** Periodically scan your Claude Code session history, batch-summarize sessions with the Claude CLI, and auto-apply actionable findings (better CLAUDE.md rules, memory updates, skill specs) back into your environment.
 
@@ -13,13 +13,13 @@
 Run the skill from any Claude Code session:
 
 ```
-/session-summarize
+/summarize-ai-usage
 ```
 
 Or invoke it with `--dry-run` to preview without writing anything:
 
 ```
-/session-summarize --dry-run
+/summarize-ai-usage --dry-run
 ```
 
 ## What it does
@@ -40,10 +40,12 @@ Or invoke it with `--dry-run` to preview without writing anything:
 
 Lower-confidence findings are stored in the `unapplied_improvements` column for manual review — they are never auto-applied.
 
-Applied files are committed automatically:
+Applied improvement briefs are written to `~/.claude/ai-improvements/pending/` and committed automatically when inside a git repo:
 ```
-chore: apply session-summarize improvements
+chore: apply ai-improvement
 ```
+
+Personal learnings (Workflow / Technical / Tooling takeaways) are saved as dated markdown files to your Obsidian vault when `--obsidian-dir` is provided.
 
 ## Output database
 
@@ -57,10 +59,12 @@ Results are written to `~/ClaudeAnalytics/session_summaries.db` (SQLite). Four t
 ## Command-line flags
 
 ```bash
-python3 session_summarize.py \
+python3 summarize_ai_usage.py \
   --claude-dir ~/.claude \          # default: ~/.claude
   --sessions-dir ~/.claude/projects \  # default: <claude-dir>/projects
   --output ~/ClaudeAnalytics/session_summaries.db \
+  --apply-changes \                 # write briefs + personal learnings
+  --obsidian-dir ~/Documents/Obsidian/Learnings \  # save personal learnings here
   --dry-run                         # skip file writes; DB still updated
 ```
 
@@ -68,16 +72,16 @@ python3 session_summarize.py \
 
 To run on a schedule (e.g. nightly), invoke the script directly and store the DB file in a shared location (e.g. a network drive or object storage). Do not commit the SQLite binary to git — it has no meaningful merge semantics. Use the `/schedule` skill to set up a cloud agent instead.
 
-To tune the confidence threshold, edit `write_summary()` in `session_summarize.py` — the split between `auto_apply` and `unapplied` is a single comparison against 75.
+To tune the confidence threshold, edit `apply_improvements()` in `summarize_ai_usage.py` — the split between queued and unapplied is a single comparison against 75.
 
 To add a new `action_type`, extend `_resolve_improvement_dest()` with the new case and update the prompt's enumeration in `LLM_PROMPT_HEADER`.
 
 ## Files
 
 ```
-plugins/wp-labs-sdlc/skills/session-summarize/
+plugins/wp-labs-sdlc/skills/summarize-ai-usage/
 ├── SKILL.md                         # skill entry point
 └── scripts/
-    ├── session_summarize.py         # main script
-    └── test_session_summarize.py    # 18 unit tests (stdlib unittest)
+    ├── summarize_ai_usage.py        # main script
+    └── test_summarize_ai_usage.py   # unit tests (stdlib unittest)
 ```

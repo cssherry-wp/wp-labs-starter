@@ -921,7 +921,7 @@ def _write_improvement_brief(
     pending_dir: Path,
     now_iso: str,
 ) -> Path:
-    """Write a pending improvement brief for the apply-session-improvements skill.
+    """Write a pending improvement brief for the apply-ai-improvements skill.
 
     Args:
         finding: Improvement finding dict from the LLM.
@@ -966,6 +966,44 @@ def _write_improvement_brief(
     return path
 
 
+def _save_learnings_to_obsidian(
+    learnings: list[dict],
+    obsidian_dir: Path,
+    project: str,
+    now_iso: str,
+) -> Path | None:
+    """Write personal learnings from a batch as a dated markdown file.
+
+    Args:
+        learnings: List of ``{"category": str, "learning": str}`` dicts.
+        obsidian_dir: Directory to write the markdown file into.
+        project: Encoded project name, used in the filename.
+        now_iso: ISO timestamp string for file naming.
+
+    Returns:
+        Path to the written file, or None if learnings is empty.
+    """
+    if not learnings:
+        return None
+    stamp = now_iso[:19].replace(":", "").replace("T", "-")
+    slug = re.sub(r"[^a-z0-9]+", "-", project[:40].lower()).strip("-")
+    by_category: dict[str, list[str]] = {}
+    for item in learnings:
+        cat = item.get("category") or "General"
+        by_category.setdefault(cat, []).append(item.get("learning", ""))
+    date_label = now_iso[:10]
+    lines = [f"# AI Usage Learnings — {date_label}", "", f"**Project:** {project}", ""]
+    for cat, items in by_category.items():
+        lines += [f"## {cat}", ""]
+        lines += [f"- {item}" for item in items]
+        lines += [""]
+    obsidian_dir.mkdir(parents=True, exist_ok=True)
+    path = obsidian_dir / f"{stamp}-{slug}.md"
+    path.write_text("\n".join(lines), encoding="utf-8")
+    print(f"  📓 {len(learnings)} learning(s) saved to Obsidian: {path}")
+    return path
+
+
 def apply_improvements(
     con: sqlite3.Connection,
     summary_id: int,
@@ -979,8 +1017,8 @@ def apply_improvements(
     """Queue high-confidence findings as improvement briefs; update DB columns.
 
     Findings with confidence > 75 are written as brief files to
-    ~/.claude/session-improvements/pending/ when apply_changes is True.
-    All others stay unapplied. Run /apply-session-improvements to action briefs.
+    ~/.claude/ai-improvements/pending/ when apply_changes is True.
+    All others stay unapplied. Run /apply-ai-improvements to action briefs.
 
     Args:
         con: Open database connection.
@@ -998,7 +1036,7 @@ def apply_improvements(
     queued: list[dict] = []
     unapplied: list[dict] = []
     project_root = _find_project_root(workspace, project)
-    pending_dir = claude_dir / "session-improvements" / "pending"
+    pending_dir = claude_dir / "ai-improvements" / "pending"
 
     for finding in suggestions:
         if not apply_changes or (finding.get("confidence") or 0) <= 75:
@@ -1043,7 +1081,7 @@ def print_findings_report(
         for item in incomplete:
             print(f"    • {item}")
     if applied:
-        print("\nFindings (queued for /apply-session-improvements):")
+        print("\nFindings (queued for /apply-ai-improvements):")
         for i, f in enumerate(applied, 1):
             print(f"  {i}. 📋 {f.get('category')}: {f.get('description')} → [{f.get('action_type')}] {f.get('target')}")
     if unapplied:
@@ -1069,6 +1107,7 @@ def _run_second_pass(
     apply_changes: bool,
     model: str,
     archive_dir: Path | None = None,
+    obsidian_dir: Path | None = None,
 ) -> None:
     """Run a second claude -p call for sessions that need their full transcript.
 
@@ -1085,6 +1124,7 @@ def _run_second_pass(
         apply_changes: Write files when True; store findings as unapplied otherwise.
         model: Claude model ID to use.
         archive_dir: If set, write each session block to archive_dir/<uuid>.txt.
+        obsidian_dir: If set with apply_changes, save personal learnings as markdown here.
     """
     full_items = [item for item in batch if item[0].stem in needs_full]
     if not full_items:
@@ -1097,6 +1137,8 @@ def _run_second_pass(
         summary_id2, suggestions2 = write_summary(con, full_ids, result2, usage2, now_iso)
         con.commit()
         applied2, unapplied2 = apply_improvements(con, summary_id2, suggestions2, project, workspace, claude_dir, now_iso, apply_changes)
+        if apply_changes and obsidian_dir:
+            _save_learnings_to_obsidian(result2.get("personal_learnings") or [], obsidian_dir, project, now_iso)
         print_findings_report(
             applied2, unapplied2,
             completed=result2.get("completed_tasks") or [],
@@ -1115,6 +1157,7 @@ def _process_batch(
     apply_changes: bool,
     model: str,
     archive_dir: Path | None = None,
+    obsidian_dir: Path | None = None,
 ) -> None:
     """Upsert sessions, call the LLM, write summaries, apply improvements.
 
@@ -1127,6 +1170,7 @@ def _process_batch(
         apply_changes: Write files when True; store findings as unapplied otherwise.
         model: Claude model ID to use.
         archive_dir: If set, write each session block to archive_dir/<uuid>.txt.
+        obsidian_dir: If set with apply_changes, save personal learnings as markdown here.
     """
     project = batch[0][2]
     workspace: str | None = batch[0][4].get("workspace")
@@ -1150,9 +1194,11 @@ def _process_batch(
     con.commit()  # sessions + summary committed atomically; LLM failure above leaves both uncommitted
 
     if needs_full:
-        _run_second_pass(batch, session_ids, needs_full, queue_dir, con, project, workspace, claude_dir, now_iso, apply_changes, model, archive_dir=archive_dir)
+        _run_second_pass(batch, session_ids, needs_full, queue_dir, con, project, workspace, claude_dir, now_iso, apply_changes, model, archive_dir=archive_dir, obsidian_dir=obsidian_dir)
 
     applied, unapplied = apply_improvements(con, summary_id, suggestions, project, workspace, claude_dir, now_iso, apply_changes)
+    if apply_changes and obsidian_dir:
+        _save_learnings_to_obsidian(result.get("personal_learnings") or [], obsidian_dir, project, now_iso)
     print_findings_report(
         applied, unapplied,
         completed=result.get("completed_tasks") or [],
@@ -1171,6 +1217,8 @@ def main() -> None:
                     help="SQLite output path")
     ap.add_argument("--apply-changes", action="store_true",
                     help="Write improvement findings to files (default: store as unapplied only)")
+    ap.add_argument("--obsidian-dir", default=None, metavar="DIR",
+                    help="Save personal learnings as dated markdown files to this Obsidian vault directory (requires --apply-changes)")
     ap.add_argument("--model", default="claude-sonnet-4-6",
                     help="Claude model for summarization (default: claude-sonnet-4-6)")
     ap.add_argument("--since-hours", type=float, default=None, metavar="N",
@@ -1180,6 +1228,7 @@ def main() -> None:
     claude_dir = Path(args.claude_dir)
     sessions_dir = Path(args.sessions_dir) if args.sessions_dir else claude_dir / "projects"
     queue_dir = claude_dir / "queue"
+    obsidian_dir = Path(args.obsidian_dir) if args.obsidian_dir else None
     now_iso = datetime.now(timezone.utc).isoformat()
     since = datetime.now(timezone.utc) - timedelta(hours=args.since_hours) if args.since_hours else None
 
@@ -1201,7 +1250,7 @@ def main() -> None:
 
     for i, batch in enumerate(batches, 1):
         print(f"\nBatch {i}/{len(batches)}: {batch[0][2]} [{len(batch)} session(s)]")
-        _process_batch(batch, queue_dir, con, claude_dir, now_iso, args.apply_changes, args.model, archive_dir=archive_dir)
+        _process_batch(batch, queue_dir, con, claude_dir, now_iso, args.apply_changes, args.model, archive_dir=archive_dir, obsidian_dir=obsidian_dir)
 
     con.close()
     print("\nDone.")
