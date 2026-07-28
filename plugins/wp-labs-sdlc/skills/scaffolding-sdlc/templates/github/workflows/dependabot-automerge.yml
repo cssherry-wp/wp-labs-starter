@@ -1,8 +1,7 @@
 # Auto-merges Dependabot PRs once CI (see ci.yml) passes.
 # Scoped to patch/minor bumps only; major version bumps always need manual review.
-# Uses `gh pr checks --watch` instead of native GitHub auto-merge because that
-# feature requires repo-admin-only settings (repo auto-merge toggle + branch
-# protection required checks) that aren't configured on this repo yet.
+# Uses a manual polling loop instead of `gh pr checks --watch` because --watch
+# blocks on this job's own check run, which can never resolve while it's still running.
 name: Dependabot auto-merge
 
 on:
@@ -12,33 +11,58 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  checks: read
+  actions: read
 
 jobs:
   automerge:
     if: github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
-      # gh pr merge shells out to git, so the job needs a working tree. Check out
-      # the BASE ref, not the PR head, so untrusted PR code never lands on disk in
-      # this write-token job. Do NOT add steps here that execute PR code.
-      - name: Checkout
-        uses: actions/checkout@v5
-        with:
-          ref: ${{ github.event.pull_request.base.ref }}
+      # Rebasing the PR (e.g. to resolve conflicts with main) preserves the
+      # original commit's author even though the committer becomes whoever
+      # ran the rebase. This check trips only when a human has actually added
+      # or amended a commit on top of Dependabot's, which needs manual review.
+      - name: Check last commit is from Dependabot
+        id: last_commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          author=$(gh api "repos/${{ github.repository }}/commits/${{ github.event.pull_request.head.sha }}" --jq '.author.login // "unknown"')
+          echo "author=$author" >> "$GITHUB_OUTPUT"
 
       - name: Fetch Dependabot metadata
         id: metadata
+        if: steps.last_commit.outputs.author == 'dependabot[bot]'
         uses: dependabot/fetch-metadata@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Wait for CI, then merge patch/minor updates
         if: |
-          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-          steps.metadata.outputs.update-type == 'version-update:semver-minor'
+          steps.last_commit.outputs.author == 'dependabot[bot]' &&
+          (steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-minor')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
+          THIS_WORKFLOW: ${{ github.workflow }}
         run: |
-          gh pr checks "$PR_URL" --watch --fail-fast
+          # Poll manually and exclude checks from this workflow to avoid the
+          # self-referential deadlock where this job waits on itself.
+          while :; do
+            checks=$(gh pr checks "$PR_URL" --json name,bucket,workflow \
+              --jq "[.[] | select(.workflow != \"$THIS_WORKFLOW\")]")
+            failing=$(echo "$checks" | jq '[.[] | select(.bucket == "fail" or .bucket == "cancel")] | length')
+            if [ "$failing" -gt 0 ]; then
+              echo "$checks" | jq .
+              echo "One or more checks failed."
+              exit 1
+            fi
+            pending=$(echo "$checks" | jq '[.[] | select(.bucket == "pending")] | length')
+            if [ "$pending" -eq 0 ]; then
+              break
+            fi
+            sleep 10
+          done
           gh pr merge --squash "$PR_URL"
