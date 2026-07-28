@@ -369,6 +369,13 @@ Return a single JSON object with the following fields.
   Example: ["[queue] Refactor auth middleware", "[queue] Add rate limiting to /api/search"]
 
 "improvement_suggestions": JSON array of finding objects. If nothing notable, return [].
+  Look especially for three areas:
+  (1) Response quality — answers that were incomplete, inaccurate, or had to be corrected mid-session;
+      what prompt wording or rule would have prevented the miss.
+  (2) Efficiency — repeated tool calls for the same file, verbose searches, or prompt patterns that
+      wasted tokens; what memory or instruction would short-circuit the redundancy next time.
+  (3) Resource-finding — cases where Claude searched broadly or asked the user for a path/symbol it
+      should have known; what memory entry or CLAUDE.md hint would have pointed it there directly.
   Each object:
   {
     "category": "Skill gap" | "Friction" | "Knowledge" | "Automation",
