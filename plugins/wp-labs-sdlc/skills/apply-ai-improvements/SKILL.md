@@ -54,7 +54,16 @@ If that succeeds, stage and commit from the root:
 
 ```bash
 git -C <root> add <file>
-git -C <root> commit -m "chore: apply ai-improvement"
+git -C <root> commit -m "$(cat <<'EOF'
+chore: apply ai-improvement
+
+Logic:
+- Apply improvement finding queued by /summarize-ai-usage
+
+Caveats/assumptions:
+- Content is LLM-suggested; verify before committing
+EOF
+)"
 ```
 
 If the file is not inside a git repo, skip the commit and log a note.

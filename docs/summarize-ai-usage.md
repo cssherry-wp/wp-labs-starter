@@ -40,10 +40,7 @@ Or invoke it with `--dry-run` to preview without writing anything:
 
 Lower-confidence findings are stored in the `unapplied_improvements` column for manual review — they are never auto-applied.
 
-Applied improvement briefs are written to `~/.claude/ai-improvements/pending/` and committed automatically when inside a git repo:
-```
-chore: apply ai-improvement
-```
+Applied improvement briefs are written to `~/.claude/ai-improvements/pending/`. Run `/apply-ai-improvements` to review each brief and apply it — that skill stages and commits the change when inside a git repo.
 
 Personal learnings (Workflow / Technical / Tooling takeaways) are saved as dated markdown files to your Obsidian vault when `--obsidian-dir` is provided.
 
