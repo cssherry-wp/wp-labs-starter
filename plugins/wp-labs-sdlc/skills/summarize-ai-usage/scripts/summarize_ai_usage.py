@@ -376,6 +376,9 @@ Return a single JSON object with the following fields.
       wasted tokens; what memory or instruction would short-circuit the redundancy next time.
   (3) Resource-finding — cases where Claude searched broadly or asked the user for a path/symbol it
       should have known; what memory entry or CLAUDE.md hint would have pointed it there directly.
+  (4) Context/memory gaps — moments where Claude forgot a constraint stated earlier, re-derived
+      something it was already told, or lost track of a decision across turns; what memory entry
+      would have preserved it.
   Each object:
   {
     "category": "Skill gap" | "Friction" | "Knowledge" | "Automation",
@@ -388,6 +391,9 @@ Return a single JSON object with the following fields.
 
 "personal_learnings": JSON array of learning objects — things the developer
   should remember for next time, drawn from what actually happened in the session.
+  Look for moments where: an assumption turned out to be wrong, behavior differed from expectation,
+  something had to be corrected or redone, or a discovery changed the approach mid-session.
+  Anchor each learning to a real event — avoid generic advice not tied to something that happened.
   Each object: {"category": "Workflow" | "Technical" | "Tooling", "learning": "one-sentence takeaway"}
   - Workflow: approach or sequencing lessons (what order to do things, what to check first, etc.)
   - Technical: library behavior, API quirks, language details, debugging patterns
