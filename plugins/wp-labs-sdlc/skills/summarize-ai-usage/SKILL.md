@@ -17,7 +17,7 @@ each batch, and writes results to `~/ClaudeAnalytics/session_summaries.db`.
 
 By default, improvement findings are stored as unapplied in the DB only.
 Pass `--apply-changes` to write high-confidence findings (confidence > 75) as
-brief files to `~/.claude/ai-improvements/pending/`, then run
+brief files to `~/ClaudeAnalytics/ai-improvements/pending/`, then run
 `/apply-ai-improvements` to review and apply them with proper brainstorming.
 
 Pass `--obsidian-dir <path>` together with `--apply-changes` to also save

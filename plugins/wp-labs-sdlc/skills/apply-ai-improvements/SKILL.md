@@ -3,7 +3,7 @@ name: apply-ai-improvements
 description: >-
   Review pending improvement briefs queued by summarize-ai-usage, brainstorm the
   best approach for each, and apply them to CLAUDE.md, rules, memory, or skill
-  spec files. Briefs are in ~/.claude/ai-improvements/pending/.
+  spec files. Briefs are in ~/ClaudeAnalytics/ai-improvements/pending/.
 user-invocable: true
 allowed-tools: Bash, Read, Edit, Write
 ---
@@ -19,7 +19,7 @@ not a final answer — read the existing target file first and adapt.
 **1. List pending briefs**
 
 ```bash
-ls -t ~/.claude/ai-improvements/pending/*.md 2>/dev/null || echo "(none)"
+ls -t ~/ClaudeAnalytics/ai-improvements/pending/*.md 2>/dev/null || echo "(none)"
 ```
 
 If none, stop.
@@ -68,10 +68,10 @@ EOF
 
 If the file is not inside a git repo, skip the commit and log a note.
 
-**4. Move applied briefs to done**
+**4. Move applied briefs to completed**
 
 ```bash
-mv <brief-path> ~/.claude/ai-improvements/done/
+mv <brief-path> ~/ClaudeAnalytics/ai-improvements/completed/
 ```
 
 ## Principle

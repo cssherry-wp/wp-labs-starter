@@ -467,7 +467,9 @@ class TestApplyEachActionType(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             claude_dir = Path(tmp) / "claude"
             claude_dir.mkdir()
-            pending_dir = claude_dir / "ai-improvements" / "pending"
+            analytics_dir = Path(tmp) / "analytics"
+            analytics_dir.mkdir()
+            pending_dir = analytics_dir / "ai-improvements" / "pending"
 
             findings = [
                 self._make_finding("CLAUDE.md", "CLAUDE.md"),
@@ -486,6 +488,7 @@ class TestApplyEachActionType(unittest.TestCase):
             queued, unapplied = apply_improvements(
                 con, summary_id, findings, "-test-repo", None,
                 claude_dir, "2026-01-01T00:00:00+00:00", apply_changes=True,
+                analytics_dir=analytics_dir,
             )
 
             self.assertEqual(len(queued), 3)
