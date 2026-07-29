@@ -1229,13 +1229,14 @@ def _process_batch(
 
 def main() -> None:
     """Entry point: parse args, scan sessions, run all batches."""
+    _default_analytics = os.environ.get("CLAUDE_ANALYTICS_DIR", os.path.expanduser("~/ClaudeAnalytics"))
     ap = argparse.ArgumentParser(description="Summarize Claude Code sessions via LLM")
     ap.add_argument("--claude-dir", default=os.path.expanduser("~/.claude"),
                     help="Claude config directory (default: ~/.claude)")
     ap.add_argument("--sessions-dir", default=None,
                     help="Session projects directory (default: <claude-dir>/projects)")
-    ap.add_argument("--output", default=os.path.expanduser("~/ClaudeAnalytics/session_summaries.db"),
-                    help="SQLite output path")
+    ap.add_argument("--output", default=os.path.join(_default_analytics, "session_summaries.db"),
+                    help="SQLite output path (default: $CLAUDE_ANALYTICS_DIR/session_summaries.db)")
     ap.add_argument("--apply-changes", action="store_true",
                     help="Write improvement findings to files (default: store as unapplied only)")
     ap.add_argument("--obsidian-dir", default=None, metavar="DIR",
@@ -1257,7 +1258,7 @@ def main() -> None:
         print(f"Sessions directory not found: {sessions_dir}", file=sys.stderr)
         sys.exit(1)
 
-    analytics_dir = Path(args.output).parent
+    analytics_dir = Path(_default_analytics)
     archive_dir = analytics_dir / "session_trimmed"
 
     con = init_db(args.output)
