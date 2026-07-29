@@ -1,7 +1,7 @@
 {
   "name": "wp-labs-sdlc",
-  "version": "0.11.2",
-  "description": "Repo SDLC bootstrapping: scaffolding-sdlc skill wires lint, tests, Playwright e2e, security scanning, Dependabot, PR-status labels, and Claude PR automation onto new or existing repos. Includes --setup-claude mode for bootstrapping the global ~/.claude/ environment on a fresh machine.",
+  "version": "0.13.5",
+  "description": "Repo SDLC bootstrapping: scaffolding-sdlc skill wires lint, tests, Playwright e2e, security scanning, Dependabot, PR-status labels, and Claude PR automation onto new or existing repos. Ships /setup-claude (bootstrap or sync the global ~/.claude/ environment), /queue (session-scoped backlog), /summarize-ai-usage (batch-summarize session history to SQLite), and /apply-ai-improvements (apply queued improvement briefs).",
   "author": {
     "name": "Sherry Zhou",
     "email": "szhou@wp-labs.ai"
