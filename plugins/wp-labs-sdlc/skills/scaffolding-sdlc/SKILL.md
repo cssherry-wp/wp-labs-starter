@@ -1,32 +1,26 @@
 ---
 name: scaffolding-sdlc
-description: Use when starting a new repo or adding SDLC automation to an existing one — sets up lint, unit tests, Playwright e2e, security scanning, Dependabot, PR-status labels, pre-commit hooks, and Claude PR automation that run on every PR. Pass --setup-claude to instead configure the global ~/.claude/ environment (settings, plugins, CLAUDE.md, rules) on a fresh machine or new Claude Code install.
-argument-hint: "[--setup-claude]"
+description: Use when starting a new repo or adding SDLC automation to an existing one — sets up lint, unit tests, Playwright e2e, security scanning, Dependabot, PR-status labels, pre-commit hooks, and Claude PR automation that run on every PR.
 ---
 
 # Scaffolding SDLC
 
 ## Overview
 
-Two modes:
+Interactively bootstrap standardized SDLC automation into a repo — runnable
+starter app, Makefile, pre-commit hook, GitHub Actions CI/security/Claude-PR-
+automation, Dependabot, PR-status labels, and optional hosting (Docker + Azure
+Bicep).
 
-- **Repo mode** (default): interactively bootstrap standardized SDLC automation
-  into a repo — runnable starter app, Makefile, pre-commit hook, GitHub Actions
-  CI/security/Claude-PR-automation, Dependabot, PR-status labels, and optional
-  hosting (Docker + Azure Bicep).
-- **`--setup-claude`**: configure the global `~/.claude/` environment on a fresh
-  machine or new Claude Code install — settings.json with all recommended plugins
-  and marketplaces, CLAUDE.md, and glob-scoped rules/. Use this before the first
-  repo scaffold, or to onboard a new machine.
+**Core principle:** local == CI (both call the same Makefile targets), and
+never clobber existing files — detect, diff, ask, merge. On an existing repo,
+audit the full inventory and add only the missing pieces.
 
-**Core principle (repo mode):** local == CI (both call the same Makefile
-targets), and never clobber existing files — detect, diff, ask, merge. On an
-existing repo, audit the full inventory and add only the missing pieces.
+> To configure `~/.claude/` globally (settings, plugins, CLAUDE.md, rules),
+> use `/wp-labs-sdlc:setup-claude` instead.
 
 ## When to use
 
-- `--setup-claude`: fresh machine, new Claude Code install, or syncing global
-  Claude config to the team standard.
 - Starting a fresh repo that needs CI/quality gates.
 - An existing repo with no `.github/workflows/`, no pre-commit checks, or
   inconsistent tooling.
@@ -44,51 +38,6 @@ existing repo, audit the full inventory and add only the missing pieces.
   but does not re-run CI.
 - `gitleaks` installed locally for the pre-commit secret scan
   (`brew install gitleaks`).
-
-## --setup-claude: Global Claude Setup
-
-When the user passes `--setup-claude` (or says "setup claude", "set up my claude
-environment", "configure claude globally"), run this workflow instead of the repo
-scaffold below.
-
-**What it configures** (all under `~/.claude/`, never inside any repo):
-
-1. **settings.json** — deep-merge `templates/claude/settings.json` into
-   `~/.claude/settings.json`. Team values win on conflict for scalar and object
-   keys; existing personal keys not in the template are preserved. **Array values
-   (e.g. `hooks.Stop`) are concatenated** so existing hooks survive. Show the diff
-   before applying; ask before overwriting.
-
-   Note: `enabledPlugins` entries that the template sets to `false` (e.g.
-   `superpowers@claude-plugins-official`) will override a user's `true` — the
-   template prefers `wp-labs-superpowers@wp-labs-starter` instead. The diff step
-   makes this visible before it applies.
-
-   ```bash
-   merged=$(jq -s '.[0] * .[1] | .hooks.Stop = ((.[0].hooks.Stop // []) + (.[1].hooks.Stop // []))' \
-     ~/.claude/settings.json templates/claude/settings.json)
-   echo "$merged" > ~/.claude/settings.json
-   ```
-
-   This registers the wp-labs-starter, ponytail, and playwright-skill marketplaces
-   and enables all recommended plugins. Claude Code auto-installs any plugin in
-   `enabledPlugins` that is not yet cached on next launch — no manual `claude plugins
-   install` needed.
-
-2. **CLAUDE.md** — copy `templates/claude/CLAUDE.md` to `~/.claude/CLAUDE.md`. If
-   it already exists, show the diff and ask before overwriting.
-
-**Standalone (no Claude needed):** the user can also run
-`scripts/setup-claude.sh` directly from a terminal — useful for bootstrapping a
-fresh machine before Claude Code is configured. It is interactive and follows the
-same detect/diff/ask/apply pattern.
-
-```bash
-bash plugins/wp-labs-sdlc/skills/scaffolding-sdlc/scripts/setup-claude.sh
-```
-
-After applying, tell the user to restart Claude Code so it picks up the new
-settings and triggers plugin auto-install.
 
 ## Workflow (Repo Mode)
 
@@ -276,14 +225,15 @@ directory; copy from there.
 
    **Before importing, ask and warn about duplication.** These `.claude/` files
    are checked into the repo so teammates share the baseline. A developer who
-   also ran `--setup-claude` already has this same content in their `~/.claude/`,
-   so both copies load at once (the repo copy wins on project precedence; the
-   global copy becomes redundant context). Ask before importing:
+   also ran `/wp-labs-sdlc:setup-claude` already has this same content in their
+   `~/.claude/`, so both copies load at once (the repo copy wins on project
+   precedence; the global copy becomes redundant context). Ask before importing:
 
    > Import the team `.claude/` templates (CLAUDE.md) into this repo?
-   > They are the shared team baseline for anyone who has NOT run `--setup-claude`.
-   > If you already ran `--setup-claude`, the same content also lives in your
-   > `~/.claude/` and will load twice — harmless (identical), but redundant. [Y/n]
+   > They are the shared team baseline for teammates without global setup.
+   > If you already ran `/wp-labs-sdlc:setup-claude`, the same content also lives
+   > in your `~/.claude/` and will load twice — harmless (identical), but
+   > redundant. [Y/n]
 
    Default **Yes** — the repo copy is the team baseline for teammates without
    global setup. This warning covers the harmless identical-duplicate case; the
