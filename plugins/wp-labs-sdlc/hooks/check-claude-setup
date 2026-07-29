@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Archive queue files untouched for >30 days to CLAUDE_ANALYTICS_DIR.
-# Runs silently on every session start; produces no output.
+# Runs once at session start (SessionStart event); produces no output.
 set -euo pipefail
-cat > /dev/null  # consume stdin from plugin system
+cat > /dev/null  # consume session JSON sent by harness
 
 _queue_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/queue"
 [ -d "$_queue_dir" ] || exit 0

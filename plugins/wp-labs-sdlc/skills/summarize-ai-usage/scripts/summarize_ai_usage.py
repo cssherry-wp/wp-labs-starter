@@ -1239,6 +1239,8 @@ def main() -> None:
                     help="SQLite output path (default: $CLAUDE_ANALYTICS_DIR/session_summaries.db)")
     ap.add_argument("--apply-changes", action="store_true",
                     help="Write improvement findings to files (default: store as unapplied only)")
+    ap.add_argument("--archive-dir", default=None, metavar="DIR",
+                    help="Directory for trimmed session files (default: <analytics_dir>/session_trimmed)")
     ap.add_argument("--obsidian-dir", default=None, metavar="DIR",
                     help="Save personal learnings as dated markdown files to this Obsidian vault directory (requires --apply-changes)")
     ap.add_argument("--model", default="claude-sonnet-4-6",
@@ -1259,7 +1261,7 @@ def main() -> None:
         sys.exit(1)
 
     analytics_dir = Path(_default_analytics)
-    archive_dir = analytics_dir / "session_trimmed"
+    archive_dir = Path(args.archive_dir) if args.archive_dir else analytics_dir / "session_trimmed"
 
     con = init_db(args.output)
     to_process = scan_sessions(sessions_dir, con, since=since)
