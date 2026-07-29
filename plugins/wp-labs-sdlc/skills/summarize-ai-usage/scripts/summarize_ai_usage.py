@@ -1260,7 +1260,7 @@ def main() -> None:
         print(f"Sessions directory not found: {sessions_dir}", file=sys.stderr)
         sys.exit(1)
 
-    analytics_dir = Path(_default_analytics)
+    analytics_dir = Path(args.output).parent
     archive_dir = Path(args.archive_dir) if args.archive_dir else analytics_dir / "session_trimmed"
 
     con = init_db(args.output)
