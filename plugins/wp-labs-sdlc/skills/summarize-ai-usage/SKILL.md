@@ -13,11 +13,17 @@ allowed-tools: Bash
 
 Run the session summarizer. It scans `~/.claude/projects/` for new or changed
 session JSONL files, groups them by project, calls `claude -p` to summarize
-each batch, and writes results to `~/ClaudeAnalytics/session_summaries.db`.
+each batch, and writes results to `$CLAUDE_ANALYTICS_DIR/session_summaries.db`
+(default: `~/ClaudeAnalytics/`).
+
+Briefs, trimmed sessions, and other artifacts go to the same directory as the
+DB (`--output`'s parent). Override the DB location with `--output` to relocate
+all outputs together; use `--archive-dir` to override only the trimmed-session
+directory independently.
 
 By default, improvement findings are stored as unapplied in the DB only.
 Pass `--apply-changes` to write high-confidence findings (confidence > 75) as
-brief files to `~/.claude/ai-improvements/pending/`, then run
+brief files to `<output-dir>/ai-improvements/pending/`, then run
 `/apply-ai-improvements` to review and apply them with proper brainstorming.
 
 Pass `--obsidian-dir <path>` together with `--apply-changes` to also save

@@ -1026,11 +1026,12 @@ def apply_improvements(
     claude_dir: Path,
     now_iso: str,
     apply_changes: bool,
+    analytics_dir: Path | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """Queue high-confidence findings as improvement briefs; update DB columns.
 
     Findings with confidence > 75 are written as brief files to
-    ~/.claude/ai-improvements/pending/ when apply_changes is True.
+    <analytics_dir>/ai-improvements/pending/ when apply_changes is True.
     All others stay unapplied. Run /apply-ai-improvements to action briefs.
 
     Args:
@@ -1042,6 +1043,9 @@ def apply_improvements(
         claude_dir: ~/.claude directory path.
         now_iso: ISO timestamp string for brief file naming.
         apply_changes: If False, all findings stay unapplied.
+        analytics_dir: Directory containing session_summaries.db (e.g. ~/ClaudeAnalytics/).
+            Briefs are written to <analytics_dir>/ai-improvements/pending/.
+            Defaults to claude_dir if not provided.
 
     Returns:
         Tuple of (queued findings, unapplied findings).
@@ -1049,7 +1053,7 @@ def apply_improvements(
     queued: list[dict] = []
     unapplied: list[dict] = []
     project_root = _find_project_root(workspace, project)
-    pending_dir = claude_dir / "ai-improvements" / "pending"
+    pending_dir = (analytics_dir or claude_dir) / "ai-improvements" / "pending"
 
     for finding in suggestions:
         if not apply_changes or (finding.get("confidence") or 0) <= 75:
@@ -1121,6 +1125,7 @@ def _run_second_pass(
     model: str,
     archive_dir: Path | None = None,
     obsidian_dir: Path | None = None,
+    analytics_dir: Path | None = None,
 ) -> None:
     """Run a second claude -p call for sessions that need their full transcript.
 
@@ -1138,6 +1143,7 @@ def _run_second_pass(
         model: Claude model ID to use.
         archive_dir: If set, write each session block to archive_dir/<uuid>.txt.
         obsidian_dir: If set with apply_changes, save personal learnings as markdown here.
+        analytics_dir: If set, write improvement briefs to <analytics_dir>/ai-improvements/pending/.
     """
     full_items = [item for item in batch if item[0].stem in needs_full]
     if not full_items:
@@ -1149,7 +1155,7 @@ def _run_second_pass(
         full_ids = [session_ids[uuid] for uuid in full_set if uuid in session_ids]
         summary_id2, suggestions2 = write_summary(con, full_ids, result2, usage2, now_iso)
         con.commit()
-        applied2, unapplied2 = apply_improvements(con, summary_id2, suggestions2, project, workspace, claude_dir, now_iso, apply_changes)
+        applied2, unapplied2 = apply_improvements(con, summary_id2, suggestions2, project, workspace, claude_dir, now_iso, apply_changes, analytics_dir=analytics_dir)
         if apply_changes and obsidian_dir:
             _save_learnings_to_obsidian(result2.get("personal_learnings") or [], obsidian_dir, project, now_iso)
         print_findings_report(
@@ -1171,6 +1177,7 @@ def _process_batch(
     model: str,
     archive_dir: Path | None = None,
     obsidian_dir: Path | None = None,
+    analytics_dir: Path | None = None,
 ) -> None:
     """Upsert sessions, call the LLM, write summaries, apply improvements.
 
@@ -1184,6 +1191,7 @@ def _process_batch(
         model: Claude model ID to use.
         archive_dir: If set, write each session block to archive_dir/<uuid>.txt.
         obsidian_dir: If set with apply_changes, save personal learnings as markdown here.
+        analytics_dir: If set, write improvement briefs to <analytics_dir>/ai-improvements/pending/.
     """
     project = batch[0][2]
     workspace: str | None = batch[0][4].get("workspace")
@@ -1207,9 +1215,9 @@ def _process_batch(
     con.commit()  # sessions + summary committed atomically; LLM failure above leaves both uncommitted
 
     if needs_full:
-        _run_second_pass(batch, session_ids, needs_full, queue_dir, con, project, workspace, claude_dir, now_iso, apply_changes, model, archive_dir=archive_dir, obsidian_dir=obsidian_dir)
+        _run_second_pass(batch, session_ids, needs_full, queue_dir, con, project, workspace, claude_dir, now_iso, apply_changes, model, archive_dir=archive_dir, obsidian_dir=obsidian_dir, analytics_dir=analytics_dir)
 
-    applied, unapplied = apply_improvements(con, summary_id, suggestions, project, workspace, claude_dir, now_iso, apply_changes)
+    applied, unapplied = apply_improvements(con, summary_id, suggestions, project, workspace, claude_dir, now_iso, apply_changes, analytics_dir=analytics_dir)
     if apply_changes and obsidian_dir:
         _save_learnings_to_obsidian(result.get("personal_learnings") or [], obsidian_dir, project, now_iso)
     print_findings_report(
@@ -1221,15 +1229,18 @@ def _process_batch(
 
 def main() -> None:
     """Entry point: parse args, scan sessions, run all batches."""
+    _default_analytics = os.environ.get("CLAUDE_ANALYTICS_DIR", os.path.expanduser("~/ClaudeAnalytics"))
     ap = argparse.ArgumentParser(description="Summarize Claude Code sessions via LLM")
     ap.add_argument("--claude-dir", default=os.path.expanduser("~/.claude"),
                     help="Claude config directory (default: ~/.claude)")
     ap.add_argument("--sessions-dir", default=None,
                     help="Session projects directory (default: <claude-dir>/projects)")
-    ap.add_argument("--output", default=os.path.expanduser("~/ClaudeAnalytics/session_summaries.db"),
-                    help="SQLite output path")
+    ap.add_argument("--output", default=os.path.join(_default_analytics, "session_summaries.db"),
+                    help="SQLite output path (default: $CLAUDE_ANALYTICS_DIR/session_summaries.db)")
     ap.add_argument("--apply-changes", action="store_true",
                     help="Write improvement findings to files (default: store as unapplied only)")
+    ap.add_argument("--archive-dir", default=None, metavar="DIR",
+                    help="Directory for trimmed session files (default: <analytics_dir>/session_trimmed)")
     ap.add_argument("--obsidian-dir", default=None, metavar="DIR",
                     help="Save personal learnings as dated markdown files to this Obsidian vault directory (requires --apply-changes)")
     ap.add_argument("--model", default="claude-sonnet-4-6",
@@ -1249,7 +1260,8 @@ def main() -> None:
         print(f"Sessions directory not found: {sessions_dir}", file=sys.stderr)
         sys.exit(1)
 
-    archive_dir = Path(args.output).parent / "session_trimmed"
+    analytics_dir = Path(args.output).parent
+    archive_dir = Path(args.archive_dir) if args.archive_dir else analytics_dir / "session_trimmed"
 
     con = init_db(args.output)
     to_process = scan_sessions(sessions_dir, con, since=since)
@@ -1263,7 +1275,7 @@ def main() -> None:
 
     for i, batch in enumerate(batches, 1):
         print(f"\nBatch {i}/{len(batches)}: {batch[0][2]} [{len(batch)} session(s)]")
-        _process_batch(batch, queue_dir, con, claude_dir, now_iso, args.apply_changes, args.model, archive_dir=archive_dir, obsidian_dir=obsidian_dir)
+        _process_batch(batch, queue_dir, con, claude_dir, now_iso, args.apply_changes, args.model, archive_dir=archive_dir, obsidian_dir=obsidian_dir, analytics_dir=analytics_dir)
 
     con.close()
     print("\nDone.")
