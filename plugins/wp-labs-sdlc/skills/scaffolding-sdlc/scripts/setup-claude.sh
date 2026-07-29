@@ -34,7 +34,8 @@ ask() {
 
 # --- settings.json ---
 if [ -f "$CLAUDE_DIR/settings.json" ]; then
-  merged=$(jq -s '.[0] * .[1] | .hooks.Stop = ((.[0].hooks.Stop // []) + (.[1].hooks.Stop // []))' "$CLAUDE_DIR/settings.json" "$TMPL/settings.json")
+  # Merge objects recursively; concatenate hooks.Stop arrays so existing hooks are preserved.
+  merged=$(jq -s '.[0] as $a | .[1] as $b | ($a * $b) | .hooks.Stop = (($a.hooks.Stop // []) + ($b.hooks.Stop // []))' "$CLAUDE_DIR/settings.json" "$TMPL/settings.json")
   if diff <(cat "$CLAUDE_DIR/settings.json") <(echo "$merged") > /dev/null 2>&1; then
     echo "settings.json: already up to date"
   else
