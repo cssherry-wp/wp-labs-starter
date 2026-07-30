@@ -1012,7 +1012,7 @@ function renderTimeline(){
       const sMs=s.startedAt.getTime();
       const eMs=s.lastActivityAt?s.lastActivityAt.getTime():sMs+1800000;
       const cost=calcCost(s.model,s.usage,s.source);
-      const costTip=cost!==null?'$'+(cost<0.01?cost.toFixed(4):cost.toFixed(2)):s.source==='pi'?fmtK(s.usage.in+s.usage.out+s.usage.cw+s.usage.cr)+' tok':'';
+      const costTip=cost!==null?'$'+(cost<0.01?cost.toFixed(4):cost.toFixed(2)):s.source==='pi'?fmtTok(s.usage.in+s.usage.out+s.usage.cw+s.usage.cr)+' tok':'';
       const tip=[s.title||'(untitled)',fmtDate(s.startedAt)+(s.lastActivityAt?' → '+fmtDate(s.lastActivityAt):''),`${s.userTurns.length+s.commands.length} turns`,costTip,s.model||''].filter(Boolean).join('\n');
       const turnTicks=s.userTurns.filter(t=>t.ts).map(t=>{const p=(t.ts.getTime()-sMs)/Math.max(1,eMs-sMs)*100;return p>=0&&p<=100?`<span class="tl-turn" style="left:${p.toFixed(2)}%"></span>`:''}).join('');
       return`<div class="tl-sess" style="position:absolute;left:${pct(sMs)};width:${pctW(sMs,eMs)};top:${(ROW_H-BAR_H)/2}px;height:${BAR_H}px;background:${color}22;border-color:${color}" data-uuid="${s.uuid}" data-tip="${esc(tip)}"><span class="tl-stitle">${esc(s.title||'(untitled)')}</span>${turnTicks}</div>`;
@@ -1216,7 +1216,7 @@ function sessionRow(s){
   ].filter(Boolean).join(' ');
   const cost=calcCost(s.model,s.usage,s.source);
   const totalTok=s.usage.in+s.usage.out+s.usage.cw+s.usage.cr;
-  const costStr=cost!==null?(cost<0.01?'$'+cost.toFixed(4):'$'+cost.toFixed(2)):s.source==='pi'&&totalTok>0?fmtK(totalTok)+' tok':'—';
+  const costStr=cost!==null?(cost<0.01?'$'+cost.toFixed(4):'$'+cost.toFixed(2)):s.source==='pi'&&totalTok>0?fmtTok(totalTok)+' tok':'—';
   const costColor=cost===null?'var(--dim)':cost>1?'var(--err)':cost>0.1?'var(--open)':'var(--done)';
   const dur=s.startedAt&&s.lastActivityAt?fmtDuration(s.startedAt.getTime(),s.lastActivityAt.getTime()):'—';
   const ctTip=s.claudeTasks.map(t=>t.subject).join('\n');
@@ -1259,7 +1259,7 @@ function insertDetailRow(tr,s){
   const detail=document.createElement('tr');detail.className='detail-row';detail.dataset.for=s.uuid;
   const worktree=s.projectWorktree;
   const lastReplyHtml=s.lastAssistantText?`<div class="turn-block"><div class="turn-label"><span class="role-badge rb-asst">assistant</span>Last reply</div><div class="turn-text" style="max-height:120px;font-size:11.5px">${esc(s.lastAssistantText.trim().slice(0,800))}</div></div>`:'';
-  const allTurns=[...s.userTurns].reverse().map((t,i)=>{const n=s.userTurns.length-i;const spawnHtml=(t.agentSpawns||[]).map(sp=>{const ag=(s.agents||[]).find(a=>a.toolUseId===sp.toolUseId);const cost=ag?calcCost(ag.model,ag.usage):null;const tok=ag?(ag.usage.in+ag.usage.out+ag.usage.cw+ag.usage.cr):0;const effortBadge=ag?.effort&&ag.effort!=='normal'?`<span class="agent-meta" style="opacity:.7">${esc(ag.effort)}</span>`:'';const toolsHtml=ag?.tools?.length?`<span class="agent-meta" style="opacity:.6">${esc(ag.tools.slice(0,5).join(' · '))}</span>`:'';const tip=ag?.lastAssistantText?` data-tip="${esc(ag.lastAssistantText.trim().slice(0,300))}"`:' ';return`<div class="agent-block"><span class="role-badge rb-agent">${esc(ag?.agentType||'agent')}</span><span class="agent-desc"${tip}>${esc(ag?.description||sp.label||'')}</span>${effortBadge}${toolsHtml}${ag?.model?`<span class="agent-meta">${esc(ag.model)}</span>`:''} ${tok>0?`<span class="agent-meta">${fmtK(tok)}tok</span>`:''}${cost!==null?`<span class="agent-cost"> · $${cost<0.01?cost.toFixed(4):cost.toFixed(2)}</span>`:''}</div>`;}).join('');return`<div class="turn-block"><div class="turn-label"><span class="role-badge rb-user">user</span>Turn ${n}${t.ts?' · '+fmtDate(t.ts):''}</div><div class="turn-text">${esc(t.text)}</div>${spawnHtml}</div>`;});
+  const allTurns=[...s.userTurns].reverse().map((t,i)=>{const n=s.userTurns.length-i;const spawnHtml=(t.agentSpawns||[]).map(sp=>{const ag=(s.agents||[]).find(a=>a.toolUseId===sp.toolUseId);const cost=ag?calcCost(ag.model,ag.usage):null;const tok=ag?(ag.usage.in+ag.usage.out+ag.usage.cw+ag.usage.cr):0;const effortBadge=ag?.effort&&ag.effort!=='normal'?`<span class="agent-meta" style="opacity:.7">${esc(ag.effort)}</span>`:'';const toolsHtml=ag?.tools?.length?`<span class="agent-meta" style="opacity:.6">${esc(ag.tools.slice(0,5).join(' · '))}</span>`:'';const tip=ag?.lastAssistantText?` data-tip="${esc(ag.lastAssistantText.trim().slice(0,300))}"`:' ';return`<div class="agent-block"><span class="role-badge rb-agent">${esc(ag?.agentType||'agent')}</span><span class="agent-desc"${tip}>${esc(ag?.description||sp.label||'')}</span>${effortBadge}${toolsHtml}${ag?.model?`<span class="agent-meta">${esc(ag.model)}</span>`:''} ${tok>0?`<span class="agent-meta">${fmtTok(tok)}tok</span>`:''}${cost!==null?`<span class="agent-cost"> · $${cost<0.01?cost.toFixed(4):cost.toFixed(2)}</span>`:''}</div>`;}).join('');return`<div class="turn-block"><div class="turn-label"><span class="role-badge rb-user">user</span>Turn ${n}${t.ts?' · '+fmtDate(t.ts):''}</div><div class="turn-text">${esc(t.text)}</div>${spawnHtml}</div>`;});
   const cmdTurns=[...s.commands].reverse().map(c=>`<div class="turn-block"><div class="turn-label"><span class="role-badge rb-cmd">cmd</span>Command${c.ts?' · '+fmtDate(c.ts):''}</div><div class="turn-text cmd-text">${esc(c.name)}${c.args?' '+esc(c.args):''}</div></div>`);
   const turnsHtml=[...allTurns,...cmdTurns].join('')||'<div style="color:var(--dim);font-size:12px">No user turns.</div>';
   const qHtml=[...s.claudeTasks.map(t=>{
@@ -1279,9 +1279,9 @@ function insertDetailRow(tr,s){
   const cost=hasU?calcCost(s.model,u,s.source):null;
   const colorDot=s.color&&COLOR_CSS[s.color]?`<span class="cdot" style="background:${COLOR_CSS[s.color]};margin-right:3px"></span>`:'';
   const pricing=getPricing(s.model);
-  const costBreak=pricing&&hasU?`\nPricing: $${pricing.in}/MTok in · $${pricing.cw}/MTok cw · $${pricing.cr}/MTok cr · $${pricing.out}/MTok out\nRaw tokens: ${fmtK(u.in)} in + ${fmtK(u.cw)} cw + ${fmtK(u.cr)} cr + ${fmtK(u.out)} out`:'';
-  const costCellStr=cost!==null?'$'+(cost<0.01?cost.toFixed(4):cost.toFixed(2)):s.source==='pi'?fmtK(u.in+u.out+u.cw+u.cr)+' tok':'—';
-  const usageHtml=hasU?`<div class="usage-footer">${colorDot}<span class="uf-model">${esc(s.model||'—')}</span><span class="uf-sep">·</span><span class="uf-stat" title="${esc('input'+costBreak)}">${fmtK(u.in)} in</span><span class="uf-sep">·</span><span class="uf-stat">${fmtK(u.out)} out</span>${u.cr>0?`<span class="uf-sep">·</span><span class="uf-stat">${fmtK(u.cr)} cached</span>`:''}<span class="uf-sep">·</span><span class="uf-cost" data-tip="${esc(costBreak)}">${costCellStr}</span></div>`:'';
+  const costBreak=pricing&&hasU?`\nPricing: $${pricing.in}/MTok in · $${pricing.cw}/MTok cw · $${pricing.cr}/MTok cr · $${pricing.out}/MTok out\nRaw tokens: ${fmtTok(u.in)} in + ${fmtTok(u.cw)} cw + ${fmtTok(u.cr)} cr + ${fmtTok(u.out)} out`:'';
+  const costCellStr=cost!==null?'$'+(cost<0.01?cost.toFixed(4):cost.toFixed(2)):s.source==='pi'?fmtTok(u.in+u.out+u.cw+u.cr)+' tok':'—';
+  const usageHtml=hasU?`<div class="usage-footer">${colorDot}<span class="uf-model">${esc(s.model||'—')}</span><span class="uf-sep">·</span><span class="uf-stat" title="${esc('input'+costBreak)}">${fmtTok(u.in)} in</span><span class="uf-sep">·</span><span class="uf-stat">${fmtTok(u.out)} out</span>${u.cr>0?`<span class="uf-sep">·</span><span class="uf-stat">${fmtTok(u.cr)} cached</span>`:''}<span class="uf-sep">·</span><span class="uf-cost" data-tip="${esc(costBreak)}">${costCellStr}</span></div>`:'';
   const prHtml=s.prLinks.length?`<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">${s.prLinks.map(url=>{const m=url.match(/\/pull\/(\d+)/);return`<a href="${url}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;padding:2px 7px;border-radius:4px;border:1px solid var(--border);background:var(--panel3);color:var(--accent);text-decoration:none">⎇ PR #${m?m[1]:'?'}</a>`;}).join('')}</div>`:'';
   const toolTags=s.tools.filter(t=>t!=='Skill');
   const toolsHtml=(toolTags.length||s.skills.length)?`<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:3px">${[...s.skills.map(sk=>`<span class="tool-chip skill" data-tool="${esc(sk)}" data-tip="${esc('Skill: '+sk)}" style="cursor:pointer">${esc(sk)}</span>`),...toolTags.map(t=>`<span class="tool-chip" data-tool="${esc(t)}" data-tip="${esc(TOOL_DESC[t]||'Built-in tool')}" style="cursor:pointer">${esc(t)}</span>`)].join('')}</div>`:'';
@@ -1302,7 +1302,7 @@ function insertDetailRow(tr,s){
 // ─── Utilities ───────────────────────────────────────────────────────────────
 function fmtDate(d){return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});}
 function fmtDuration(ms1,ms2){const m=Math.round((ms2-ms1)/60000);if(m<1)return'<1m';if(m<60)return m+'m';const h=Math.floor(m/60),rem=m%60;if(h<24)return h+'h'+(rem?rem+'m':'');const d=Math.floor(h/24),remH=h%24;return d+'d'+(remH?remH+'h':'');}
-function fmtK(n){return n>=1000?(n/1000).toFixed(1)+'k':String(n);}
+function fmtTok(n){return Math.round(n).toLocaleString('en-US');}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function getPricing(model){if(!model)return null;let p=PRICING[model];if(!p){const k=Object.keys(PRICING).find(k=>model.startsWith(k));if(k)p=PRICING[k];}return p||null;}
 function calcCost(model,usage,source){if(source==='pi')return null;const p=getPricing(model);if(!p)return null;return(usage.in*p.in+usage.cw*p.cw+usage.cr*p.cr+usage.out*p.out)/1e6;}
