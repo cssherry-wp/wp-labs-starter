@@ -10,7 +10,7 @@
   --border:#30363d;--border2:#21262d;
   --ink:#c9d1d9;--muted:#8b949e;--dim:#6e7681;
   --accent:#7c3aed;--accent2:#6d28d9;--accent-s:rgba(124,58,237,.14);
-  --pi-accent:#9a90b3;
+  --pi-accent:#a58cc9;
   --done:#2ea043;--done-s:rgba(46,160,67,.18);
   --open:#d29922;--open-s:rgba(210,153,34,.18);
   --err:#f85149;
@@ -21,12 +21,12 @@
   --border:#d0d7de;--border2:#e1e4e8;
   --ink:#24292f;--muted:#57606a;--dim:#8c959f;
   --accent:#6d28d9;--accent2:#5b21b6;--accent-s:rgba(109,40,217,.1);
-  --pi-accent:#6f6580;
+  --pi-accent:#82699c;
   --done:#1a7f37;--done-s:rgba(26,127,55,.12);
   --open:#9a6700;--open-s:rgba(154,103,0,.12);
 }}
-:root[data-theme=dark]{--bg:#0d1117;--panel:#161b22;--panel2:#1c2128;--panel3:#21262d;--border:#30363d;--border2:#21262d;--ink:#c9d1d9;--muted:#8b949e;--dim:#6e7681;--accent:#7c3aed;--accent2:#6d28d9;--accent-s:rgba(124,58,237,.14);--pi-accent:#9a90b3;--done:#2ea043;--done-s:rgba(46,160,67,.18);--open:#d29922;--open-s:rgba(210,153,34,.18);}
-:root[data-theme=light]{--bg:#f6f8fa;--panel:#fff;--panel2:#f6f8fa;--panel3:#eaeef2;--border:#d0d7de;--border2:#e1e4e8;--ink:#24292f;--muted:#57606a;--dim:#8c959f;--accent:#6d28d9;--accent2:#5b21b6;--accent-s:rgba(109,40,217,.1);--pi-accent:#6f6580;--done:#1a7f37;--done-s:rgba(26,127,55,.12);--open:#9a6700;--open-s:rgba(154,103,0,.12);}
+:root[data-theme=dark]{--bg:#0d1117;--panel:#161b22;--panel2:#1c2128;--panel3:#21262d;--border:#30363d;--border2:#21262d;--ink:#c9d1d9;--muted:#8b949e;--dim:#6e7681;--accent:#7c3aed;--accent2:#6d28d9;--accent-s:rgba(124,58,237,.14);--pi-accent:#a58cc9;--done:#2ea043;--done-s:rgba(46,160,67,.18);--open:#d29922;--open-s:rgba(210,153,34,.18);}
+:root[data-theme=light]{--bg:#f6f8fa;--panel:#fff;--panel2:#f6f8fa;--panel3:#eaeef2;--border:#d0d7de;--border2:#e1e4e8;--ink:#24292f;--muted:#57606a;--dim:#8c959f;--accent:#6d28d9;--accent2:#5b21b6;--accent-s:rgba(109,40,217,.1);--pi-accent:#82699c;--done:#1a7f37;--done-s:rgba(26,127,55,.12);--open:#9a6700;--open-s:rgba(154,103,0,.12);}
 *{box-sizing:border-box;margin:0;padding:0}
 html{font-size:13.5px;-webkit-font-smoothing:antialiased}
 body{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;line-height:1.5;min-height:100vh;display:flex;flex-direction:column}
@@ -1012,7 +1012,8 @@ function renderTimeline(){
       const sMs=s.startedAt.getTime();
       const eMs=s.lastActivityAt?s.lastActivityAt.getTime():sMs+1800000;
       const cost=calcCost(s.model,s.usage,s.source);
-      const tip=[s.title||'(untitled)',fmtDate(s.startedAt)+(s.lastActivityAt?' → '+fmtDate(s.lastActivityAt):''),`${s.userTurns.length+s.commands.length} turns`,cost!==null?'$'+(cost<0.01?cost.toFixed(4):cost.toFixed(2)):'',s.model||''].filter(Boolean).join('\n');
+      const costTip=cost!==null?'$'+(cost<0.01?cost.toFixed(4):cost.toFixed(2)):s.source==='pi'?fmtK(s.usage.in+s.usage.out+s.usage.cw+s.usage.cr)+' tok':'';
+      const tip=[s.title||'(untitled)',fmtDate(s.startedAt)+(s.lastActivityAt?' → '+fmtDate(s.lastActivityAt):''),`${s.userTurns.length+s.commands.length} turns`,costTip,s.model||''].filter(Boolean).join('\n');
       const turnTicks=s.userTurns.filter(t=>t.ts).map(t=>{const p=(t.ts.getTime()-sMs)/Math.max(1,eMs-sMs)*100;return p>=0&&p<=100?`<span class="tl-turn" style="left:${p.toFixed(2)}%"></span>`:''}).join('');
       return`<div class="tl-sess" style="position:absolute;left:${pct(sMs)};width:${pctW(sMs,eMs)};top:${(ROW_H-BAR_H)/2}px;height:${BAR_H}px;background:${color}22;border-color:${color}" data-uuid="${s.uuid}" data-tip="${esc(tip)}"><span class="tl-stitle">${esc(s.title||'(untitled)')}</span>${turnTicks}</div>`;
     }).join('');
@@ -1214,7 +1215,8 @@ function sessionRow(s){
     pureN?`<span class="qc${activeQueueStatus==='cancelled'?' active':''}" data-qstatus="cancelled" data-tip="${esc(s.queueItems.filter(i=>i.cancelled&&(!i.reason||!/moved/i.test(i.reason))).map(queueItemTip).join('\n─────────────────\n'))}" style="background:color-mix(in srgb,var(--err) 12%,transparent);color:var(--err)">${pureN} cancelled</span>`:'',
   ].filter(Boolean).join(' ');
   const cost=calcCost(s.model,s.usage,s.source);
-  const costStr=cost!==null?(cost<0.01?'$'+cost.toFixed(4):'$'+cost.toFixed(2)):'—';
+  const totalTok=s.usage.in+s.usage.out+s.usage.cw+s.usage.cr;
+  const costStr=cost!==null?(cost<0.01?'$'+cost.toFixed(4):'$'+cost.toFixed(2)):s.source==='pi'&&totalTok>0?fmtK(totalTok)+' tok':'—';
   const costColor=cost===null?'var(--dim)':cost>1?'var(--err)':cost>0.1?'var(--open)':'var(--done)';
   const dur=s.startedAt&&s.lastActivityAt?fmtDuration(s.startedAt.getTime(),s.lastActivityAt.getTime()):'—';
   const ctTip=s.claudeTasks.map(t=>t.subject).join('\n');
@@ -1278,7 +1280,8 @@ function insertDetailRow(tr,s){
   const colorDot=s.color&&COLOR_CSS[s.color]?`<span class="cdot" style="background:${COLOR_CSS[s.color]};margin-right:3px"></span>`:'';
   const pricing=getPricing(s.model);
   const costBreak=pricing&&hasU?`\nPricing: $${pricing.in}/MTok in · $${pricing.cw}/MTok cw · $${pricing.cr}/MTok cr · $${pricing.out}/MTok out\nRaw tokens: ${fmtK(u.in)} in + ${fmtK(u.cw)} cw + ${fmtK(u.cr)} cr + ${fmtK(u.out)} out`:'';
-  const usageHtml=hasU?`<div class="usage-footer">${colorDot}<span class="uf-model">${esc(s.model||'—')}</span><span class="uf-sep">·</span><span class="uf-stat" title="${esc('input'+costBreak)}">${fmtK(u.in)} in</span><span class="uf-sep">·</span><span class="uf-stat">${fmtK(u.out)} out</span>${u.cr>0?`<span class="uf-sep">·</span><span class="uf-stat">${fmtK(u.cr)} cached</span>`:''}<span class="uf-sep">·</span><span class="uf-cost" data-tip="${esc(costBreak)}">${cost!==null?'$'+(cost<0.01?cost.toFixed(4):cost.toFixed(2)):'—'}</span></div>`:'';
+  const costCellStr=cost!==null?'$'+(cost<0.01?cost.toFixed(4):cost.toFixed(2)):s.source==='pi'?fmtK(u.in+u.out+u.cw+u.cr)+' tok':'—';
+  const usageHtml=hasU?`<div class="usage-footer">${colorDot}<span class="uf-model">${esc(s.model||'—')}</span><span class="uf-sep">·</span><span class="uf-stat" title="${esc('input'+costBreak)}">${fmtK(u.in)} in</span><span class="uf-sep">·</span><span class="uf-stat">${fmtK(u.out)} out</span>${u.cr>0?`<span class="uf-sep">·</span><span class="uf-stat">${fmtK(u.cr)} cached</span>`:''}<span class="uf-sep">·</span><span class="uf-cost" data-tip="${esc(costBreak)}">${costCellStr}</span></div>`:'';
   const prHtml=s.prLinks.length?`<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">${s.prLinks.map(url=>{const m=url.match(/\/pull\/(\d+)/);return`<a href="${url}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;padding:2px 7px;border-radius:4px;border:1px solid var(--border);background:var(--panel3);color:var(--accent);text-decoration:none">⎇ PR #${m?m[1]:'?'}</a>`;}).join('')}</div>`:'';
   const toolTags=s.tools.filter(t=>t!=='Skill');
   const toolsHtml=(toolTags.length||s.skills.length)?`<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:3px">${[...s.skills.map(sk=>`<span class="tool-chip skill" data-tool="${esc(sk)}" data-tip="${esc('Skill: '+sk)}" style="cursor:pointer">${esc(sk)}</span>`),...toolTags.map(t=>`<span class="tool-chip" data-tool="${esc(t)}" data-tip="${esc(TOOL_DESC[t]||'Built-in tool')}" style="cursor:pointer">${esc(t)}</span>`)].join('')}</div>`:'';
