@@ -47,8 +47,26 @@ def test_extract_turns_pi():
     assert any("[bash]" in t for t in turns)
     pi_path.unlink()
 
+def test_scan_sessions_source(tmp_path):
+    from summarize_ai_usage import scan_sessions, init_db
+    proj = tmp_path / "myapp"
+    proj.mkdir()
+    session_file = proj / "fake-uuid.jsonl"
+    session_file.write_text('\n'.join(json.dumps(l) for l in PI_LINES) + '\n')
+    db_path = tmp_path / "test.db"
+    con = init_db(db_path)
+    items = scan_sessions(tmp_path, con, source="pi")
+    assert len(items) == 1
+    _, rel, _, _, meta = items[0]
+    assert rel.startswith("pi/"), f"rel should start with 'pi/', got: {rel}"
+    assert meta.get("source") == "pi"
+    con.close()
+
+
 if __name__ == "__main__":
     test_is_pi_format()
     test_extract_metadata_pi()
     test_extract_turns_pi()
     print("All Pi parsing tests passed.")
+    test_scan_sessions_source(pathlib.Path(tempfile.mkdtemp()))
+    print("scan_sessions source test passed.")

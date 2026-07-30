@@ -157,7 +157,7 @@ class TestPartialRescan(unittest.TestCase):
 
             # Persist 2 files as already processed
             for f in files[:2]:
-                rel = str(f.relative_to(tmp))
+                rel = f"claude/{f.relative_to(tmp)}"
                 from summarize_ai_usage import sha256_file
                 h = sha256_file(f)
                 upsert_session(con, rel, "-proj", h, extract_metadata(f))
