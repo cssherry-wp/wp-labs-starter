@@ -360,6 +360,12 @@ async function getStoredPiHandles(){
   }
   return handles;
 }
+// Users may pick ~/.pi, ~/.pi/agent, or ~/.pi/agent/sessions itself — try each depth.
+async function resolvePiSessionsDir(piHandle){
+  try{return await piHandle.getDirectoryHandle('sessions');}catch{}
+  try{return await(await piHandle.getDirectoryHandle('agent')).getDirectoryHandle('sessions');}catch{}
+  return piHandle;
+}
 async function tryAutoLoad(){
   setStatus('Reconnecting…');
   try{
@@ -494,12 +500,12 @@ async function load(){
     try{const qH=await rootHandle.getDirectoryHandle('queue');for await(const[fn,fh]of qH){if(!fn.endsWith('.md')||fh.kind!=='file')continue;const uuid=fn.slice(0,-3);try{const items=parseQueueMD(await(await fh.getFile()).text());if(!sessions.has(uuid))sessions.set(uuid,mkSession(uuid,'queue-only'));sessions.get(uuid).queueItems=items;}catch{}}}catch{}
   }
   for(const piHandle of piHandles){
-    try{const sH=await piHandle.getDirectoryHandle('sessions');for await(const[,pd]of sH){if(pd.kind!=='directory')continue;for await(const[fn]of pd){if(fn.endsWith('.jsonl'))total++;}}}catch{}
+    try{const sH=await resolvePiSessionsDir(piHandle);for await(const[,pd]of sH){if(pd.kind!=='directory')continue;for await(const[fn]of pd){if(fn.endsWith('.jsonl'))total++;}}}catch{}
   }
   // Pi handles — sessions/<proj>/*.jsonl
   for(const piHandle of piHandles){
     try{
-      const sH=await piHandle.getDirectoryHandle('sessions');
+      const sH=await resolvePiSessionsDir(piHandle);
       const _pns=[];
       for await(const[pn,pd]of sH){if(pd.kind==='directory')_pns.push(pn);}
       inferSkipWords(_pns);
@@ -559,7 +565,7 @@ async function loadFromFileList(fileList){
   setStatus('Scanning…');showProgress(true,0);
   uuidToName={};const sessions=new Map();
   const files=Array.from(fileList),jsonlFiles=[],queueFiles=[],sessFiles=[],agentJsonlFiles=[],agentMetaFiles=[],piJsonlFiles=[];
-  for(const f of files){const p=f.webkitRelativePath.split('/');if(p[1]==='projects'&&p[3]?.endsWith('.jsonl'))jsonlFiles.push([f,p[2],p[3].slice(0,-6)]);else if(p[1]==='projects'&&p[4]==='subagents'&&p[5]?.endsWith('.jsonl'))agentJsonlFiles.push([f,p[2],p[3],p[5]]);else if(p[1]==='projects'&&p[4]==='subagents'&&p[5]?.endsWith('.meta.json'))agentMetaFiles.push([f,p[2],p[3],p[5]]);else if(p[1]==='queue'&&p[2]?.endsWith('.md'))queueFiles.push([f,p[2].slice(0,-3)]);else if(p[1]==='sessions'&&p[2]?.endsWith('.json'))sessFiles.push(f);else if(p[1]==='agent'&&p[2]==='sessions'&&p[3]&&p[4]?.endsWith('.jsonl'))piJsonlFiles.push([f,p[3],p[4].slice(0,-6)]);}
+  for(const f of files){const p=f.webkitRelativePath.split('/');if(p[1]==='projects'&&p[3]?.endsWith('.jsonl'))jsonlFiles.push([f,p[2],p[3].slice(0,-6)]);else if(p[1]==='projects'&&p[4]==='subagents'&&p[5]?.endsWith('.jsonl'))agentJsonlFiles.push([f,p[2],p[3],p[5]]);else if(p[1]==='projects'&&p[4]==='subagents'&&p[5]?.endsWith('.meta.json'))agentMetaFiles.push([f,p[2],p[3],p[5]]);else if(p[1]==='queue'&&p[2]?.endsWith('.md'))queueFiles.push([f,p[2].slice(0,-3)]);else if(p[1]==='sessions'&&p[2]?.endsWith('.json'))sessFiles.push(f);else{const sIdx=p.indexOf('sessions');if(sIdx>=0&&p[sIdx+1]&&p[sIdx+2]?.endsWith('.jsonl'))piJsonlFiles.push([f,p[sIdx+1],p[sIdx+2].slice(0,-6)]);}}
   for(const f of sessFiles){try{const d=JSON.parse(await f.text());if(d.sessionId&&d.name)uuidToName[d.sessionId]=d.name;}catch{}}
   inferSkipWords([...new Set(jsonlFiles.map(([,proj])=>proj))]);
   const tot=jsonlFiles.length;let dn=0;
@@ -1334,7 +1340,7 @@ async function hasNewerFiles(claudeHandles,piHandles,cacheTs){
   }
   for(const h of piHandles){
     try{
-      const sH=await h.getDirectoryHandle('sessions');
+      const sH=await resolvePiSessionsDir(h);
       for await(const[,pd]of sH){
         if(pd.kind!=='directory')continue;
         for await(const[fn,fh]of pd){
