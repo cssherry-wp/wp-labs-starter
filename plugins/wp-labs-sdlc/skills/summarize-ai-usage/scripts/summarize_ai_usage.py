@@ -1285,8 +1285,9 @@ def _run_second_pass(
     archive_dir: Path | None = None,
     obsidian_dir: Path | None = None,
     analytics_dir: Path | None = None,
+    summarizer: str = "claude",
 ) -> None:
-    """Run a second claude -p call for sessions that need their full transcript.
+    """Run a second LLM call for sessions that need their full transcript.
 
     Args:
         batch: The original batch (used to filter to full-context sessions).
@@ -1299,10 +1300,11 @@ def _run_second_pass(
         claude_dir: ~/.claude directory path.
         now_iso: ISO timestamp string.
         apply_changes: Write files when True; store findings as unapplied otherwise.
-        model: Claude model ID to use.
+        model: Model ID to use, passed through to the chosen backend.
         archive_dir: If set, write each session block to archive_dir/<uuid>.txt.
         obsidian_dir: If set with apply_changes, save personal learnings as markdown here.
         analytics_dir: If set, write improvement briefs to <analytics_dir>/ai-improvements/pending/.
+        summarizer: Backend name — "claude", "pi", or "omlx".
     """
     full_items = [item for item in batch if item[0].stem in needs_full]
     if not full_items:
@@ -1310,7 +1312,7 @@ def _run_second_pass(
     full_set = {item[0].stem for item in full_items}
     print(f"  Second pass: {len(full_items)} session(s) need full context...", flush=True)
     try:
-        result2, usage2 = summarize_batch(full_items, queue_dir, full_uuids=full_set, archive_dir=archive_dir, model=model)
+        result2, usage2 = summarize_batch(full_items, queue_dir, full_uuids=full_set, archive_dir=archive_dir, model=model, summarizer=summarizer)
         full_ids = [session_ids[uuid] for uuid in full_set if uuid in session_ids]
         summary_id2, suggestions2 = write_summary(con, full_ids, result2, usage2, now_iso)
         con.commit()
@@ -1337,6 +1339,7 @@ def _process_batch(
     archive_dir: Path | None = None,
     obsidian_dir: Path | None = None,
     analytics_dir: Path | None = None,
+    summarizer: str = "claude",
 ) -> None:
     """Upsert sessions, call the LLM, write summaries, apply improvements.
 
@@ -1347,10 +1350,11 @@ def _process_batch(
         claude_dir: ~/.claude directory path.
         now_iso: ISO timestamp string.
         apply_changes: Write files when True; store findings as unapplied otherwise.
-        model: Claude model ID to use.
+        model: Model ID to use, passed through to the chosen backend.
         archive_dir: If set, write each session block to archive_dir/<uuid>.txt.
         obsidian_dir: If set with apply_changes, save personal learnings as markdown here.
         analytics_dir: If set, write improvement briefs to <analytics_dir>/ai-improvements/pending/.
+        summarizer: Backend name — "claude", "pi", or "omlx".
     """
     project = batch[0][2]
     workspace: str | None = batch[0][4].get("workspace")
@@ -1363,7 +1367,7 @@ def _process_batch(
         session_ids[jsonl_path.stem] = sid
 
     try:
-        result, usage = summarize_batch(batch, queue_dir, archive_dir=archive_dir, model=model)
+        result, usage = summarize_batch(batch, queue_dir, archive_dir=archive_dir, model=model, summarizer=summarizer)
     except Exception as e:
         print(f"  ⚠ LLM summarization failed: {e}", file=sys.stderr)
         con.rollback()  # discard upserted sessions so they're retried next run
@@ -1374,7 +1378,7 @@ def _process_batch(
     con.commit()  # sessions + summary committed atomically; LLM failure above leaves both uncommitted
 
     if needs_full:
-        _run_second_pass(batch, session_ids, needs_full, queue_dir, con, project, workspace, claude_dir, now_iso, apply_changes, model, archive_dir=archive_dir, obsidian_dir=obsidian_dir, analytics_dir=analytics_dir)
+        _run_second_pass(batch, session_ids, needs_full, queue_dir, con, project, workspace, claude_dir, now_iso, apply_changes, model, archive_dir=archive_dir, obsidian_dir=obsidian_dir, analytics_dir=analytics_dir, summarizer=summarizer)
 
     applied, unapplied = apply_improvements(con, summary_id, suggestions, project, workspace, claude_dir, now_iso, apply_changes, analytics_dir=analytics_dir)
     if apply_changes and obsidian_dir:
@@ -1406,6 +1410,10 @@ def main() -> None:
                     help="Claude model for summarization (default: claude-sonnet-4-6)")
     ap.add_argument("--since-hours", type=float, default=None, metavar="N",
                     help="Only process sessions whose file was modified in the last N hours")
+    ap.add_argument("--pi-dir", default=None, metavar="DIR",
+                    help="Pi sessions root (default: ~/.pi/agent/sessions; pass '' to disable)")
+    ap.add_argument("--summarizer", choices=["claude", "omlx", "pi"], default="claude",
+                    help="Summarization backend (default: claude)")
     args = ap.parse_args()
 
     claude_dir = Path(args.claude_dir)
@@ -1415,6 +1423,14 @@ def main() -> None:
     now_iso = datetime.now(timezone.utc).isoformat()
     since = datetime.now(timezone.utc) - timedelta(hours=args.since_hours) if args.since_hours else None
 
+    _pi_default = Path.home() / ".pi" / "agent" / "sessions"
+    if args.pi_dir is None:
+        pi_sessions_dir: Path | None = _pi_default if _pi_default.exists() else None
+    elif args.pi_dir == "":
+        pi_sessions_dir = None
+    else:
+        pi_sessions_dir = Path(args.pi_dir)
+
     if not sessions_dir.exists():
         print(f"Sessions directory not found: {sessions_dir}", file=sys.stderr)
         sys.exit(1)
@@ -1423,7 +1439,13 @@ def main() -> None:
     archive_dir = Path(args.archive_dir) if args.archive_dir else analytics_dir / "session_trimmed"
 
     con = init_db(args.output)
-    to_process = scan_sessions(sessions_dir, con, since=since)
+    to_process = scan_sessions(sessions_dir, con, since=since, source="claude")
+    if pi_sessions_dir and pi_sessions_dir.exists():
+        pi_items = scan_sessions(pi_sessions_dir, con, since=since, source="pi")
+        to_process.extend(pi_items)
+        print(f"Pi scan: {len(pi_items)} Pi session(s) added.")
+    elif pi_sessions_dir and not pi_sessions_dir.exists():
+        print(f"Pi dir not found (skipped): {pi_sessions_dir}", file=sys.stderr)
     if not to_process:
         print("Nothing to process.")
         con.close()
@@ -1434,7 +1456,7 @@ def main() -> None:
 
     for i, batch in enumerate(batches, 1):
         print(f"\nBatch {i}/{len(batches)}: {batch[0][2]} [{len(batch)} session(s)]")
-        _process_batch(batch, queue_dir, con, claude_dir, now_iso, args.apply_changes, args.model, archive_dir=archive_dir, obsidian_dir=obsidian_dir, analytics_dir=analytics_dir)
+        _process_batch(batch, queue_dir, con, claude_dir, now_iso, args.apply_changes, args.model, archive_dir=archive_dir, obsidian_dir=obsidian_dir, analytics_dir=analytics_dir, summarizer=args.summarizer)
 
     con.close()
     print("\nDone.")
