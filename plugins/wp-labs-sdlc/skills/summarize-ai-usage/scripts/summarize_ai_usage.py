@@ -61,7 +61,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     user_turns INTEGER DEFAULT 0,
     assistant_turns INTEGER DEFAULT 0,
     cost_usd REAL,
-    away_summary TEXT
+    away_summary TEXT,
+    source TEXT DEFAULT 'claude'
 );
 CREATE TABLE IF NOT EXISTS agents (
     id INTEGER PRIMARY KEY,
@@ -87,7 +88,8 @@ CREATE TABLE IF NOT EXISTS summaries (
     output_tokens INTEGER DEFAULT 0,
     cache_write_tokens INTEGER DEFAULT 0,
     cache_read_tokens INTEGER DEFAULT 0,
-    cost_usd REAL
+    cost_usd REAL,
+    source TEXT DEFAULT 'claude'
 );
 CREATE TABLE IF NOT EXISTS session_summary_items (
     session_id INTEGER NOT NULL REFERENCES sessions(id),
@@ -325,6 +327,7 @@ def scan_sessions(
     sessions_dir: Path | str,
     con: sqlite3.Connection,
     since: datetime | None = None,
+    source: str = "claude",
 ) -> list[SessionItem]:
     """Walk sessions_dir for JSONL files; return items with new or changed hashes.
 
@@ -332,6 +335,8 @@ def scan_sessions(
         sessions_dir: Root directory containing per-project subdirectories.
         con: Open database connection for hash lookups.
         since: If set, skip files with mtime older than this timestamp.
+        source: Session source label ("claude" or "pi"), stored on each item's
+            metadata and used to prefix the stored path.
 
     Returns:
         List of SessionItem tuples for sessions that need processing.
@@ -348,13 +353,15 @@ def scan_sessions(
             if since and datetime.fromtimestamp(jsonl.stat().st_mtime, tz=timezone.utc) < since:
                 skipped += 1
                 continue
-            rel = str(jsonl.relative_to(sessions_dir))
+            rel = f"{source}/{jsonl.relative_to(sessions_dir)}"
             h = sha256_file(jsonl)
             row = con.execute("SELECT file_hash FROM sessions WHERE path=?", (rel,)).fetchone()
             if row and row[0] == h:
                 skipped += 1
                 continue
-            to_process.append((jsonl, rel, project, h, extract_metadata(jsonl)))
+            meta = extract_metadata(jsonl)
+            meta["source"] = source
+            to_process.append((jsonl, rel, project, h, meta))
 
     print(f"Scan: {len(to_process)} to process, {skipped} unchanged (skipped)")
     return to_process
@@ -833,18 +840,18 @@ def upsert_session(
                file_hash=?,project=?,workspace=?,ai_title=?,user_title=?,
                started_at=?,last_activity_at=?,model=?,input_tokens=?,output_tokens=?,
                cache_write_tokens=?,cache_read_tokens=?,user_turns=?,assistant_turns=?,
-               cost_usd=?,away_summary=?
+               cost_usd=?,away_summary=?,source=?
                WHERE path=?""",
-            fields + (rel,),
+            fields + (meta.get("source", "claude"), rel),
         )
         return row[0]
     cur = con.execute(
         """INSERT INTO sessions
            (path,file_hash,project,workspace,ai_title,user_title,started_at,last_activity_at,
             model,input_tokens,output_tokens,cache_write_tokens,cache_read_tokens,
-            user_turns,assistant_turns,cost_usd,away_summary)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-        (rel,) + fields,
+            user_turns,assistant_turns,cost_usd,away_summary,source)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (rel,) + fields + (meta.get("source", "claude"),),
     )
     return cur.lastrowid
 
