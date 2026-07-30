@@ -426,12 +426,12 @@ document.getElementById('piDirBtn').addEventListener('click',openPiDir);
 function showLanding(show){document.getElementById('landing').style.display=show?'':'none';}
 
 // ─── Session factory ─────────────────────────────────────────────────────────
-function mkSession(uuid,project){
+function mkSession(uuid,project,source='claude'){
   const projectLabel=decodeProjectName(project);
   const projectNorm=normalizeProject(projectLabel);
   const _wtRaw=projectLabel!==projectNorm&&projectLabel.startsWith(projectNorm)?projectLabel.slice(projectNorm.length).replace(/^-+/,''):null;
   const projectWorktree=_wtRaw?_wtRaw.replace(/^claude-worktrees-/,''):null;
-  return{uuid,project,projectLabel,projectNorm,projectWorktree,title:null,name:null,startedAt:null,lastActivityAt:null,model:null,color:null,usage:{in:0,out:0,cw:0,cr:0},userTurns:[],commands:[],queueItems:[],claudeTasks:[],lastAssistantText:null,prLinks:[],tools:[],skills:[],agents:[]};
+  return{uuid,project,projectLabel,projectNorm,projectWorktree,source,title:null,name:null,startedAt:null,lastActivityAt:null,model:null,color:null,usage:{in:0,out:0,cw:0,cr:0},userTurns:[],commands:[],queueItems:[],claudeTasks:[],lastAssistantText:null,prLinks:[],tools:[],skills:[],agents:[]};
 }
 function mergeJSONL(s,p){
   if(p.title)s.title=p.title;
@@ -552,7 +552,7 @@ function setStatus(msg,err){const el=document.getElementById('status');el.textCo
 function showProgress(show,frac){document.getElementById('prog-wrap').style.display=show?'':'none';if(show&&frac!==undefined)document.getElementById('prog-bar').style.width=(frac*100)+'%';}
 
 // ─── Parsers ─────────────────────────────────────────────────────────────────
-function parseJSONL(text){
+function parseJSONL(text,source='claude'){
   const r={title:null,name:null,startedAt:null,lastActivityAt:null,model:null,color:null,effort:null,usage:{in:0,out:0,cw:0,cr:0},userTurns:[],commands:[],claudeTasks:[],lastAssistantText:null,prLinks:[],_tools:new Set(),skills:[]};
   for(const raw of text.split('\n')){
     if(!raw.trim())continue;
@@ -594,6 +594,45 @@ function parseJSONL(text){
         const txt=extractText(content);if(!txt||isSystem(txt))break;
         if(isCommand(txt)){r.commands.push({...parseCmd(txt),ts});break;}
         r.userTurns.push({text:txt.trim(),ts,agentSpawns:[]});
+        break;
+      }
+      case 'message':{
+        if(source!=='pi')break;
+        const msg=obj.message;
+        if(!msg)break;
+        const role=msg.role;
+        if(role==='assistant'){
+          if(msg.model&&!r.model)r.model=msg.model;
+          if(msg.usage){
+            const u=msg.usage;
+            r.usage.in+=u.input||0;
+            r.usage.out+=u.output||0;
+            r.usage.cw+=u.cacheWrite||0;
+            r.usage.cr+=u.cacheRead||0;
+          }
+          if(msg.content){
+            const txt=extractText(msg.content);
+            if(txt){
+              r.lastAssistantText=txt;
+              for(const m of txt.matchAll(/https:\/\/github\.com\/[^\s)>]+\/pull\/\d+/g)){
+                const url=m[0].replace(/[.,;]$/,'');
+                if(!r.prLinks.includes(url))r.prLinks.push(url);
+              }
+            }
+            if(Array.isArray(msg.content)){
+              for(const c of msg.content){
+                if(!c)continue;
+                const ctype=c.type;
+                if(ctype==='toolCall')r._tools.add(c.name);
+              }
+            }
+          }
+        } else if(role==='user'){
+          const content=msg.content;if(!content)break;
+          const txt=extractText(content);if(!txt||isSystem(txt))break;
+          if(isCommand(txt)){r.commands.push({...parseCmd(txt),ts});break;}
+          r.userTurns.push({text:txt.trim(),ts,agentSpawns:[]});
+        }
         break;
       }
     }
