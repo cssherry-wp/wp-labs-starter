@@ -199,6 +199,40 @@ def _parse_assistant_content(
     return agents, tasks
 
 
+def _is_pi_format(jsonl_path: Path | str) -> bool:
+    """Detect whether a session JSONL file uses the Pi format.
+
+    Checks the first 10 non-blank lines: a `model_change` event or a
+    `message` event with `message.role` indicates Pi; a top-level `user`
+    or `assistant` type indicates Claude Code.
+
+    Args:
+        jsonl_path: Path to the .jsonl session file.
+
+    Returns:
+        True if the file is Pi-formatted, False otherwise.
+    """
+    with open(jsonl_path, encoding="utf-8", errors="replace") as f:
+        for i, line in enumerate(f):
+            if i >= 10:
+                break
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            t = obj.get("type", "")
+            if t == "model_change":
+                return True
+            if t in ("user", "assistant"):
+                return False
+            if t == "message" and isinstance(obj.get("message"), dict) and "role" in obj["message"]:
+                return True
+    return False
+
+
 def extract_metadata(jsonl_path: Path | str) -> dict[str, Any]:
     """Parse a session JSONL file and extract all structured metadata (no LLM).
 
@@ -211,6 +245,7 @@ def extract_metadata(jsonl_path: Path | str) -> dict[str, Any]:
         cache_read_tokens, user_turns, assistant_turns, agents, away_summary,
         tasks, workspace, cost_usd.
     """
+    is_pi = _is_pi_format(jsonl_path)
     ai_title = user_title = model = away_summary = None
     started_at = last_at = None
     inp = out = cw = cr = user_turns = assistant_turns = 0
@@ -234,29 +269,44 @@ def extract_metadata(jsonl_path: Path | str) -> dict[str, Any]:
                 started_at = started_at or ts
                 last_at = ts
 
-            if t == "ai-title":
-                ai_title = obj.get("aiTitle")
-            elif t == "custom-title":
-                user_title = obj.get("customTitle")
-            elif t == "user":
-                user_turns += 1
-            elif t == "assistant":
-                assistant_turns += 1
-                msg = obj.get("message") or {}
-                usage = msg.get("usage") or {}
-                inp += usage.get("input_tokens", 0)
-                out += usage.get("output_tokens", 0)
-                cw += usage.get("cache_creation_input_tokens", 0)
-                cr += usage.get("cache_read_input_tokens", 0)
-                model = msg.get("model") or model
-                new_agents, new_tasks = _parse_assistant_content(msg.get("content") or [], ts)
-                agents.extend(new_agents)
-                tasks.extend(new_tasks)
-            elif t == "system":
-                if obj.get("cwd"):
-                    cwds.append(obj["cwd"])
-                if obj.get("subtype") == "away_summary":
-                    away_summary = obj.get("content") or obj.get("text", "")
+            if is_pi:
+                if t == "message":
+                    msg = obj.get("message") or {}
+                    role = msg.get("role", "")
+                    if role == "user":
+                        user_turns += 1
+                    elif role == "assistant":
+                        assistant_turns += 1
+                        usage = msg.get("usage") or {}
+                        inp += usage.get("input", 0)
+                        out += usage.get("output", 0)
+                        cw += usage.get("cacheWrite", 0)
+                        cr += usage.get("cacheRead", 0)
+                        model = msg.get("model") or model
+            else:
+                if t == "ai-title":
+                    ai_title = obj.get("aiTitle")
+                elif t == "custom-title":
+                    user_title = obj.get("customTitle")
+                elif t == "user":
+                    user_turns += 1
+                elif t == "assistant":
+                    assistant_turns += 1
+                    msg = obj.get("message") or {}
+                    usage = msg.get("usage") or {}
+                    inp += usage.get("input_tokens", 0)
+                    out += usage.get("output_tokens", 0)
+                    cw += usage.get("cache_creation_input_tokens", 0)
+                    cr += usage.get("cache_read_input_tokens", 0)
+                    model = msg.get("model") or model
+                    new_agents, new_tasks = _parse_assistant_content(msg.get("content") or [], ts)
+                    agents.extend(new_agents)
+                    tasks.extend(new_tasks)
+                elif t == "system":
+                    if obj.get("cwd"):
+                        cwds.append(obj["cwd"])
+                    if obj.get("subtype") == "away_summary":
+                        away_summary = obj.get("content") or obj.get("text", "")
 
     workspace = Counter(cwds).most_common(1)[0][0] if cwds else None
     return {
@@ -475,7 +525,7 @@ def _assistant_parts(content: list) -> list[str]:
             continue
         if c.get("type") == "text" and c.get("text"):
             parts.append(_trim(c["text"], _MAX_ASST_TEXT))
-        elif c.get("type") == "tool_use":
+        elif c.get("type") in ("tool_use", "toolCall"):
             parts.append(f"[{c.get('name', 'tool')}]")
     return parts
 
@@ -492,6 +542,7 @@ def _extract_turns(jsonl_path: Path | str) -> list[str]:
     Returns:
         List of strings like "User: ..." and "Assistant: ...".
     """
+    is_pi = _is_pi_format(jsonl_path)
     turns: list[str] = []
     with open(jsonl_path, encoding="utf-8", errors="replace") as f:
         for line in f:
@@ -503,16 +554,34 @@ def _extract_turns(jsonl_path: Path | str) -> list[str]:
             except json.JSONDecodeError:
                 continue
             t = obj.get("type", "")
-            if t == "user":
-                parts = _user_parts((obj.get("message") or {}).get("content") or [])
-                if parts:
-                    body = " ".join(parts)
-                    turns.append(f"User (~{len(body) // 4} tok): {body}")
-            elif t == "assistant":
-                parts = _assistant_parts((obj.get("message") or {}).get("content") or [])
-                if parts:
-                    body = " ".join(parts)
-                    turns.append(f"Assistant (~{len(body) // 4} tok): {body}")
+
+            if is_pi:
+                if t != "message":
+                    continue
+                msg = obj.get("message") or {}
+                role = msg.get("role", "")
+                content = msg.get("content") or []
+                if role == "user":
+                    parts = _user_parts(content)
+                    if parts:
+                        body = " ".join(parts)
+                        turns.append(f"User (~{len(body) // 4} tok): {body}")
+                elif role == "assistant":
+                    parts = _assistant_parts(content)
+                    if parts:
+                        body = " ".join(parts)
+                        turns.append(f"Assistant (~{len(body) // 4} tok): {body}")
+            else:
+                if t == "user":
+                    parts = _user_parts((obj.get("message") or {}).get("content") or [])
+                    if parts:
+                        body = " ".join(parts)
+                        turns.append(f"User (~{len(body) // 4} tok): {body}")
+                elif t == "assistant":
+                    parts = _assistant_parts((obj.get("message") or {}).get("content") or [])
+                    if parts:
+                        body = " ".join(parts)
+                        turns.append(f"Assistant (~{len(body) // 4} tok): {body}")
     return turns
 
 
