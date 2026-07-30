@@ -10,6 +10,7 @@
   --border:#30363d;--border2:#21262d;
   --ink:#c9d1d9;--muted:#8b949e;--dim:#6e7681;
   --accent:#7c3aed;--accent2:#6d28d9;--accent-s:rgba(124,58,237,.14);
+  --pi-accent:#9a90b3;
   --done:#2ea043;--done-s:rgba(46,160,67,.18);
   --open:#d29922;--open-s:rgba(210,153,34,.18);
   --err:#f85149;
@@ -20,11 +21,12 @@
   --border:#d0d7de;--border2:#e1e4e8;
   --ink:#24292f;--muted:#57606a;--dim:#8c959f;
   --accent:#6d28d9;--accent2:#5b21b6;--accent-s:rgba(109,40,217,.1);
+  --pi-accent:#6f6580;
   --done:#1a7f37;--done-s:rgba(26,127,55,.12);
   --open:#9a6700;--open-s:rgba(154,103,0,.12);
 }}
-:root[data-theme=dark]{--bg:#0d1117;--panel:#161b22;--panel2:#1c2128;--panel3:#21262d;--border:#30363d;--border2:#21262d;--ink:#c9d1d9;--muted:#8b949e;--dim:#6e7681;--accent:#7c3aed;--accent2:#6d28d9;--accent-s:rgba(124,58,237,.14);--done:#2ea043;--done-s:rgba(46,160,67,.18);--open:#d29922;--open-s:rgba(210,153,34,.18);}
-:root[data-theme=light]{--bg:#f6f8fa;--panel:#fff;--panel2:#f6f8fa;--panel3:#eaeef2;--border:#d0d7de;--border2:#e1e4e8;--ink:#24292f;--muted:#57606a;--dim:#8c959f;--accent:#6d28d9;--accent2:#5b21b6;--accent-s:rgba(109,40,217,.1);--done:#1a7f37;--done-s:rgba(26,127,55,.12);--open:#9a6700;--open-s:rgba(154,103,0,.12);}
+:root[data-theme=dark]{--bg:#0d1117;--panel:#161b22;--panel2:#1c2128;--panel3:#21262d;--border:#30363d;--border2:#21262d;--ink:#c9d1d9;--muted:#8b949e;--dim:#6e7681;--accent:#7c3aed;--accent2:#6d28d9;--accent-s:rgba(124,58,237,.14);--pi-accent:#9a90b3;--done:#2ea043;--done-s:rgba(46,160,67,.18);--open:#d29922;--open-s:rgba(210,153,34,.18);}
+:root[data-theme=light]{--bg:#f6f8fa;--panel:#fff;--panel2:#f6f8fa;--panel3:#eaeef2;--border:#d0d7de;--border2:#e1e4e8;--ink:#24292f;--muted:#57606a;--dim:#8c959f;--accent:#6d28d9;--accent2:#5b21b6;--accent-s:rgba(109,40,217,.1);--pi-accent:#6f6580;--done:#1a7f37;--done-s:rgba(26,127,55,.12);--open:#9a6700;--open-s:rgba(154,103,0,.12);}
 *{box-sizing:border-box;margin:0;padding:0}
 html{font-size:13.5px;-webkit-font-smoothing:antialiased}
 body{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;line-height:1.5;min-height:100vh;display:flex;flex-direction:column}
@@ -313,6 +315,7 @@ async function openDir(addMode=false){
     try{
       const h=await window.showDirectoryPicker({id:'claude-home',mode:'read'});
       if(!addMode)claudeHandles=[];
+      else{for(const existing of claudeHandles){if(await existing.isSameEntry(h)){setStatus('Folder already added.',true);return;}}}
       claudeHandles.push(h);
       await idbSet('dir-handle-'+(claudeHandles.length-1),h);
       syncDirsUrl();
@@ -325,6 +328,7 @@ async function openPiDir(){
   if(!window.showDirectoryPicker){setStatus('showDirectoryPicker not available',true);return;}
   try{
     const h=await window.showDirectoryPicker({id:'pi-home',mode:'read'});
+    for(const existing of piHandles){if(await existing.isSameEntry(h)){setStatus('Folder already added.',true);return;}}
     piHandles.push(h);
     await idbSet('pi-dir-handle-'+(piHandles.length-1),h);
     syncDirsUrl();
@@ -339,6 +343,15 @@ function syncDirsUrl(){
   else p.delete('pidirs');
   p.delete('nd');
   try{history.replaceState(null,'',p.toString()?'?'+p:location.pathname);}catch{}
+}
+async function dedupeHandles(handles){
+  const out=[];
+  for(const h of handles){
+    let dup=false;
+    for(const o of out){if(await h.isSameEntry(o)){dup=true;break;}}
+    if(!dup)out.push(h);
+  }
+  return out;
 }
 async function getStoredHandles(){
   const handles=[];
@@ -369,8 +382,8 @@ async function resolvePiSessionsDir(piHandle){
 async function tryAutoLoad(){
   setStatus('Reconnecting…');
   try{
-    const handles=await getStoredHandles();
-    const piStoredHandles=await getStoredPiHandles();
+    const handles=await dedupeHandles(await getStoredHandles());
+    const piStoredHandles=await dedupeHandles(await getStoredPiHandles());
     if(!handles.length){setStatus('Open your ~/.claude folder.');showLanding(true);return;}
     const p=new URLSearchParams(location.search);
     let toLoad;
@@ -412,7 +425,7 @@ async function tryAutoLoad(){
       document.getElementById('piDirBtn').style.display='';
       document.getElementById('dirPills').innerHTML=[
         ...claudeHandles.map(h=>`<span style="font-size:11px;color:var(--muted);padding:1px 7px;border:1px solid var(--border2);border-radius:4px" title="${esc(h.name)}">${esc(h.name)}</span>`),
-        ...piHandles.map(h=>`<span style="font-size:11px;color:var(--accent);padding:1px 7px;border:1px solid var(--border2);border-radius:4px" title="Pi: ${esc(h.name)}">Pi:${esc(h.name)}</span>`),
+        ...piHandles.map(h=>`<span style="font-size:11px;color:var(--pi-accent);padding:1px 7px;border:1px solid var(--border2);border-radius:4px" title="Pi: ${esc(h.name)}">Pi:${esc(h.name)}</span>`),
       ].join('');
       showLanding(false);render();setStatus(`${allSessions.length} sessions (checking…)`);
       const stale=await hasNewerFiles(claudeHandles,piHandles,cached.ts);
@@ -555,7 +568,7 @@ async function load(){
   document.getElementById('piDirBtn').style.display='';
   document.getElementById('dirPills').innerHTML=[
     ...claudeHandles.map(h=>`<span style="font-size:11px;color:var(--muted);padding:1px 7px;border:1px solid var(--border2);border-radius:4px" title="${esc(h.name)}">${esc(h.name)}</span>`),
-    ...piHandles.map(h=>`<span style="font-size:11px;color:var(--accent);padding:1px 7px;border:1px solid var(--border2);border-radius:4px" title="Pi: ${esc(h.name)}">Pi:${esc(h.name)}</span>`),
+    ...piHandles.map(h=>`<span style="font-size:11px;color:var(--pi-accent);padding:1px 7px;border:1px solid var(--border2);border-radius:4px" title="Pi: ${esc(h.name)}">Pi:${esc(h.name)}</span>`),
   ].join('');
   render();
   saveCache(allSessions);
@@ -1222,7 +1235,7 @@ function sessionRow(s){
       ${lastReply?`<div class="t-sub" data-tip="${esc(s.lastAssistantText||'')}">${esc(lastReply)}${(s.lastAssistantText||'').length>100?'…':''}</div>`:''}
       <div class="t-sub" style="opacity:.6" data-tip="${esc(s.uuid)}">${s.uuid.slice(0,8)}…</div>
     </td>
-    <td class="model">${esc(s.model||'—')}<div style="font-size:10px;color:${s.source==='pi'?'var(--accent)':'var(--dim)'}">${s.source==='pi'?'Pi':'Claude'}</div></td>
+    <td class="model">${esc(s.model||'—')}<div style="font-size:10px;color:${s.source==='pi'?'var(--pi-accent)':'var(--dim)'}">${s.source==='pi'?'Pi':'Claude'}</div></td>
     <td class="cost" style="color:${costColor}">${costStr}</td>
     <td class="turns">${s.userTurns.length+s.commands.length}</td>
     <td class="ctasks">${s.claudeTasks.length>0?`<span class="qc ct" data-tip="${esc(ctTip)}">${s.claudeTasks.length}</span>`:'<span style="color:var(--dim)">—</span>'}</td>
