@@ -121,6 +121,8 @@ def init_db(db_path: Path | str) -> sqlite3.Connection:
         ("summaries", "first_start", "TEXT"),
         ("summaries", "last_end", "TEXT"),
         ("summaries", "personal_learnings", "TEXT DEFAULT '[]'"),
+        ("sessions", "source", "TEXT DEFAULT 'claude'"),
+        ("summaries", "source", "TEXT DEFAULT 'claude'"),
     ]
     for table, col, ddl in migrations:
         try:
