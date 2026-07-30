@@ -493,6 +493,33 @@ async function load(){
     }catch(e){console.warn('projects',e);}
     try{const qH=await rootHandle.getDirectoryHandle('queue');for await(const[fn,fh]of qH){if(!fn.endsWith('.md')||fh.kind!=='file')continue;const uuid=fn.slice(0,-3);try{const items=parseQueueMD(await(await fh.getFile()).text());if(!sessions.has(uuid))sessions.set(uuid,mkSession(uuid,'queue-only'));sessions.get(uuid).queueItems=items;}catch{}}}catch{}
   }
+  for(const piHandle of piHandles){
+    try{const sH=await piHandle.getDirectoryHandle('sessions');for await(const[,pd]of sH){if(pd.kind!=='directory')continue;for await(const[fn]of pd){if(fn.endsWith('.jsonl'))total++;}}}catch{}
+  }
+  // Pi handles — sessions/<proj>/*.jsonl
+  for(const piHandle of piHandles){
+    try{
+      const sH=await piHandle.getDirectoryHandle('sessions');
+      const _pns=[];
+      for await(const[pn,pd]of sH){if(pd.kind==='directory')_pns.push(pn);}
+      inferSkipWords(_pns);
+      for await(const[proj,pd]of sH){
+        if(pd.kind!=='directory')continue;
+        for await(const[fn,fh]of pd){
+          if(fh.kind==='file'&&fn.endsWith('.jsonl')){
+            const uuid=fn.slice(0,-6);
+            try{
+              const p=parseJSONL(await(await fh.getFile()).text(),'pi');
+              if(!sessions.has(uuid))sessions.set(uuid,mkSession(uuid,proj,'pi'));
+              const s=sessions.get(uuid);
+              mergeJSONL(s,p);
+            }catch{}
+            done++;if(done%20===0){setStatus(`Loading… ${done}/${total}`);showProgress(true,total?done/total:0);await tick();}
+          }
+        }
+      }
+    }catch(e){console.warn('pi sessions',e);}
+  }
   // Load task statuses from ~/.claude/tasks/
   const taskMap=new Map();
   for(const rootHandle of claudeHandles){
@@ -531,14 +558,21 @@ async function loadFromFileList(fileList){
   showLanding(false);showReloadAs('↻ Reload',()=>fileInput.click());
   setStatus('Scanning…');showProgress(true,0);
   uuidToName={};const sessions=new Map();
-  const files=Array.from(fileList),jsonlFiles=[],queueFiles=[],sessFiles=[],agentJsonlFiles=[],agentMetaFiles=[];
-  for(const f of files){const p=f.webkitRelativePath.split('/');if(p[1]==='projects'&&p[3]?.endsWith('.jsonl'))jsonlFiles.push([f,p[2],p[3].slice(0,-6)]);else if(p[1]==='projects'&&p[4]==='subagents'&&p[5]?.endsWith('.jsonl'))agentJsonlFiles.push([f,p[2],p[3],p[5]]);else if(p[1]==='projects'&&p[4]==='subagents'&&p[5]?.endsWith('.meta.json'))agentMetaFiles.push([f,p[2],p[3],p[5]]);else if(p[1]==='queue'&&p[2]?.endsWith('.md'))queueFiles.push([f,p[2].slice(0,-3)]);else if(p[1]==='sessions'&&p[2]?.endsWith('.json'))sessFiles.push(f);}
+  const files=Array.from(fileList),jsonlFiles=[],queueFiles=[],sessFiles=[],agentJsonlFiles=[],agentMetaFiles=[],piJsonlFiles=[];
+  for(const f of files){const p=f.webkitRelativePath.split('/');if(p[1]==='projects'&&p[3]?.endsWith('.jsonl'))jsonlFiles.push([f,p[2],p[3].slice(0,-6)]);else if(p[1]==='projects'&&p[4]==='subagents'&&p[5]?.endsWith('.jsonl'))agentJsonlFiles.push([f,p[2],p[3],p[5]]);else if(p[1]==='projects'&&p[4]==='subagents'&&p[5]?.endsWith('.meta.json'))agentMetaFiles.push([f,p[2],p[3],p[5]]);else if(p[1]==='queue'&&p[2]?.endsWith('.md'))queueFiles.push([f,p[2].slice(0,-3)]);else if(p[1]==='sessions'&&p[2]?.endsWith('.json'))sessFiles.push(f);else if(p[1]==='agent'&&p[2]==='sessions'&&p[3]&&p[4]?.endsWith('.jsonl'))piJsonlFiles.push([f,p[3],p[4].slice(0,-6)]);}
   for(const f of sessFiles){try{const d=JSON.parse(await f.text());if(d.sessionId&&d.name)uuidToName[d.sessionId]=d.name;}catch{}}
   inferSkipWords([...new Set(jsonlFiles.map(([,proj])=>proj))]);
   const tot=jsonlFiles.length;let dn=0;
   for(const[f,proj,uuid]of jsonlFiles){
     try{const p=parseJSONL(await f.text());if(!sessions.has(uuid))sessions.set(uuid,mkSession(uuid,proj));const s=sessions.get(uuid);if(!s.name)s.name=uuidToName[uuid]||null;mergeJSONL(s,p);}catch{}
     dn++;if(dn%20===0){setStatus(`Loading… ${dn}/${tot}`);showProgress(true,tot?dn/tot:0);await tick();}
+  }
+  for(const[f,proj,uuid]of piJsonlFiles){
+    try{
+      const p=parseJSONL(await f.text(),'pi');
+      if(!sessions.has(uuid))sessions.set(uuid,mkSession(uuid,proj,'pi'));
+      const s=sessions.get(uuid);mergeJSONL(s,p);
+    }catch{}
   }
   for(const[f,uuid]of queueFiles){try{const items=parseQueueMD(await f.text());if(!sessions.has(uuid))sessions.set(uuid,mkSession(uuid,'queue-only'));sessions.get(uuid).queueItems=items;}catch{}}
   const metaMaps=new Map();
