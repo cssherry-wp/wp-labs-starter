@@ -209,6 +209,7 @@ tr.detail-row td{padding:0;border-bottom:1px solid var(--border)}
   <button type="button" class="hbtn" id="clearCacheBtn" style="display:none" title="Force full re-scan (merges into persistent cache)">↺ Rescan</button>
   <button type="button" class="hbtn" id="analyticsBtn" style="display:none" title="Set ~/ClaudeAnalytics folder for persistent file cache">⊕ Analytics</button>
   <button type="button" class="hbtn" id="addDirBtn" style="display:none">+ Add folder</button>
+  <button type="button" class="hbtn" id="piDirBtn" style="display:none">⊕ Pi folder</button>
   <span id="dirPills" style="display:inline-flex;gap:4px;flex-wrap:wrap"></span>
   <div id="prog-wrap"><div id="prog-bar"></div></div>
   <span id="status">Loading…</span>
@@ -254,8 +255,8 @@ function inferSkipWords(projDirNames){
 const FUNNEL='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 4h18l-7 8v7l-4 2v-9z"/></svg>';
 
 // ─── State ──────────────────────────────────────────────────────────────────
-let rootHandles=[], analyticsHandle=null, uuidToName={}, allSessions=[], filteredSessions=[], tableFilteredSessions=[];
-let activeProject='all', activeDateFilter='all', activeTaskType='all';
+let claudeHandles=[], piHandles=[], analyticsHandle=null, uuidToName={}, allSessions=[], filteredSessions=[], tableFilteredSessions=[];
+let activeProject='all', activeDateFilter='all', activeTaskType='all', activeSource='all';
 let activeToolFilters=new Set(), activeSessionFilter='', activeQueueStatus='';
 let chartHighlightProj=null;
 let customDateFrom=null, customDateTo=null;
@@ -311,19 +312,31 @@ async function openDir(addMode=false){
   if(window.showDirectoryPicker){
     try{
       const h=await window.showDirectoryPicker({id:'claude-home',mode:'read'});
-      if(!addMode)rootHandles=[];
-      rootHandles.push(h);
-      await idbSet('dir-handle-'+(rootHandles.length-1),h);
+      if(!addMode)claudeHandles=[];
+      claudeHandles.push(h);
+      await idbSet('dir-handle-'+(claudeHandles.length-1),h);
       syncDirsUrl();
       await load();return;
     }catch(e){if(e.name==='AbortError')return;if(e.name!=='SecurityError'){setStatus('Error: '+e.message,true);return;}}
   }
   fileInput.click();
 }
+async function openPiDir(){
+  if(!window.showDirectoryPicker){setStatus('showDirectoryPicker not available',true);return;}
+  try{
+    const h=await window.showDirectoryPicker({id:'pi-home',mode:'read'});
+    piHandles.push(h);
+    await idbSet('pi-dir-handle-'+(piHandles.length-1),h);
+    syncDirsUrl();
+    await load();
+  }catch(e){if(e.name!=='AbortError')setStatus('Error: '+e.message,true);}
+}
 function syncDirsUrl(){
   const p=new URLSearchParams(location.search);
-  if(rootHandles.length)p.set('dirs',rootHandles.map(h=>h.name).join(','));
+  if(claudeHandles.length)p.set('dirs',claudeHandles.map(h=>h.name).join(','));
   else p.delete('dirs');
+  if(piHandles.length)p.set('pidirs',piHandles.map(h=>h.name).join(','));
+  else p.delete('pidirs');
   p.delete('nd');
   try{history.replaceState(null,'',p.toString()?'?'+p:location.pathname);}catch{}
 }
@@ -338,10 +351,20 @@ async function getStoredHandles(){
   }
   return handles;
 }
+async function getStoredPiHandles(){
+  const handles=[];
+  let i=0;
+  while(true){
+    try{const h=await idbGet('pi-dir-handle-'+i);if(!h)break;handles.push(h);i++;}
+    catch{break;}
+  }
+  return handles;
+}
 async function tryAutoLoad(){
   setStatus('Reconnecting…');
   try{
     const handles=await getStoredHandles();
+    const piStoredHandles=await getStoredPiHandles();
     if(!handles.length){setStatus('Open your ~/.claude folder.');showLanding(true);return;}
     const p=new URLSearchParams(location.search);
     let toLoad;
@@ -365,18 +388,28 @@ async function tryAutoLoad(){
         const permed2=[];
         for(const h of toLoad){const p2=await h.requestPermission({mode:'read'});if(p2==='granted')permed2.push(h);}
         if(!permed2.length){setStatus('Permission denied.',true);return;}
-        rootHandles=permed2;await load();
+        claudeHandles=permed2;await load();
       });
       setStatus('Click "Allow access" to reload.');showLanding(true);return;
     }
-    rootHandles=permed;
+    claudeHandles=permed;
+    // Restore Pi handles
+    for(const h of piStoredHandles){
+      const perm=await h.queryPermission({mode:'read'});
+      if(perm==='granted')piHandles.push(h);
+      else{const p2=await h.requestPermission({mode:'read'});if(p2==='granted')piHandles.push(h);}
+    }
     const cached=await loadCache();
     if(cached){
       allSessions=deserializeCache(cached.data);
       document.getElementById('addDirBtn').style.display='';
-      document.getElementById('dirPills').innerHTML=rootHandles.map(h=>`<span style="font-size:11px;color:var(--muted);padding:1px 7px;border:1px solid var(--border2);border-radius:4px">${esc(h.name)}</span>`).join('');
+      document.getElementById('piDirBtn').style.display='';
+      document.getElementById('dirPills').innerHTML=[
+        ...claudeHandles.map(h=>`<span style="font-size:11px;color:var(--muted);padding:1px 7px;border:1px solid var(--border2);border-radius:4px" title="${esc(h.name)}">${esc(h.name)}</span>`),
+        ...piHandles.map(h=>`<span style="font-size:11px;color:var(--accent);padding:1px 7px;border:1px solid var(--border2);border-radius:4px" title="Pi: ${esc(h.name)}">Pi:${esc(h.name)}</span>`),
+      ].join('');
       showLanding(false);render();setStatus(`${allSessions.length} sessions (checking…)`);
-      const stale=await hasNewerFiles(rootHandles,cached.ts);
+      const stale=await hasNewerFiles(claudeHandles,cached.ts);
       if(stale){setStatus('New data found, reloading…');await load();}
       else{setStatus(`${allSessions.length} sessions`);}
     } else {
@@ -384,11 +417,12 @@ async function tryAutoLoad(){
     }
   }catch{setStatus('Open your ~/.claude folder.');showLanding(true);}
 }
-function showReloadAs(label,fn){const b=document.getElementById('reloadBtn');b.style.display='';b.textContent=label;b.onclick=fn;if(rootHandles.length)document.getElementById('clearCacheBtn').style.display='';}
-fileInput.addEventListener('change',async function(){if(!this.files.length)return;rootHandles=[];await loadFromFileList(this.files);});
+function showReloadAs(label,fn){const b=document.getElementById('reloadBtn');b.style.display='';b.textContent=label;b.onclick=fn;if(claudeHandles.length)document.getElementById('clearCacheBtn').style.display='';}
+fileInput.addEventListener('change',async function(){if(!this.files.length)return;claudeHandles=[];await loadFromFileList(this.files);});
 document.getElementById('openBtn').addEventListener('click',openDir);
 document.getElementById('openMain').addEventListener('click',openDir);
 document.getElementById('addDirBtn').addEventListener('click',()=>openDir(true));
+document.getElementById('piDirBtn').addEventListener('click',openPiDir);
 function showLanding(show){document.getElementById('landing').style.display=show?'':'none';}
 
 // ─── Session factory ─────────────────────────────────────────────────────────
@@ -419,10 +453,10 @@ function mergeJSONL(s,p){
 // ─── FSA Load ────────────────────────────────────────────────────────────────
 async function load(){
   showLanding(false);
-  showReloadAs('↻ Reload',()=>rootHandles.length&&load());
+  showReloadAs('↻ Reload',()=>claudeHandles.length&&load());
   setStatus('Scanning…');showProgress(true,0);
   uuidToName={};const sessions=new Map();let done=0,total=0;
-  for(const rootHandle of rootHandles){
+  for(const rootHandle of claudeHandles){
     try{const sH=await rootHandle.getDirectoryHandle('sessions');for await(const[fn,fh]of sH){if(!fn.endsWith('.json')||fh.kind!=='file')continue;try{const d=JSON.parse(await(await fh.getFile()).text());if(d.sessionId&&d.name)uuidToName[d.sessionId]=d.name;}catch{}}}catch{}
     try{const pH=await rootHandle.getDirectoryHandle('projects');const _pns=[];for await(const[pn,pd]of pH){if(pd.kind!=='directory')continue;_pns.push(pn);for await(const[fn]of pd){if(fn.endsWith('.jsonl'))total++;}}inferSkipWords(_pns);}catch{}
     try{
@@ -461,7 +495,7 @@ async function load(){
   }
   // Load task statuses from ~/.claude/tasks/
   const taskMap=new Map();
-  for(const rootHandle of rootHandles){
+  for(const rootHandle of claudeHandles){
     try{
       const tH=await rootHandle.getDirectoryHandle('tasks');
       for await(const[,td]of tH){
@@ -485,7 +519,11 @@ async function load(){
   allSessions=[...sessions.values()].sort((a,b)=>(b.lastActivityAt?.getTime()||b.startedAt?.getTime()||0)-(a.lastActivityAt?.getTime()||a.startedAt?.getTime()||0));
   showProgress(false);
   document.getElementById('addDirBtn').style.display='';
-  document.getElementById('dirPills').innerHTML=rootHandles.map(h=>`<span style="font-size:11px;color:var(--muted);padding:1px 7px;border:1px solid var(--border2);border-radius:4px" title="${esc(h.name)}">${esc(h.name)}</span>`).join('');
+  document.getElementById('piDirBtn').style.display='';
+  document.getElementById('dirPills').innerHTML=[
+    ...claudeHandles.map(h=>`<span style="font-size:11px;color:var(--muted);padding:1px 7px;border:1px solid var(--border2);border-radius:4px" title="${esc(h.name)}">${esc(h.name)}</span>`),
+    ...piHandles.map(h=>`<span style="font-size:11px;color:var(--accent);padding:1px 7px;border:1px solid var(--border2);border-radius:4px" title="Pi: ${esc(h.name)}">Pi:${esc(h.name)}</span>`),
+  ].join('');
   render();
   saveCache(allSessions);
 }
@@ -1168,7 +1206,7 @@ function getPricing(model){if(!model)return null;let p=PRICING[model];if(!p){con
 function calcCost(model,usage){const p=getPricing(model);if(!p)return null;return(usage.in*p.in+usage.cw*p.cw+usage.cr*p.cr+usage.out*p.out)/1e6;}
 
 // ─── Session cache ────────────────────────────────────────────────────────────────
-function cacheKey(){return'claude-sess-v3-'+rootHandles.map(h=>h.name).join('|');}
+function cacheKey(){return'claude-sess-v3-'+claudeHandles.map(h=>h.name).join('|');}
 function serializeCache(sessions){
   return sessions.map(s=>({...s,
     startedAt:s.startedAt?.toISOString()||null,
