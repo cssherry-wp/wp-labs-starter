@@ -127,6 +127,21 @@ Every finding leads with its ID (§6) so the Verdict and any later fix pass can 
 Report-only. Do not edit, fix, or commit — the `file:line` anchors are the seam for a separate fix
 pass.
 
+**Persist the report:** after printing, save the prose report to
+`<repo-root>/.superpowers/03-review/<YYYY-MM-DD>-audit-<slug>.md` where `slug` is the audited path
+with slashes replaced by dashes (or `repo` for a full-repo audit). Create the directory if absent
+and ensure it self-ignores (add the `.gitignore` if it is missing, even when the folder already
+exists):
+
+```bash
+repo_top=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
+mkdir -p "$repo_top/.superpowers/03-review"
+[ -f "$repo_top/.superpowers/03-review/.gitignore" ] || printf '*\n' > "$repo_top/.superpowers/03-review/.gitignore"
+```
+
+Derive the repo root with `git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel`
+— this resolves to the main repo even when called from inside a throwaway worktree.
+
 ## Notes
 
 - Relationship to `change-review` and the deep passes: see
