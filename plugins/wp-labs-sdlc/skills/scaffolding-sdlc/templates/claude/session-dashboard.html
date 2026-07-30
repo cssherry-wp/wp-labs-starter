@@ -409,7 +409,7 @@ async function tryAutoLoad(){
         ...piHandles.map(h=>`<span style="font-size:11px;color:var(--accent);padding:1px 7px;border:1px solid var(--border2);border-radius:4px" title="Pi: ${esc(h.name)}">Pi:${esc(h.name)}</span>`),
       ].join('');
       showLanding(false);render();setStatus(`${allSessions.length} sessions (checking…)`);
-      const stale=await hasNewerFiles(claudeHandles,cached.ts);
+      const stale=await hasNewerFiles(claudeHandles,piHandles,cached.ts);
       if(stale){setStatus('New data found, reloading…');await load();}
       else{setStatus(`${allSessions.length} sessions`);}
     } else {
@@ -735,6 +735,7 @@ function readUrl(){
   if(p.get('from'))customDateFrom=+p.get('from');
   if(p.get('to'))customDateTo=+p.get('to');
   if(p.get('type'))activeTaskType=p.get('type');
+  if(p.get('source'))activeSource=p.get('source');
   if(p.get('tools'))activeToolFilters=new Set(p.get('tools').split(',').filter(Boolean));
   if(p.get('sort'))sortCol=p.get('sort');
   if(p.get('asc'))sortAsc=p.get('asc')==='1';
@@ -749,6 +750,7 @@ function syncUrl(){
   if(activeDateFilter!=='all')p.set('period',activeDateFilter);
   if(activeDateFilter==='custom'){if(customDateFrom)p.set('from',customDateFrom);if(customDateTo)p.set('to',customDateTo);}
   if(activeTaskType!=='all')p.set('type',activeTaskType);
+  if(activeSource!=='all')p.set('source',activeSource);
   if(activeToolFilters.size)p.set('tools',[...activeToolFilters].join(','));
   if(activeSessionFilter)p.set('session',activeSessionFilter);
   if(activeQueueStatus)p.set('qstatus',activeQueueStatus);
@@ -768,6 +770,7 @@ function activeFilterLines(){
     else{const names={hour:'last hour',today:'today',week:'this week',month:'this month'};lines.push('period: '+(names[activeDateFilter]||activeDateFilter));}
   }
   if(activeTaskType!=='all'){const names={chat:'chat',commands:'commands',queued:'queued',tasks:'claude tasks'};lines.push('type: '+(names[activeTaskType]||activeTaskType));}
+  if(activeSource!=='all')lines.push('source: '+activeSource);
   if(activeToolFilters.size)lines.push('tools: '+[...activeToolFilters].join(', '));
   if(activeSessionFilter)lines.push('session: '+activeSessionFilter.slice(0,8)+'…');
   if(activeQueueStatus)lines.push('queue: '+activeQueueStatus);
@@ -788,7 +791,7 @@ function renderFilterInfo(){
   document.getElementById('clearAll').onclick=e=>{e.preventDefault();clearAllFilters();};
 }
 function clearAllFilters(){
-  activeProject='all';activeDateFilter='all';activeTaskType='all';searchQuery='';tableSearch='';sortCol='date';sortAsc=false;expandedUuid=null;activeToolFilters=new Set();activeSessionFilter='';activeQueueStatus='';customDateFrom=null;customDateTo=null;_filterBarKey=null;
+  activeProject='all';activeDateFilter='all';activeTaskType='all';activeSource='all';searchQuery='';tableSearch='';sortCol='date';sortAsc=false;expandedUuid=null;activeToolFilters=new Set();activeSessionFilter='';activeQueueStatus='';customDateFrom=null;customDateTo=null;_filterBarKey=null;
   document.getElementById('search').value='';
   const tsi=document.getElementById('tableSearchInp');if(tsi)tsi.value='';
   syncUrl();render();
@@ -822,6 +825,7 @@ function applyFilters(){
     if(activeQueueStatus==='done'&&!s.queueItems.some(i=>i.done))return false;
     if(activeQueueStatus==='moved'&&!s.queueItems.some(i=>i.cancelled&&i.reason&&/moved/i.test(i.reason)))return false;
     if(activeQueueStatus==='cancelled'&&!s.queueItems.some(i=>i.cancelled&&(!i.reason||!/moved/i.test(i.reason))))return false;
+    if(activeSource!=='all'&&s.source!==activeSource)return false;
     if(activeToolFilters.size&&![...activeToolFilters].some(f=>s.tools.includes(f)||s.skills.includes(f)))return false;
     if(!q)return true;
     return(s.title||'').toLowerCase().includes(q)||(s.projectNorm||'').toLowerCase().includes(q)||(s.projectLabel||'').toLowerCase().includes(q)||(s.projectWorktree||'').toLowerCase().includes(q)||(s.name||'').toLowerCase().includes(q)||s.uuid.toLowerCase().includes(q)||(s.lastAssistantText||'').toLowerCase().includes(q)||s.userTurns.some(t=>t.text.toLowerCase().includes(q))||s.commands.some(c=>c.name.toLowerCase().includes(q))||s.queueItems.some(i=>i.text.toLowerCase().includes(q))||s.claudeTasks.some(t=>t.subject.toLowerCase().includes(q));
@@ -833,7 +837,7 @@ function applyFilters(){
     else if(sortCol==='project')cmp=(a.projectNorm||'').localeCompare(b.projectNorm||'');
     else if(sortCol==='title')cmp=(a.title||'').localeCompare(b.title||'');
     else if(sortCol==='model')cmp=(a.model||'').localeCompare(b.model||'');
-    else if(sortCol==='cost')cmp=(calcCost(a.model,a.usage)||0)-(calcCost(b.model,b.usage)||0);
+    else if(sortCol==='cost')cmp=(calcCost(a.model,a.usage,a.source)||0)-(calcCost(b.model,b.usage,b.source)||0);
     else if(sortCol==='turns')cmp=(a.userTurns.length+a.commands.length)-(b.userTurns.length+b.commands.length);
     else if(sortCol==='ct')cmp=a.claudeTasks.length-b.claudeTasks.length;
     else if(sortCol==='dur')cmp=((a.lastActivityAt?.getTime()||0)-(a.startedAt?.getTime()||0))-((b.lastActivityAt?.getTime()||0)-(b.startedAt?.getTime()||0));
@@ -850,7 +854,7 @@ let _filterBarKey=null;
 function renderFilters(){
   const bar=document.getElementById('filterBar');
   const {tools,skills}=allToolsSkills();
-  const _key=JSON.stringify([activeDateFilter,activeTaskType,[...activeToolFilters].sort(),customDateFrom,customDateTo,...tools,...skills]);
+  const _key=JSON.stringify([activeDateFilter,activeTaskType,activeSource,[...activeToolFilters].sort(),customDateFrom,customDateTo,...tools,...skills]);
   if(_key===_filterBarKey){bar.style.display='flex';return;}
   _filterBarKey=_key;
   const periodOpts=[{k:'all',l:'All time'},{k:'hour',l:'Last hour'},{k:'today',l:'Today'},{k:'week',l:'This week'},{k:'month',l:'This month'},{k:'custom',l:'Custom'}];
@@ -875,6 +879,8 @@ function renderFilters(){
     ${customInputs}
     <span class="fl" style="margin-left:4px">Type</span>
     ${typeOpts.map(o=>`<button class="pill${activeTaskType===o.k?' on':''}" data-type="${o.k}">${o.l}</button>`).join('')}
+    <span class="fl" style="margin-left:4px">Source</span>
+    ${['all','claude','pi'].map(k=>`<button class="pill${activeSource===k?' on':''}" data-source="${k}">${k==='all'?'All':k==='claude'?'Claude':'Pi'}</button>`).join('')}
   `;
   bar.querySelectorAll('[data-period]').forEach(b=>b.addEventListener('click',()=>{activeDateFilter=b.dataset.period;syncUrl();render();}));
   if(activeDateFilter==='custom'){
@@ -883,6 +889,7 @@ function renderFilters(){
     if(t)t.onchange=e=>{customDateTo=e.target.value?new Date(e.target.value+'T23:59:59').getTime():null;syncUrl();render();};
   }
   bar.querySelectorAll('[data-type]').forEach(b=>b.addEventListener('click',()=>{activeTaskType=activeTaskType===b.dataset.type&&b.dataset.type!=='all'?'all':b.dataset.type;syncUrl();render();}));
+  bar.querySelectorAll('[data-source]').forEach(b=>b.addEventListener('click',()=>{activeSource=b.dataset.source;syncUrl();render();}));
   bar.querySelectorAll('[data-chip]').forEach(chip=>{
     chip.querySelector('.tc-rm').addEventListener('mousedown',e=>{e.preventDefault();activeToolFilters.delete(chip.dataset.chip);syncUrl();render();});
   });
@@ -913,7 +920,7 @@ function renderProjectKPIs(){
     const k=s.projectNorm||s.projectLabel;
     if(!byProj.has(k))byProj.set(k,{cost:0,sessions:0,ms:0,color:projColorHex(k)});
     const p=byProj.get(k);
-    const c=calcCost(s.model,s.usage);
+    const c=calcCost(s.model,s.usage,s.source);
     if(c!==null)p.cost+=c;
     p.sessions++;
     if(s.startedAt&&s.lastActivityAt)p.ms+=s.lastActivityAt.getTime()-s.startedAt.getTime();
@@ -940,7 +947,7 @@ function render(){
   const openQ=fs.reduce((n,s)=>n+s.queueItems.filter(i=>!i.done).length,0);
   const doneQ=fs.reduce((n,s)=>n+s.queueItems.filter(i=>i.done).length,0);
   const ct=fs.reduce((n,s)=>n+s.claudeTasks.length,0);
-  const cost=fs.reduce((n,s)=>n+(calcCost(s.model,s.usage)||0),0);
+  const cost=fs.reduce((n,s)=>n+(calcCost(s.model,s.usage,s.source)||0),0);
   const isFiltered=fs.length<total;
 
   setStatus(`${total} sessions`);
@@ -985,7 +992,7 @@ function renderTimeline(){
     const bars=projMap.get(proj).map(s=>{
       const sMs=s.startedAt.getTime();
       const eMs=s.lastActivityAt?s.lastActivityAt.getTime():sMs+1800000;
-      const cost=calcCost(s.model,s.usage);
+      const cost=calcCost(s.model,s.usage,s.source);
       const tip=[s.title||'(untitled)',fmtDate(s.startedAt)+(s.lastActivityAt?' → '+fmtDate(s.lastActivityAt):''),`${s.userTurns.length+s.commands.length} turns`,cost!==null?'$'+(cost<0.01?cost.toFixed(4):cost.toFixed(2)):'',s.model||''].filter(Boolean).join('\n');
       const turnTicks=s.userTurns.filter(t=>t.ts).map(t=>{const p=(t.ts.getTime()-sMs)/Math.max(1,eMs-sMs)*100;return p>=0&&p<=100?`<span class="tl-turn" style="left:${p.toFixed(2)}%"></span>`:''}).join('');
       return`<div class="tl-sess" style="position:absolute;left:${pct(sMs)};width:${pctW(sMs,eMs)};top:${(ROW_H-BAR_H)/2}px;height:${BAR_H}px;background:${color}22;border-color:${color}" data-uuid="${s.uuid}" data-tip="${esc(tip)}"><span class="tl-stitle">${esc(s.title||'(untitled)')}</span>${turnTicks}</div>`;
@@ -1031,7 +1038,7 @@ function renderCostBarChart(){
   const dayMap={};
   for(const s of filteredSessions){
     if(!s.startedAt)continue;
-    const cost=calcCost(s.model,s.usage);
+    const cost=calcCost(s.model,s.usage,s.source);
     if(!cost)continue;
     const d=s.startedAt;
     const day=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -1187,7 +1194,7 @@ function sessionRow(s){
     movedN?`<span class="qc${activeQueueStatus==='moved'?' active':''}" data-qstatus="moved" data-tip="${esc(s.queueItems.filter(i=>i.cancelled&&i.reason&&/moved/i.test(i.reason)).map(queueItemTip).join('\n─────────────────\n'))}" style="background:color-mix(in srgb,var(--dim) 15%,transparent);color:var(--dim)">${movedN} moved</span>`:'',
     pureN?`<span class="qc${activeQueueStatus==='cancelled'?' active':''}" data-qstatus="cancelled" data-tip="${esc(s.queueItems.filter(i=>i.cancelled&&(!i.reason||!/moved/i.test(i.reason))).map(queueItemTip).join('\n─────────────────\n'))}" style="background:color-mix(in srgb,var(--err) 12%,transparent);color:var(--err)">${pureN} cancelled</span>`:'',
   ].filter(Boolean).join(' ');
-  const cost=calcCost(s.model,s.usage);
+  const cost=calcCost(s.model,s.usage,s.source);
   const costStr=cost!==null?(cost<0.01?'$'+cost.toFixed(4):'$'+cost.toFixed(2)):'—';
   const costColor=cost===null?'var(--dim)':cost>1?'var(--err)':cost>0.1?'var(--open)':'var(--done)';
   const dur=s.startedAt&&s.lastActivityAt?fmtDuration(s.startedAt.getTime(),s.lastActivityAt.getTime()):'—';
@@ -1209,7 +1216,7 @@ function sessionRow(s){
       ${lastReply?`<div class="t-sub" data-tip="${esc(s.lastAssistantText||'')}">${esc(lastReply)}${(s.lastAssistantText||'').length>100?'…':''}</div>`:''}
       <div class="t-sub" style="opacity:.6" data-tip="${esc(s.uuid)}">${s.uuid.slice(0,8)}…</div>
     </td>
-    <td class="model">${esc(s.model||'—')}</td>
+    <td class="model">${esc(s.model||'—')}<span style="font-size:11px;color:var(--dim);margin-left:4px">${s.source==='pi'?'Pi':'Claude'}</span></td>
     <td class="cost" style="color:${costColor}">${costStr}</td>
     <td class="turns">${s.userTurns.length+s.commands.length}</td>
     <td class="ctasks">${s.claudeTasks.length>0?`<span class="qc ct" data-tip="${esc(ctTip)}">${s.claudeTasks.length}</span>`:'<span style="color:var(--dim)">—</span>'}</td>
@@ -1248,7 +1255,7 @@ function insertDetailRow(tr,s){
     return`<div class="q-row" data-tip="${esc(queueItemTip(i))}"><span class="q-icon" style="color:${color}">${icon}</span><div class="q-body"><div>${esc(i.text)}${movedToHtml}</div>${i.ctx?`<div class="q-ctx">${esc(i.ctx)}</div>`:''}</div></div>`;
   })].join('')||'<div style="color:var(--dim);font-size:12px">No tasks.</div>';
   const u=s.usage,hasU=u.in+u.out+u.cw+u.cr>0;
-  const cost=hasU?calcCost(s.model,u):null;
+  const cost=hasU?calcCost(s.model,u,s.source):null;
   const colorDot=s.color&&COLOR_CSS[s.color]?`<span class="cdot" style="background:${COLOR_CSS[s.color]};margin-right:3px"></span>`:'';
   const pricing=getPricing(s.model);
   const costBreak=pricing&&hasU?`\nPricing: $${pricing.in}/MTok in · $${pricing.cw}/MTok cw · $${pricing.cr}/MTok cr · $${pricing.out}/MTok out\nRaw tokens: ${fmtK(u.in)} in + ${fmtK(u.cw)} cw + ${fmtK(u.cr)} cr + ${fmtK(u.out)} out`:'';
@@ -1276,10 +1283,10 @@ function fmtDuration(ms1,ms2){const m=Math.round((ms2-ms1)/60000);if(m<1)return'
 function fmtK(n){return n>=1000?(n/1000).toFixed(1)+'k':String(n);}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function getPricing(model){if(!model)return null;let p=PRICING[model];if(!p){const k=Object.keys(PRICING).find(k=>model.startsWith(k));if(k)p=PRICING[k];}return p||null;}
-function calcCost(model,usage){const p=getPricing(model);if(!p)return null;return(usage.in*p.in+usage.cw*p.cw+usage.cr*p.cr+usage.out*p.out)/1e6;}
+function calcCost(model,usage,source){if(source==='pi')return null;const p=getPricing(model);if(!p)return null;return(usage.in*p.in+usage.cw*p.cw+usage.cr*p.cr+usage.out*p.out)/1e6;}
 
 // ─── Session cache ────────────────────────────────────────────────────────────────
-function cacheKey(){return'claude-sess-v3-'+claudeHandles.map(h=>h.name).join('|');}
+function cacheKey(){return'claude-sess-v4-'+claudeHandles.map(h=>h.name).join('|')+'|pi:'+piHandles.map(h=>h.name).join('|');}
 function serializeCache(sessions){
   return sessions.map(s=>({...s,
     startedAt:s.startedAt?.toISOString()||null,
@@ -1297,10 +1304,11 @@ function deserializeCache(data){
     commands:(s.commands||[]).map(c=>({...c,ts:c.ts?new Date(c.ts):null})),
     claudeTasks:(s.claudeTasks||[]).map(t=>({...t,ts:t.ts?new Date(t.ts):null})),
     agents:s.agents||[],
+    source:s.source||'claude',
   }));
 }
-async function hasNewerFiles(handles,cacheTs){
-  for(const h of handles){
+async function hasNewerFiles(claudeHandles,piHandles,cacheTs){
+  for(const h of claudeHandles){
     try{
       const pH=await h.getDirectoryHandle('projects');
       for await(const[,pd]of pH){
@@ -1319,6 +1327,20 @@ async function hasNewerFiles(handles,cacheTs){
                 if(sf.lastModified>cacheTs)return true;
               }
             }catch{}
+          }
+        }
+      }
+    }catch{}
+  }
+  for(const h of piHandles){
+    try{
+      const sH=await h.getDirectoryHandle('sessions');
+      for await(const[,pd]of sH){
+        if(pd.kind!=='directory')continue;
+        for await(const[fn,fh]of pd){
+          if(fh.kind==='file'&&fn.endsWith('.jsonl')){
+            const f=await fh.getFile();
+            if(f.lastModified>cacheTs)return true;
           }
         }
       }
