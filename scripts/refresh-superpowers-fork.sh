@@ -128,6 +128,9 @@ build_fork_tree() {
 # against what's actually committed — any mismatch is an undocumented edit
 # about to be lost.
 base_sha=$(sed -n 's/.*Base commit: \*\*`\([0-9a-f]*\)`\*\*.*/\1/p' "$FORK_DIR/FORK.md" 2>/dev/null)
+if [ -z "$base_sha" ]; then
+  echo "WARNING: could not read a base commit from FORK.md — skipping the drift check; hand-edits outside team-overlays/ will not be detected." >&2
+fi
 if [ -n "$base_sha" ]; then
   old_src="$TMP/old"
   mkdir -p "$old_src"
@@ -147,6 +150,8 @@ if [ -n "$base_sha" ]; then
       echo "then re-run. To rebuild anyway and accept the loss, set FORCE=1." >&2
       [ "${FORCE:-}" = "1" ] || exit 1
     fi
+  else
+    echo "WARNING: could not fetch base commit $base_sha from $src_url — skipping the drift check; hand-edits outside team-overlays/ will not be detected." >&2
   fi
 fi
 
