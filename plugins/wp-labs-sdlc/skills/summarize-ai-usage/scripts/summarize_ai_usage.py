@@ -771,14 +771,94 @@ def call_claude(prompt: str, model: str = "claude-sonnet-4-6") -> tuple[str, dic
     return text or raw.strip(), usage
 
 
+def _call_omlx(prompt: str, model: str | None) -> tuple[str, dict[str, Any]]:
+    """POST a prompt to an omlx-compatible endpoint via ~/.pi/agent/models.json.
+
+    Args:
+        prompt: The full prompt to send.
+        model: Model ID to request; falls back to the first entry in
+            models.json's "models" list if not given.
+
+    Returns:
+        Tuple of (response text, empty usage dict — omlx does not report usage).
+
+    Raises:
+        RuntimeError: If the config is unreadable or the request fails.
+    """
+    import urllib.request as _ur
+    models_path = Path.home() / ".pi" / "agent" / "models.json"
+    try:
+        cfg = json.loads(models_path.read_text(encoding="utf-8"))
+        omlx = cfg["providers"]["omlx"]
+        base_url = omlx["baseUrl"].rstrip("/")
+        api_key = omlx["apiKey"]
+    except (FileNotFoundError, KeyError, json.JSONDecodeError) as e:
+        raise RuntimeError(f"omlx config not readable at {models_path}: {e}") from e
+    if not model:
+        try:
+            model = cfg.get("models", [{}])[0].get("id") or ""
+        except (IndexError, AttributeError):
+            model = ""
+    payload = json.dumps({
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+    }).encode()
+    req = _ur.Request(
+        f"{base_url}/chat/completions",
+        data=payload,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+    )
+    try:
+        with _ur.urlopen(req, timeout=300) as resp:
+            data = json.loads(resp.read())
+        text = data["choices"][0]["message"]["content"]
+        return text, {}
+    except Exception as e:
+        raise RuntimeError(f"omlx request to {base_url} failed: {e}") from e
+
+
+def run_summarizer(
+    prompt: str, summarizer: str, model: str | None
+) -> tuple[str, dict[str, Any]]:
+    """Route a summarization prompt to the chosen backend.
+
+    Args:
+        prompt: The full prompt to summarize.
+        summarizer: Backend name — "claude", "pi", or "omlx".
+        model: Model ID to pass to the backend, or None for its default.
+
+    Returns:
+        Tuple of (response text, usage dict).
+
+    Raises:
+        RuntimeError: If the backend exits non-zero or the HTTP call fails.
+        ValueError: If summarizer names an unknown backend.
+    """
+    if summarizer == "claude":
+        return call_claude(prompt, model=model or "claude-sonnet-4-6")
+    if summarizer == "pi":
+        cmd = ["pi", "-p"]
+        if model:
+            cmd += ["--model", model]
+        cmd.append("-")
+        result = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=300, check=False)
+        if result.returncode != 0:
+            raise RuntimeError(f"pi -p exited {result.returncode}: {result.stderr[:500]}")
+        return result.stdout.strip(), {}
+    if summarizer == "omlx":
+        return _call_omlx(prompt, model)
+    raise ValueError(f"Unknown summarizer: {summarizer!r}")
+
+
 def summarize_batch(
     batch: list[SessionItem],
     queue_dir: Path | str,
     full_uuids: set[str] | None = None,
     archive_dir: Path | None = None,
     model: str = "claude-sonnet-4-6",
+    summarizer: str = "claude",
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Summarize a batch of sessions with one claude -p call.
+    """Summarize a batch of sessions with one summarizer backend call.
 
     Args:
         batch: Sessions to include in this call.
@@ -786,7 +866,8 @@ def summarize_batch(
         full_uuids: UUIDs that should receive the full transcript (not truncated).
         archive_dir: If set, write each session block to archive_dir/<uuid>.txt
             before sending to the LLM.
-        model: Claude model ID to use.
+        model: Model ID to use, passed through to the chosen backend.
+        summarizer: Backend name — "claude", "pi", or "omlx".
 
     Returns:
         Tuple of (parsed LLM response dict, usage dict).
@@ -800,8 +881,8 @@ def summarize_batch(
             (archive_dir / f"{item[0].stem}.txt").write_text(block, encoding="utf-8")
         blocks.append(block)
     prompt = LLM_PROMPT_HEADER + "\n\n---\n\n".join(blocks)
-    print(f"  Calling claude -p for {len(batch)} session(s)...", flush=True)
-    text, usage = call_claude(prompt, model=model)
+    print(f"  Calling {summarizer} for {len(batch)} session(s)...", flush=True)
+    text, usage = run_summarizer(prompt, summarizer=summarizer, model=model)
     return parse_llm_response(text), usage
 
 
