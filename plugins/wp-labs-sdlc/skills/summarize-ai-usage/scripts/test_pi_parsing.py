@@ -63,6 +63,19 @@ def test_scan_sessions_source(tmp_path):
     con.close()
 
 
+def test_run_summarizer_routes():
+    from summarize_ai_usage import run_summarizer
+    import unittest.mock as mock
+    with mock.patch('summarize_ai_usage.call_claude', return_value=('{"summary_text":"x","completed_tasks":[],"incomplete_tasks":[],"improvement_suggestions":[],"personal_learnings":[],"unusual_flags":[]}', {})) as m:
+        text, usage = run_summarizer("prompt", "claude", "claude-sonnet-4-6")
+        assert m.called
+    try:
+        run_summarizer("prompt", "badbackend", None)
+        assert False, "should have raised"
+    except ValueError:
+        pass
+
+
 if __name__ == "__main__":
     test_is_pi_format()
     test_extract_metadata_pi()
@@ -70,3 +83,5 @@ if __name__ == "__main__":
     print("All Pi parsing tests passed.")
     test_scan_sessions_source(pathlib.Path(tempfile.mkdtemp()))
     print("scan_sessions source test passed.")
+    test_run_summarizer_routes()
+    print("run_summarizer routing test passed.")
