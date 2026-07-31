@@ -1,0 +1,395 @@
+<title>Model Comparison — summarize-ai-usage</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<script>if (!('__RESULTS__' in window)) window.__RESULTS__ = null; // __RESULTS_JSON__</script>
+
+<style>
+/* ── Tokens ─────────────────────────────────────────────────────────────── */
+:root {
+  --bg: #ffffff; --surface: #f6f8fa; --surface2: #eaeef2; --border: #d0d7de;
+  --text: #1f2328; --muted: #636c76; --accent: #6e40c9;
+  --m-bg: #dafbe1; --m: #1a7f37;
+  --e-bg: #fff8c5; --e: #9a6700;
+  --miss-bg: #ffebe9; --miss: #cf222e;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #0d1117; --surface: #161b22; --surface2: #21262d; --border: #30363d;
+  --text: #e6edf3; --muted: #7d8590; --accent: #8b5cf6;
+  --m-bg: #1f4428; --m: #3fb950;
+  --e-bg: #2d2000; --e: #d29922;
+  --miss-bg: #3d1818; --miss: #f85149;
+}}
+:root[data-theme="dark"] {
+  --bg: #0d1117; --surface: #161b22; --surface2: #21262d; --border: #30363d;
+  --text: #e6edf3; --muted: #7d8590; --accent: #8b5cf6;
+  --m-bg: #1f4428; --m: #3fb950;
+  --e-bg: #2d2000; --e: #d29922;
+  --miss-bg: #3d1818; --miss: #f85149;
+}
+:root[data-theme="light"] {
+  --bg: #ffffff; --surface: #f6f8fa; --surface2: #eaeef2; --border: #d0d7de;
+  --text: #1f2328; --muted: #636c76; --accent: #6e40c9;
+  --m-bg: #dafbe1; --m: #1a7f37;
+  --e-bg: #fff8c5; --e: #9a6700;
+  --miss-bg: #ffebe9; --miss: #cf222e;
+}
+
+/* ── Reset ─────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px; line-height: 1.5;
+}
+
+/* ── Header ────────────────────────────────────────────────────────────── */
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 24px; border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; background: var(--bg); z-index: 10;
+}
+.h-title { font-size: 13px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.h-meta  { font-size: 12px; color: var(--muted); margin-top: 1px; }
+#theme-btn {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--muted); cursor: pointer; border-radius: 6px;
+  padding: 4px 10px; font-size: 12px; transition: border-color .15s, color .15s;
+}
+#theme-btn:hover { border-color: var(--accent); color: var(--text); }
+#theme-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ── No-data state ─────────────────────────────────────────────────────── */
+#no-data {
+  flex-direction: column; align-items: center;
+  justify-content: center; min-height: 60vh; gap: 12px; color: var(--muted);
+}
+#no-data pre {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 12px 20px; font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text);
+}
+
+/* ── Main layout ───────────────────────────────────────────────────────── */
+main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+section { margin-bottom: 32px; }
+.sec-label {
+  font-size: 11px; font-weight: 600; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
+}
+
+/* ── Leaderboard table ─────────────────────────────────────────────────── */
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th {
+  text-align: left; padding: 6px 10px; font-size: 11px; font-weight: 600;
+  letter-spacing: .05em; text-transform: uppercase; color: var(--muted);
+  border-bottom: 2px solid var(--border); white-space: nowrap;
+}
+th[title] { cursor: help; }
+td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+tr:hover td { background: var(--surface); }
+.td-rank { color: var(--muted); font-size: 12px; width: 28px; }
+.td-model { max-width: 240px; }
+.model-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px; word-break: break-word;
+}
+.td-score { text-align: right; white-space: nowrap; min-width: 64px; }
+.score-num { font-variant-numeric: tabular-nums; font-weight: 600; }
+.score-bar-track { margin-top: 4px; height: 3px; background: var(--surface2); border-radius: 2px; }
+.score-bar-fill  { height: 3px; border-radius: 2px; background: var(--accent); transition: width .3s; }
+.err-badge {
+  display: inline-block; font-size: 10px; padding: 1px 5px; border-radius: 4px;
+  background: var(--miss-bg); color: var(--miss); margin-left: 6px; cursor: help;
+}
+.pm-pos { color: var(--m); }
+.pm-neg { color: var(--miss); }
+
+/* ── Dimension tabs ────────────────────────────────────────────────────── */
+.tab-bar {
+  display: flex; gap: 2px; border-bottom: 1px solid var(--border);
+  margin-bottom: 16px; flex-wrap: wrap;
+}
+.tab-btn {
+  padding: 6px 14px; font-size: 12px; font-weight: 500; cursor: pointer;
+  background: none; border: none; color: var(--muted);
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+  border-radius: 4px 4px 0 0; transition: color .15s;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+.tab-btn.on { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.tab-panel { display: none; }
+.tab-panel.on { display: block; }
+
+/* ── Dimension grid (model columns) ────────────────────────────────────── */
+.dim-grid { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; }
+.model-col {
+  flex: 0 0 270px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px; min-width: 0;
+}
+.model-col.wide { flex-basis: 340px; }
+.col-head {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px;
+  font-weight: 600; color: var(--muted); margin-bottom: 8px;
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+}
+.col-head-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-score { font-variant-numeric: tabular-nums; color: var(--text); flex-shrink: 0; }
+.item-list { display: flex; flex-direction: column; gap: 6px; }
+.item-chip {
+  font-size: 12px; padding: 5px 8px; border-radius: 5px; line-height: 1.4; word-break: break-word;
+}
+.item-chip.ref     { background: var(--surface2); color: var(--text); }
+.item-chip.matched { background: var(--m-bg);     color: var(--m); }
+.item-chip.extra   { background: var(--e-bg);     color: var(--e); }
+.item-chip.missed  { background: var(--miss-bg);  color: var(--miss); opacity: .75; }
+.chip-tag { font-size: 10px; font-weight: 700; letter-spacing: .04em; margin-right: 4px; opacity: .65; }
+.sum-text {
+  font-size: 12px; line-height: 1.7; color: var(--text); max-height: 220px;
+  overflow-y: auto; white-space: pre-wrap; word-break: break-word;
+}
+.empty-note { font-size: 12px; color: var(--muted); font-style: italic; }
+
+/* ── Legend ────────────────────────────────────────────────────────────── */
+.legend {
+  display: flex; gap: 16px; flex-wrap: wrap;
+  margin-bottom: 12px; font-size: 12px;
+}
+.legend-item { display: flex; align-items: center; gap: 5px; color: var(--muted); }
+.legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.dot-ref   { background: var(--surface2); border: 1px solid var(--border); }
+.dot-match { background: var(--m-bg); border: 1px solid var(--m); }
+.dot-extra { background: var(--e-bg); border: 1px solid var(--e); }
+.dot-miss  { background: var(--miss-bg); border: 1px solid var(--miss); }
+</style>
+
+<header>
+  <div>
+    <div class="h-title">Model Comparison</div>
+    <div class="h-meta" id="h-meta">summarize-ai-usage</div>
+  </div>
+  <button id="theme-btn">Dark</button>
+</header>
+
+<div id="no-data" style="display:none">
+  <div>No comparison data. Run:</div>
+  <pre>python3 compare_models.py</pre>
+</div>
+
+<div id="dashboard" style="display:none">
+  <main>
+    <section>
+      <div class="sec-label">Leaderboard</div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Model</th>
+              <th title="Total score 0–100">Total</th>
+              <th title="Personal learnings 0–25">Learn</th>
+              <th title="Unapplied improvements 0–25">Improve</th>
+              <th title="Summary text length 0–20">Summary</th>
+              <th title="Completed tasks 0–10">Done</th>
+              <th title="Incomplete tasks 0–10">ToDo</th>
+              <th title="Unusual flags 0–10">Flags</th>
+              <th title="Extra-find bonus / miss penalty">±</th>
+            </tr>
+          </thead>
+          <tbody id="lb-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-label">By Dimension</div>
+      <div class="legend">
+        <span class="legend-item"><span class="legend-dot dot-ref"></span>Reference (default model)</span>
+        <span class="legend-item"><span class="legend-dot dot-match"></span>Matched default item</span>
+        <span class="legend-item"><span class="legend-dot dot-extra"></span>Extra (model-only find)</span>
+        <span class="legend-item"><span class="legend-dot dot-miss"></span>Missed default item</span>
+      </div>
+      <div class="tab-bar" id="tab-bar"></div>
+      <div id="tab-panels"></div>
+    </section>
+  </main>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const FIELDS = [
+    { key: 'personal_learnings',    label: 'Learnings',    max: 25 },
+    { key: 'unapplied_improvements',label: 'Improvements', max: 25 },
+    { key: 'completed_tasks',       label: 'Done',         max: 10 },
+    { key: 'incomplete_tasks',      label: 'ToDo',         max: 10 },
+    { key: 'unusual_flags',         label: 'Flags',        max: 10 },
+    { key: 'summary_text',          label: 'Summary',      max: 20 },
+  ];
+
+  const LB_COLS = [
+    { k: 'total',                 max: 100 },
+    { k: 'personal_learnings',    max: 25  },
+    { k: 'unapplied_improvements',max: 25  },
+    { k: 'summary_text',          max: 20  },
+    { k: 'completed_tasks',       max: 10  },
+    { k: 'incomplete_tasks',      max: 10  },
+    { k: 'unusual_flags',         max: 10  },
+  ];
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function scoreCell(val, max) {
+    const pct = Math.max(0, Math.min(100, (val / max) * 100));
+    return `<td class="td-score">
+      <span class="score-num">${val.toFixed(1)}</span>
+      <div class="score-bar-track"><div class="score-bar-fill" style="width:${pct.toFixed(1)}%"></div></div>
+    </td>`;
+  }
+
+  function renderLeaderboard(models) {
+    const tbody = document.getElementById('lb-body');
+    models.forEach((m, i) => {
+      const errHtml = m.error
+        ? `<span class="err-badge" title="${esc(m.error)}">ERR</span>` : '';
+      const pm = (m.scores.extra_bonus ?? 0) + (m.scores.miss_penalty ?? 0);
+      const pmStr = pm >= 0 ? `+${pm.toFixed(1)}` : pm.toFixed(1);
+      const pmCls = pm >= 0 ? 'pm-pos' : 'pm-neg';
+
+      const scoreCells = LB_COLS.map(c => scoreCell(m.scores[c.k] ?? 0, c.max)).join('');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="td-rank">${i + 1}</td>
+        <td class="td-model"><span class="model-id">${esc(m.display_name)}</span>${errHtml}</td>
+        ${scoreCells}
+        <td class="td-score"><span class="score-num ${pmCls}">${pmStr}</span></td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderTabs(models, defaultModel) {
+    const bar    = document.getElementById('tab-bar');
+    const panels = document.getElementById('tab-panels');
+    FIELDS.forEach((f, fi) => {
+      const btn = document.createElement('button');
+      btn.className  = 'tab-btn' + (fi === 0 ? ' on' : '');
+      btn.textContent = f.label;
+      btn.dataset.tab = f.key;
+      btn.onclick = () => switchTab(f.key);
+      bar.appendChild(btn);
+
+      const panel = document.createElement('div');
+      panel.className = 'tab-panel' + (fi === 0 ? ' on' : '');
+      panel.id        = `tp-${f.key}`;
+      panel.appendChild(buildDimGrid(f.key, models, defaultModel));
+      panels.appendChild(panel);
+    });
+  }
+
+  function switchTab(key) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('on', b.dataset.tab === key));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('on', p.id === `tp-${key}`));
+  }
+
+  function buildDimGrid(fieldKey, models, defaultModel) {
+    const grid = document.createElement('div');
+    grid.className = 'dim-grid';
+    models.forEach(m => grid.appendChild(buildModelCol(fieldKey, m, m === defaultModel)));
+    return grid;
+  }
+
+  function buildModelCol(fieldKey, model, isDefault) {
+    const col = document.createElement('div');
+    col.className = `model-col${fieldKey === 'summary_text' ? ' wide' : ''}`;
+
+    const score = (model.scores[fieldKey] ?? 0).toFixed(1);
+    const head  = document.createElement('div');
+    head.className = 'col-head';
+    head.innerHTML = `<span class="col-head-name" title="${esc(model.display_name)}">${esc(model.display_name)}</span>`
+                   + `<span class="col-score">${score}</span>`;
+    col.appendChild(head);
+
+    if (fieldKey === 'summary_text') {
+      const div = document.createElement('div');
+      div.className = 'sum-text';
+      div.textContent = model.fields.summary_text || '(empty)';
+      col.appendChild(div);
+      return col;
+    }
+
+    col.appendChild(buildItemList(fieldKey, model, isDefault));
+    return col;
+  }
+
+  function buildItemList(fieldKey, model, isDefault) {
+    const items = gatherItems(fieldKey, model, isDefault);
+    if (!items.length) {
+      const note = document.createElement('div');
+      note.className = 'empty-note';
+      note.textContent = 'No items';
+      return note;
+    }
+    const list = document.createElement('div');
+    list.className = 'item-list';
+    items.forEach(({ text, status }) => {
+      const chip = document.createElement('div');
+      chip.className = `item-chip ${status}`;
+      const tag = status === 'ref' ? ''
+        : `<span class="chip-tag">${status.slice(0, 3).toUpperCase()}</span>`;
+      chip.innerHTML = tag + esc(text);
+      list.appendChild(chip);
+    });
+    return list;
+  }
+
+  function gatherItems(fieldKey, model, isDefault) {
+    if (isDefault) {
+      return (model.fields[fieldKey] || []).map(t => ({ text: t, status: 'ref' }));
+    }
+    const diff = model.diffs?.[fieldKey];
+    if (!diff) return (model.fields[fieldKey] || []).map(t => ({ text: t, status: 'ref' }));
+    return [
+      ...(diff.matched || []).map(i => ({ text: i.text, status: 'matched' })),
+      ...(diff.extra   || []).map(i => ({ text: i.text, status: 'extra' })),
+      ...(diff.missed  || []).map(i => ({ text: i.text, status: 'missed' })),
+    ];
+  }
+
+  function initTheme() {
+    const btn  = document.getElementById('theme-btn');
+    const root = document.documentElement;
+    const dark = () => root.dataset.theme === 'dark'
+      || (!root.dataset.theme && window.matchMedia('(prefers-color-scheme:dark)').matches);
+    const sync = () => { btn.textContent = dark() ? 'Light' : 'Dark'; };
+    btn.onclick = () => { root.dataset.theme = dark() ? 'light' : 'dark'; sync(); };
+    sync();
+  }
+
+  function init() {
+    const data = window.__RESULTS__;
+    if (!data?.models?.length) {
+      document.getElementById('no-data').style.display = 'flex';
+      return;
+    }
+    document.getElementById('dashboard').style.display = '';
+
+    const sorted  = [...data.models].sort((a, b) => b.scores.total - a.scores.total);
+    const defModel = data.models[0];
+    const dt = sorted.find(m => m.created_at)?.created_at?.slice(0, 10) || '';
+    document.getElementById('h-meta').textContent =
+      `${sorted.length} model${sorted.length === 1 ? '' : 's'} · ${dt}`;
+
+    renderLeaderboard(sorted);
+    renderTabs(sorted, defModel);
+    initTheme();
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+}());
+</script>
