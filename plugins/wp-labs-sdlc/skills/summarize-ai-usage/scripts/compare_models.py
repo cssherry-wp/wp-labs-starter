@@ -153,12 +153,61 @@ def _dedup(lst: list[str]) -> list[str]:
     return out
 
 
-def _fetch_rows_for_date(db_path: Path, date_prefix: str) -> list[tuple]:
-    """Fetch all summary rows whose created_at starts with date_prefix.
+def get_summarized_session_paths(db_path: Path) -> set[str]:
+    """Return set of session paths that appear in session_summary_items.
+
+    Args:
+        db_path: Path to the SQLite database file.
+
+    Returns:
+        Set of session path strings that have at least one linked summary.
+    """
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    try:
+        rows = conn.execute(
+            """SELECT DISTINCT s.path FROM sessions s
+               JOIN session_summary_items ssi ON ssi.session_id = s.id"""
+        ).fetchall()
+        return {r[0] for r in rows}
+    except Exception:
+        return set()
+    finally:
+        conn.close()
+
+
+def find_common_session_paths(db_paths: list[Path]) -> set[str] | None:
+    """Return intersection of summarized session paths across all DBs.
+
+    Args:
+        db_paths: Paths to all DB files to intersect.
+
+    Returns:
+        Set of session paths present in every DB, or None if lookup failed for all.
+    """
+    sets = [get_summarized_session_paths(p) for p in db_paths]
+    non_empty = [s for s in sets if s]
+    if not non_empty:
+        return None
+    common = non_empty[0]
+    for s in non_empty[1:]:
+        common = common & s
+    return common
+
+
+def _fetch_rows_for_date(
+    db_path: Path,
+    date_prefix: str,
+    session_paths: set[str] | None = None,
+) -> list[tuple]:
+    """Fetch summary rows whose created_at starts with date_prefix.
+
+    When session_paths is provided, only summaries linked to at least one
+    session in that set are returned (fair cross-model comparison).
 
     Args:
         db_path: Path to the SQLite database file.
         date_prefix: YYYY-MM-DD prefix to match.
+        session_paths: If set, restrict to summaries covering these sessions.
 
     Returns:
         List of row tuples (summary_text, completed_tasks, incomplete_tasks,
@@ -166,6 +215,22 @@ def _fetch_rows_for_date(db_path: Path, date_prefix: str) -> list[tuple]:
     """
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     try:
+        if session_paths:
+            # Use a temp table to avoid SQLite's per-query parameter limit.
+            conn.execute("CREATE TEMP TABLE IF NOT EXISTS _cmp_paths (path TEXT PRIMARY KEY)")
+            conn.executemany("INSERT OR IGNORE INTO _cmp_paths VALUES (?)", [(p,) for p in session_paths])
+            return conn.execute(
+                """SELECT DISTINCT su.summary_text, su.completed_tasks, su.incomplete_tasks,
+                          su.unusual_flags, su.personal_learnings, su.unapplied_improvements
+                   FROM summaries su
+                   WHERE su.created_at LIKE ?
+                     AND su.id IN (
+                       SELECT ssi.summary_id FROM session_summary_items ssi
+                       JOIN sessions s ON s.id = ssi.session_id
+                       JOIN _cmp_paths cp ON cp.path = s.path
+                     )""",
+                (f"{date_prefix}%",),
+            ).fetchall()
         return conn.execute(
             """SELECT summary_text, completed_tasks, incomplete_tasks,
                       unusual_flags, personal_learnings, unapplied_improvements
@@ -198,11 +263,12 @@ def _aggregate_rows(rows: list[tuple]) -> tuple[str, list[str], list[str], list[
     return combined_text, _dedup(all_ct), _dedup(all_it), _dedup(all_uf), _dedup(all_pl), _dedup(all_ui)
 
 
-def load_summary(db_path: Path) -> Summary:
+def load_summary(db_path: Path, session_filter: set[str] | None = None) -> Summary:
     """Load and aggregate the most recent day's summaries from a DB.
 
     Args:
         db_path: Path to the SQLite database file.
+        session_filter: If set, only include summaries linked to these session paths.
 
     Returns:
         Summary dataclass with aggregated data from the most recent run day.
@@ -227,7 +293,7 @@ def load_summary(db_path: Path) -> Summary:
     date_prefix = created_at[:10]  # YYYY-MM-DD
 
     try:
-        rows = _fetch_rows_for_date(db_path, date_prefix)
+        rows = _fetch_rows_for_date(db_path, date_prefix, session_paths=session_filter)
     except Exception:
         rows = []
 
@@ -463,6 +529,10 @@ def _model_result_dict(summary: Summary, scores: dict[str, float], field_diffs: 
 def build_results(analytics_dir: Path, default_db: Path) -> list[dict]:
     """Load all DBs, score each, and return serializable result dicts.
 
+    Only summaries linked to sessions present in ALL DBs are included, so
+    models are compared on the same session corpus regardless of when each
+    run completed.
+
     Args:
         analytics_dir: Directory containing session_summaries.db and test_*.db files.
         default_db: Path to the default (sonnet-4-6) DB used as the reference.
@@ -477,7 +547,11 @@ def build_results(analytics_dir: Path, default_db: Path) -> list[dict]:
     if not dbs:
         raise FileNotFoundError(f"No DBs found in {analytics_dir}")
 
-    summaries = [load_summary(db) for db in dbs]
+    common = find_common_session_paths(dbs)
+    if common is not None:
+        print(f"Common sessions across {len(dbs)} DB(s): {len(common)}")
+
+    summaries = [load_summary(db, session_filter=common) for db in dbs]
     default_summary = summaries[0]
 
     results = []

@@ -1026,6 +1026,23 @@ def insert_agents(
         )
 
 
+def _coerce_text(value: Any) -> str:
+    """Coerce an LLM response field to a plain string.
+
+    Some models return summary_text as a list of bullet strings instead of a
+    single string. Joining preserves content without crashing sqlite3.
+
+    Args:
+        value: Raw value from the parsed LLM response dict.
+
+    Returns:
+        String representation suitable for a TEXT column.
+    """
+    if isinstance(value, list):
+        return "\n".join(str(x) for x in value)
+    return value or ""
+
+
 def write_summary(
     con: sqlite3.Connection,
     session_ids: list[int],
@@ -1069,7 +1086,7 @@ def write_summary(
             input_tokens,output_tokens,cache_write_tokens,cache_read_tokens,cost_usd,source)
            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
-            now_iso, first_start, last_end, result.get("summary_text", ""),
+            now_iso, first_start, last_end, _coerce_text(result.get("summary_text")),
             json.dumps(result.get("completed_tasks") or []),
             json.dumps(result.get("incomplete_tasks") or []),
             json.dumps(result.get("unusual_flags") or []),
@@ -1389,6 +1406,9 @@ def _run_second_pass(
     print(f"  Second pass: {len(full_items)} session(s) need full context...", flush=True)
     try:
         result2, usage2 = summarize_batch(full_items, queue_dir, full_uuids=full_set, archive_dir=archive_dir, model=model, summarizer=summarizer, source=source)
+        if not isinstance(result2, dict):
+            print(f"  ⚠ Second-pass LLM returned unexpected type {type(result2).__name__}, skipping", file=sys.stderr)
+            return
         full_ids = [session_ids[uuid] for uuid in full_set if uuid in session_ids]
         summary_id2, suggestions2 = write_summary(con, full_ids, result2, usage2, now_iso, source=source)
         con.commit()
@@ -1450,8 +1470,19 @@ def _process_batch(
         con.rollback()  # discard upserted sessions so they're retried next run
         return
 
-    needs_full = result.get("needs_full_context") or []
-    summary_id, suggestions = write_summary(con, list(session_ids.values()), result, usage, now_iso, source=source)
+    if not isinstance(result, dict):
+        print(f"  ⚠ LLM returned unexpected type {type(result).__name__}, skipping batch", file=sys.stderr)
+        con.rollback()
+        return
+
+    needs_full_raw = result.get("needs_full_context")
+    needs_full = needs_full_raw if isinstance(needs_full_raw, list) else []
+    try:
+        summary_id, suggestions = write_summary(con, list(session_ids.values()), result, usage, now_iso, source=source)
+    except Exception as e:
+        print(f"  ⚠ DB write failed: {e}", file=sys.stderr)
+        con.rollback()
+        return
     con.commit()  # sessions + summary committed atomically; LLM failure above leaves both uncommitted
 
     if needs_full:
