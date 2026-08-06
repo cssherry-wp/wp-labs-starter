@@ -1,0 +1,1071 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>No. NN: Field Guide</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20rx%3D%226%22%20fill%3D%22%23005581%22%2F%3E%3Ctext%20x%3D%2216%22%20y%3D%2222%22%20font-family%3D%22system-ui%2C-apple-system%2C%27Segoe%20UI%27%2Csans-serif%22%20font-size%3D%2215%22%20font-weight%3D%22800%22%20fill%3D%22%23ffffff%22%20text-anchor%3D%22middle%22%20letter-spacing%3D%22-0.5%22%3EFN%3C%2Ftext%3E%3C%2Fsvg%3E">
+<style>html{background:#ffffff;color:#2b2b2b;color-scheme:light}</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300..700;1,8..60,300..600&family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   WP Labs field guides / reference architectures
+   Shared stylesheet, house style. Treat as read-only: add a
+   component by copying an existing one, not by writing new CSS.
+   ============================================================ */
+
+:root {
+  /* Warburg Pincus enterprise palette */
+  --paper: #ffffff;
+  --paper-2: #eef1f5;
+  --ink: #2b2b2b;
+  --ink-2: #444444;
+  --ink-3: #9f9f9f;
+  --rule: #d0d7df;
+  --accent: #005581;
+  --accent-soft: #dce9f0;
+  --accent-ink: #003d5c;
+  --ok: #2d6a4f;
+  --ok-soft: #e8f5ee;
+  --warn: #a07800;
+  --shade: #f4f7fa;
+  --code-bg: #0d1b2a;
+  --code-ink: #c8dce8;
+
+  /* Layout */
+  --max-width: 1240px;
+  --content-width: 760px;
+  --sidebar-width: 260px;
+  --gutter: 48px;
+  --header-height: 44px;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Inter Tight", system-ui, sans-serif;
+  font-size: 16.5px;
+  line-height: 1.65;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+
+/* ============================================================
+   Header bar (every page)
+   ============================================================ */
+
+header.page-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 10px var(--gutter);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 32px;
+  background: var(--accent);
+  border-bottom: 1px solid rgba(0,0,0,0.18);
+}
+
+header.page-header .brand {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 12px;
+  text-decoration: none;
+  color: inherit;
+}
+header.page-header .brand:hover .title { color: rgba(255,255,255,0.85); }
+header.page-header .brand .title {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: #ffffff;
+}
+header.page-header .brand .subtitle {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.6);
+}
+
+header.page-header .header-meta {
+  display: flex;
+  gap: 24px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.65);
+}
+header.page-header .header-meta a {
+  color: rgba(255,255,255,0.65);
+  text-decoration: none;
+}
+header.page-header .header-meta a:hover { color: #ffffff; }
+
+/* ============================================================
+   Cover (index page only)
+   ============================================================ */
+
+.cover {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 64px var(--gutter) 48px;
+  border-bottom: 1px solid var(--rule);
+}
+.cover .eyebrow {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  font-weight: 500;
+  margin-bottom: 32px;
+  display: flex;
+  gap: 18px;
+  align-items: center;
+}
+.cover .eyebrow::before {
+  content: "";
+  display: inline-block;
+  width: 36px;
+  height: 1px;
+  background: var(--accent);
+}
+.cover h1 {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(40px, 5.5vw, 68px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin: 0 0 24px;
+}
+.cover h1 em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--accent-ink);
+}
+.cover .lede {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-weight: 300;
+  font-size: clamp(17px, 1.6vw, 21px);
+  line-height: 1.45;
+  max-width: 1100px;
+  color: var(--ink-2);
+  margin: 0 0 48px;
+}
+.cover .meta {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 32px;
+  border-top: 1px solid var(--rule);
+  padding-top: 24px;
+}
+.cover .meta .field {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.cover .meta .field .label {
+  color: var(--ink-3);
+  margin-bottom: 6px;
+}
+.cover .meta .field .value {
+  color: var(--ink);
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  font-family: "Inter Tight", sans-serif;
+}
+
+/* ============================================================
+   Main layout with sticky TOC
+   ============================================================ */
+
+.shell {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  gap: 64px;
+  position: relative;
+}
+
+aside.toc {
+  position: sticky;
+  top: var(--header-height);
+  align-self: start;
+  max-height: calc(100vh - var(--header-height));
+  overflow-y: auto;
+  padding: 28px 0;
+  font-size: 13.5px;
+}
+aside.toc h4 {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 500;
+  margin: 0 0 16px;
+}
+aside.toc h4:not(:first-of-type) { margin-top: 22px; }
+
+aside.toc ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  counter-reset: toc;
+}
+aside.toc ol li {
+  counter-increment: toc;
+  margin: 0;
+  padding: 4px 0;
+  border-left: 2px solid transparent;
+  padding-left: 14px;
+  margin-left: -14px;
+  transition: border-color 0.2s, color 0.2s;
+}
+aside.toc ol li.current {
+  border-left-color: var(--accent);
+}
+aside.toc ol li.current a {
+  color: var(--ink);
+  font-weight: 500;
+}
+aside.toc a {
+  color: var(--ink-3);
+  text-decoration: none;
+  display: block;
+  line-height: 1.35;
+}
+aside.toc a::before {
+  content: counter(toc, decimal-leading-zero);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10.5px;
+  color: var(--accent);
+  margin-right: 10px;
+  letter-spacing: 0.05em;
+}
+aside.toc ol.azure-list { counter-reset: toc; }
+aside.toc ol.aws-list { counter-reset: toc; }
+
+aside.toc a:hover { color: var(--ink); }
+
+main {
+  padding: 40px 0 120px;
+  max-width: var(--content-width);
+  min-width: 0;
+}
+
+/* ============================================================
+   Typography inside main
+   ============================================================ */
+
+main h2 {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-weight: 400;
+  font-size: 38px;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  margin: 0 0 8px;
+  scroll-margin-top: 40px;
+}
+main h2 .num {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+  display: block;
+  margin-bottom: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+main .section-lede {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 19px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  font-weight: 300;
+  font-style: italic;
+  margin: 16px 0 40px;
+  max-width: 640px;
+}
+
+main h3 {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-weight: 500;
+  font-size: 22px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  margin: 48px 0 12px;
+}
+
+main h4 {
+  font-family: "Inter Tight", sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin: 32px 0 10px;
+}
+
+main p { margin: 0 0 18px; }
+main a {
+  color: var(--accent-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+main strong { font-weight: 600; color: var(--ink); }
+main em { font-style: italic; }
+
+main ul, main ol {
+  padding-left: 22px;
+  margin: 0 0 18px;
+}
+main li { margin-bottom: 6px; }
+main li::marker { color: var(--accent); }
+
+/* ============================================================
+   Tables
+   ============================================================ */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14.5px;
+  margin: 24px 0 32px;
+  background: var(--shade);
+}
+thead th {
+  text-align: left;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper-2);
+}
+tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+  line-height: 1.5;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--paper-2); }
+td code, th code {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 13px;
+  background: var(--paper);
+  padding: 1px 6px;
+  border-radius: 2px;
+  color: var(--ink);
+}
+
+/* ============================================================
+   Callouts
+   ============================================================ */
+
+.callout {
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  padding: 20px 24px;
+  margin: 28px 0;
+  font-size: 15px;
+  line-height: 1.55;
+}
+.callout .label {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  font-weight: 500;
+  margin-bottom: 8px;
+  display: block;
+}
+.callout p:last-child { margin-bottom: 0; }
+.callout.neutral {
+  border-left-color: var(--ink-3);
+  background: var(--shade);
+}
+.callout.neutral .label { color: var(--ink-3); }
+.callout.preliminary {
+  border-left-color: #c97a1f;
+  background: #fdf1e2;
+}
+.callout.preliminary .label { color: #8a4d10; }
+
+/* ============================================================
+   Figures (SVG diagrams)
+   ============================================================ */
+
+figure {
+  margin: 32px 0;
+  background: var(--shade);
+  border: 1px solid var(--rule);
+  padding: 28px;
+}
+figure svg { display: block; width: 100%; height: auto; }
+figure figcaption {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+figure figcaption .fignum {
+  color: var(--accent);
+  font-weight: 500;
+  margin-right: 10px;
+}
+figure.code-figure {
+  background: var(--code-bg);
+  border-color: var(--code-bg);
+  padding: 28px 32px;
+}
+figure.code-figure pre {
+  margin: 0;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--code-ink);
+  overflow-x: auto;
+}
+figure.code-figure figcaption {
+  border-color: var(--ink-2);
+  color: var(--rule);
+}
+figure.code-figure figcaption .fignum { color: var(--accent); }
+
+/* Syntax tints used inside code figures */
+.tok-key { color: #5ba4cf; }
+.tok-field { color: #a8c08a; }
+.tok-sub { color: #8aaec0; }
+.tok-comment { color: #6b8094; }
+
+/* ============================================================
+   Cards (two-column grids)
+   ============================================================ */
+
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  margin: 24px 0 32px;
+}
+.card {
+  background: var(--shade);
+  border: 1px solid var(--rule);
+  padding: 20px 22px;
+}
+.card h4 { margin-top: 0; }
+.card.dark {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.card.dark h4 { color: #7ec8e3; }
+
+/* ============================================================
+   Prev / next navigation
+   ============================================================ */
+
+nav.pager {
+  max-width: var(--content-width);
+  margin: 60px 0 0;
+  padding-top: 28px;
+  border-top: 1px solid var(--rule);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+nav.pager a {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-decoration: none;
+  color: var(--ink);
+  padding: 16px 20px;
+  background: var(--shade);
+  border: 1px solid var(--rule);
+  transition: border-color 0.15s, background 0.15s;
+}
+nav.pager a:hover {
+  border-color: var(--accent);
+  background: var(--paper-2);
+}
+nav.pager a .direction {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+nav.pager a .label {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 17px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+nav.pager a.next { text-align: right; align-items: flex-end; }
+nav.pager a.disabled {
+  pointer-events: none;
+  opacity: 0.35;
+}
+
+/* ============================================================
+   Part-banner between sections (index only, optional)
+   ============================================================ */
+
+.part-banner {
+  margin: 40px auto;
+  padding: 48px var(--gutter);
+  background: var(--ink);
+  color: var(--paper);
+  max-width: var(--max-width);
+  position: relative;
+  overflow: hidden;
+}
+.part-banner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(0, 85, 129, 0.22), transparent 40%),
+    radial-gradient(circle at 80% 80%, rgba(0, 85, 129, 0.15), transparent 50%);
+}
+.part-banner .inner { position: relative; max-width: var(--content-width); }
+.part-banner .tag {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 18px;
+}
+.part-banner h2 {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-weight: 300;
+  font-size: 44px;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin: 0 0 18px;
+  color: var(--paper);
+}
+.part-banner p {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 18px;
+  line-height: 1.45;
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.78);
+  margin: 0;
+  max-width: 620px;
+}
+
+/* ============================================================
+   Footer
+   ============================================================ */
+
+footer.doc-foot {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 40px var(--gutter) 60px;
+  border-top: 1px solid var(--rule);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+/* ============================================================
+   TOC-on-index (big table of contents page)
+   ============================================================ */
+
+.toc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0;
+  margin: 20px 0 40px;
+  border-top: 1px solid var(--rule);
+}
+.toc-grid a {
+  display: block;
+  padding: 20px 22px;
+  border-bottom: 1px solid var(--rule);
+  border-right: 1px solid var(--rule);
+  color: var(--ink);
+  text-decoration: none;
+  background: var(--paper);
+  transition: background 0.15s;
+}
+.toc-grid a:hover { background: var(--shade); }
+.toc-grid a .num {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--accent);
+  margin-bottom: 6px;
+  display: block;
+}
+.toc-grid a .title {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 17px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  display: block;
+}
+.toc-grid a .desc {
+  font-size: 13.5px;
+  color: var(--ink-3);
+  margin-top: 4px;
+  line-height: 1.4;
+  display: block;
+}
+.toc-grid .coming-soon {
+  display: block;
+  padding: 20px 22px;
+  border-bottom: 1px solid var(--rule);
+  border-right: 1px solid var(--rule);
+  background: var(--shade);
+  cursor: not-allowed;
+}
+.toc-grid .coming-soon .num {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--accent);
+  margin-bottom: 6px;
+  display: block;
+}
+.toc-grid .coming-soon .title {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 17px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  display: block;
+}
+.toc-grid .coming-soon .desc {
+  font-size: 13.5px;
+  color: var(--ink-3);
+  margin-top: 4px;
+  line-height: 1.4;
+  display: block;
+}
+
+/* ============================================================
+   SVG helper classes
+   ============================================================ */
+
+.svg-label {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  fill: var(--ink);
+  text-transform: uppercase;
+}
+.svg-title {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 15px;
+  font-weight: 500;
+  fill: var(--ink);
+}
+.svg-body {
+  font-family: "Inter Tight", sans-serif;
+  font-size: 12.5px;
+  fill: var(--ink-2);
+}
+.svg-mono {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  fill: var(--ink);
+}
+
+/* ============================================================
+   Collapsible example blocks (details / summary)
+   ============================================================ */
+
+details.example {
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  margin: 28px 0 32px;
+}
+details.example > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 13px 18px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  user-select: none;
+}
+details.example > summary::-webkit-details-marker { display: none; }
+details.example > summary::before {
+  content: "+";
+  font-size: 15px;
+  line-height: 1;
+  color: var(--accent);
+  font-weight: 600;
+  width: 12px;
+}
+details.example[open] > summary::before { content: "\2212"; } /* minus sign */
+details.example > summary:hover { color: var(--accent); }
+details.example .example-body {
+  padding: 20px 18px 2px;
+  border-top: 1px solid var(--rule);
+}
+details.example .example-body > :first-child { margin-top: 0; }
+details.example .example-body p { font-size: 15px; }
+
+@media print {
+  details.example { break-inside: avoid; }
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+@media (max-width: 1000px) {
+  .shell { grid-template-columns: 1fr; gap: 0; }
+  aside.toc { display: none; }
+  .cover .meta { grid-template-columns: repeat(2, 1fr); gap: 20px; }
+  .two-col { grid-template-columns: 1fr; }
+  .part-banner h2 { font-size: 34px; }
+  header.page-header { flex-wrap: wrap; gap: 12px; }
+  nav.pager { grid-template-columns: 1fr; }
+}
+
+
+
+/* ============================================================
+   Single-file build additions
+   ============================================================ */
+main > section { margin-bottom: 80px; }
+main > section + section {
+  padding-top: 60px;
+  border-top: 1px solid var(--rule);
+}
+
+</style>
+</head>
+<body>
+<!-- ============================================================
+     STICKY HEADER, on every page. Only the two text nodes change.
+     ============================================================ -->
+<header class="page-header">
+  <a class="brand" href="#page-cover">
+    <div class="title">{{GUIDE TITLE}}</div>
+    <div class="subtitle">No. {{NN}} &middot; Field Guide &middot; version {{0.1}}</div>
+  </a>
+  <div class="header-meta">
+    <a href="#page-cover">Contents</a>
+    <span>WP Labs</span>
+  </div>
+</header>
+
+<!-- ============================================================
+     COVER + CONTENTS. One toc-grid per group; groups are announced
+     by the inline-styled h2 above them. Keep the inline styles as-is.
+     ============================================================ -->
+<section id="page-cover">
+<header class="cover">
+  <div class="eyebrow">Field Guide &middot; No. {{NN}}</div>
+  <h1>{{Title with the}} <em>{{key phrase in italic}}</em></h1>
+  <p class="lede">
+    {{Two to four sentences. State what the guide is a guide to, then name the two or
+    three ideas it rests on, each wrapped in <em>. This is the abstract; a reader who
+    stops here should still know the thesis.}}
+  </p>
+  <div class="meta">
+    <div class="field">
+      <div class="label">Audience</div>
+      <div class="value">{{Engineers &amp; architects}}</div>
+    </div>
+    <div class="field">
+      <div class="label">Surface</div>
+      <div class="value">{{What the reader is building}}</div>
+    </div>
+    <div class="field">
+      <div class="label">Status</div>
+      <div class="value">For review</div>
+    </div>
+  </div>
+</header>
+
+<div style="max-width: var(--max-width); margin: 0 auto; padding: 60px var(--gutter) 0;">
+  <h2 style="font-family: 'Source Serif 4', serif; font-weight: 400; font-size: 32px; letter-spacing: -0.015em; margin: 0 0 8px;">
+    <span style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; letter-spacing: 0.2em; color: var(--accent); text-transform: uppercase; display: block; margin-bottom: 12px; font-weight: 500;">Introduction</span>
+  </h2>
+</div>
+
+<div style="max-width: var(--max-width); margin: 0 auto; padding: 0 var(--gutter);">
+  <div class="toc-grid">
+    <a href="#page-about"><span class="num">01</span><span class="title">About this guide</span><span class="desc">{{One sentence: what the guide covers, who it is for, how it is organized.}}</span></a>
+  </div>
+</div>
+
+<div style="max-width: var(--max-width); margin: 40px auto 0; padding: 0 var(--gutter);">
+  <h2 style="font-family: 'Source Serif 4', serif; font-weight: 400; font-size: 32px; letter-spacing: -0.015em; margin: 0 0 8px;">
+    <span style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; letter-spacing: 0.2em; color: var(--accent); text-transform: uppercase; display: block; margin-bottom: 12px; font-weight: 500;">The approach</span>
+    {{N decisions, in the order you make them}}
+  </h2>
+</div>
+
+<div style="max-width: var(--max-width); margin: 0 auto; padding: 0 var(--gutter);">
+  <div class="toc-grid">
+    <a href="#page-first"><span class="num">02 &middot; {{Group}}</span><span class="title">{{Section title}}</span><span class="desc">{{One or two sentences stating the decision, not the topic.}}</span></a>
+    <!-- one <a> per section, in reading order; the num carries "NN · Group" -->
+    <div class="coming-soon"><span class="num">{{NN}} &middot; Planned</span><span class="title">{{Section title}}</span><span class="desc">{{What it will cover.}}</span></div>
+  </div>
+</div>
+
+<div style="max-width: var(--max-width); margin: 40px auto 0; padding: 0 var(--gutter);">
+  <h2 style="font-family: 'Source Serif 4', serif; font-weight: 400; font-size: 32px; letter-spacing: -0.015em; margin: 0 0 8px;">
+    <span style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; letter-spacing: 0.2em; color: var(--accent); text-transform: uppercase; display: block; margin-bottom: 12px; font-weight: 500;">Walkthrough</span>
+    Putting it together
+  </h2>
+</div>
+
+<div style="max-width: var(--max-width); margin: 0 auto; padding: 0 var(--gutter) 60px;">
+  <div class="toc-grid">
+    <a href="#page-walkthrough"><span class="num">{{NN}} &middot; Walkthrough</span><span class="title">End to end</span><span class="desc">{{The whole guide applied to one concrete case.}}</span></a>
+  </div>
+</div>
+
+</section>
+
+<!-- ============================================================
+     BODY. aside.toc mirrors the cover groups; every list-item href must
+     resolve to a section id, or the scroll-spy silently skips it.
+     ============================================================ -->
+<div class="shell">
+<aside class="toc">
+  <h4>Introduction</h4>
+  <ol>
+    <li><a href="#page-about">About this guide</a></li>
+  </ol>
+  <h4>{{Group}}</h4>
+  <ol>
+    <li><a href="#page-first">{{Short label, not the full title}}</a></li>
+  </ol>
+  <h4>Walkthrough</h4>
+  <ol>
+    <li><a href="#page-walkthrough">End to end</a></li>
+  </ol>
+</aside>
+
+<main>
+<section id="page-about">
+<h2>About this guide</h2>
+<p class="section-lede">
+  {{One or two sentences. Italic by CSS; do not add <em>.}}
+</p>
+
+<p>
+  {{Open on the problem, not on the document. What goes wrong without this guide.}}
+</p>
+
+<h3>How to read this guide</h3>
+<p>
+  {{Name each group and what it is for, in order.}}
+</p>
+
+</section><section id="page-first">
+<h2>{{Section title}}</h2>
+<p class="section-lede">
+  {{The decision, in one or two sentences.}}
+</p>
+
+<p>
+  {{Prose. Sentence case headings, no bold for emphasis: <strong> marks a defined term.}}
+</p>
+
+<h3>{{Sub-heading}}</h3>
+<ul>
+  <li><strong>{{Named thing}}.</strong> {{What it is and why it is the right choice.}}</li>
+</ul>
+
+<!-- TABLE: comparison of options, columns, or stages. -->
+<table>
+<thead><tr><th>{{column}}</th><th>{{column}}</th></tr></thead>
+<tbody>
+<tr><td><code>{{value}}</code></td><td>{{value}}</td></tr>
+</tbody>
+</table>
+
+<!-- CODE FIGURE: dark panel. Escape &lt; &gt; &amp;. Syntax tints:
+     tok-key (keywords), tok-field (strings/identifiers),
+     tok-sub (secondary), tok-comment (comments). Number as Fig. N.n. -->
+<figure class="code-figure">
+<pre><span class="tok-comment"># {{a comment that explains the point of the snippet}}</span>
+<span class="tok-key">def</span> {{example}}(arg):
+    <span class="tok-key">return</span> <span class="tok-field">"value"</span></pre>
+<figcaption><span class="fignum">Fig. 2.1</span>{{What the figure demonstrates, as a statement.}}</figcaption>
+</figure>
+
+<!-- SVG FIGURE: light panel. viewBox="0 0 760 H", H trimmed to the
+     content. Use .svg-label / .svg-title / .svg-body / .svg-mono.
+     Accent fill #dce9f0 + stroke #005581 for emphasis; #f4f7fa + #d0d7df
+     for neutral; a 3px top bar to colour-code a box. -->
+<figure>
+<svg viewBox="0 0 760 84" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="{{what the diagram shows}}">
+  <defs>
+    <marker id="arrow-x" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <polygon points="0 0, 8 4, 0 8" fill="#2b2b2b"/>
+    </marker>
+  </defs>
+  <g transform="translate(170, 16)">
+    <rect width="420" height="64" fill="#f4f7fa" stroke="#d0d7df"/>
+    <rect width="420" height="3" fill="#005581"/>
+    <text class="svg-label" x="16" y="26">{{STAGE 01 &middot; LABEL}}</text>
+    <text class="svg-title" x="16" y="46">{{Title}}</text>
+    <text class="svg-mono" x="16" y="60" style="fill:#9f9f9f">{{secondary note}}</text>
+  </g>
+</svg>
+<figcaption><span class="fignum">Fig. 2.2</span>{{What the diagram shows.}}</figcaption>
+</figure>
+
+<!-- COLLAPSIBLE EXAMPLE: the project-specific instance. Generic prose
+     stays in the section; concrete names, schemas, and code go here. -->
+<details class="example">
+<summary>Example &middot; {{Domain}}: {{what this shows}}</summary>
+<div class="example-body">
+  <p>
+    {{Why this instance is worth reading.}}
+  </p>
+  <figure class="code-figure">
+<pre>{{code}}</pre>
+    <figcaption><span class="fignum">Fig. 2.3</span>{{Caption.}}</figcaption>
+  </figure>
+</div>
+</details>
+
+<!-- CALLOUT: closes a section. Default variant for the principle;
+     .neutral for an aside; .preliminary for something not yet settled. -->
+<div class="callout">
+  <span class="label">Principle</span>
+  <p>
+    {{The section's decision restated so it survives on its own.}}
+  </p>
+</div>
+
+</section><section id="page-walkthrough">
+<h2>End to end</h2>
+<p class="section-lede">
+  {{One concrete case traced through every section above.}}
+</p>
+
+<ol>
+  <li><strong>{{Stage}}.</strong> {{What happens, with real numbers.}}
+  <em>(<a href="#page-first">Section 2</a>.)</em></li>
+</ol>
+
+<div class="callout neutral">
+  <span class="label">Where to start</span>
+  <p>
+    {{The two or three highest-return changes, in order, for a reader who cannot do all of it.}}
+  </p>
+</div>
+
+</section>
+</main>
+</div>
+<footer class="doc-foot">
+  <div>Field Guide &middot; No. {{NN}} &middot; version {{0.1}}</div>
+  <div>WP Labs</div>
+</footer>
+
+<!-- Scroll-spy for aside.toc. Self-contained: no external assets. -->
+<script>
+
+(function() {
+  function init() {
+    var links = document.querySelectorAll('aside.toc a[href^="#page-"]');
+    var items = [];
+    links.forEach(function(a) {
+      var id = a.getAttribute('href').slice(1);
+      var section = document.getElementById(id);
+      var li = a.closest('li');
+      if (section && li) items.push({ section: section, li: li });
+    });
+    if (items.length === 0) return;
+
+    var activeIdx = -1;
+    var offset = 120;
+
+    function update() {
+      var idx = -1;
+      for (var i = 0; i < items.length; i++) {
+        var top = items[i].section.getBoundingClientRect().top;
+        if (top - offset <= 0) idx = i; else break;
+      }
+      if (idx !== activeIdx) {
+        if (activeIdx >= 0) items[activeIdx].li.classList.remove('current');
+        if (idx >= 0) items[idx].li.classList.add('current');
+        activeIdx = idx;
+      }
+    }
+
+    var scheduled = false;
+    function onScroll() {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(function() { update(); scheduled = false; });
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    update();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+
+</script>
+</body>
+</html>
