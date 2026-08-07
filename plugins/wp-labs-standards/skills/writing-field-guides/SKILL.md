@@ -19,9 +19,6 @@ decisions in general terms, one per numbered section, each closing with the prin
 it. It is a reference someone returns to, not a narrative of how one project went. The house
 style is fixed: same stylesheet, same components, same numbering, so guides read as one series.
 
-Numbering is series-wide (`No. 01`, `No. 02`, ...). Check the existing guides before claiming a
-number.
-
 ## Workflow
 
 1. **Gather the material first.** A field guide is only worth writing from something that was
@@ -31,6 +28,9 @@ number.
 2. **Decide the section list before writing prose.** One decision per section, in the order a
    reader would make them. Group sections (`Foundations`, `Acquisition`, `Safety`, ...) and put
    a `Walkthrough` last. Fifteen to twenty sections is a full guide; eight is a short one.
+   If the project is deployed somewhere (a service, a scheduled pipeline, a target
+   environment), include a deployment section: how it ships, where it runs, and how it is
+   operated. Omit it for guides with nothing to deploy.
 3. **Copy the template.** `assets/field-guide-template.html` is the boilerplate: head, the
    complete stylesheet, the cover, the sticky TOC, one worked section containing every
    component, the footer, and the scroll-spy script. Never re-author the CSS.
