@@ -4,7 +4,7 @@ description: >-
   House style for WP Labs field guides and reference-architecture documents: a
   single-file HTML guide with a cover, a sticky table of contents, numbered
   sections, SVG and code figures, and collapsible examples. Invoked ONLY by the
-  explicit /writing-field-guides command, never auto-run — use it when asked to
+  explicit /writing-field-guides command. Never auto-run: use it when asked to
   write, extend, or restyle a field guide.
 user-invocable: true
 disable-model-invocation: true
@@ -45,7 +45,7 @@ style is fixed: same stylesheet, same components, same numbering, so guides read
 | Cover `h1` | Short title, one phrase wrapped in `<em>` for the italic |
 | Cover `.lede` | Two to four sentences: what the guide is a guide to, then the two or three ideas it rests on, each in `<em>` |
 | Cover `.meta` | Three or four fields (Audience, Surface, Status). Status is `For review` until it is not |
-| Contents | Break the approach into its topic groups: one `.grid-group-label` + `.toc-grid` pair per group, in the same order and with the same names as the `aside.toc` groups — never one flat grid. `.num` carries `NN · Group`. Planned sections use `.coming-soon`, which is not a link |
+| Contents | Break the approach into its topic groups: one `.grid-group-label` + `.toc-grid` pair per group, in the same order and with the same names as the `aside.toc` groups (never one flat grid). `.num` carries `NN · Group`. Planned sections use `.coming-soon`, which is not a link |
 | `aside.toc` | Mirrors the cover groups. Short labels, not full section titles. Every `href` must resolve to a `<section id>` |
 | Section 01 | Always `About this guide`: the problem, who the guide is for, what is out of scope, and how to read it |
 | Body section | `h2` title, `p.section-lede`, prose with `h3` sub-headings, figures, then a closing `.callout` |
@@ -70,13 +70,13 @@ Every section id is `page-<slug>`, and sections are written adjacent
 When the guide documents a pipeline, say for each step whether its work can be outsourced to
 an external or paid service (for fetching, the reference is Oxylabs), and when to switch:
 
-- The stage table gets an **outsourceable** column: `yes — paid tier (NN)` linking to the
+- The stage table gets an **outsourceable** column: `yes, paid tier (NN)` linking to the
   section that covers the service, or `no` with the reason (`no network`, `human judgment`).
 - The contents grid marks eligible steps with `<span class="tag-paid">{{service}}-eligible</span>`
   after the `.desc` span, and a `.grid-legend` under the approach `h2` states the switch
   condition once.
 - State the **when** explicitly, and default to not outsourcing: route per domain, only after
-  the run history shows repeated blocks (typed give-ups), never as the default — paid requests
+  the run history shows repeated blocks (typed give-ups), never as the default. Paid requests
   are metered and most domains never need them.
 
 Prefer figures over prose for anything with shape: a pipeline, a set of links between tables, a
@@ -135,12 +135,13 @@ Run these before calling a guide done:
 python3 - <<'EOF'
 import re
 h = open('<guide>.html').read()
-ids   = set(re.findall(r'<section id="([^"]+)"', h))
-hrefs = set(re.findall(r'href="#([^"]+)"', h))
+h_no_comments = re.sub(r'<!--.*?-->', '', h, flags=re.DOTALL)
+ids   = set(re.findall(r'<section id="([^"]+)"', h_no_comments))
+hrefs = set(re.findall(r'href="#([^"]+)"', h_no_comments))
 print("dangling hrefs:", sorted(hrefs - ids - {'page-cover'}))
 print("unlinked sections:", sorted(ids - hrefs))
 for t in ('section','details','figure','table','main','aside','p','li','ol','ul','h2','h3'):
-    o, c = len(re.findall(rf'<{t}[ >]', h)), len(re.findall(rf'</{t}>', h))
+    o, c = len(re.findall(rf'<{t}[ >]', h_no_comments)), len(re.findall(rf'</{t}>', h_no_comments))
     if o != c: print(f"MISMATCH {t}: {o} open / {c} close")
 print("em-dashes:", h.count('—'))
 EOF
