@@ -779,6 +779,37 @@ details.example .example-body p { font-size: 15px; }
 
 
 /* ============================================================
+   Contents groupings + outsourceable-step badges
+   ============================================================ */
+.grid-group-label {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  font-weight: 500;
+  margin: 30px 0 0;
+}
+.grid-legend {
+  font-size: 13.5px;
+  color: var(--ink-3);
+  margin: 10px 0 0;
+}
+.tag-paid {
+  display: inline-block;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #8a4d10;
+  background: #fdf1e2;
+  border: 1px solid #c97a1f;
+  padding: 1px 7px;
+  margin-top: 6px;
+  border-radius: 2px;
+}
+
+/* ============================================================
    Single-file build additions
    ============================================================ */
 main > section { margin-bottom: 80px; }
@@ -853,9 +884,16 @@ main > section + section {
 </div>
 
 <div style="max-width: var(--max-width); margin: 0 auto; padding: 0 var(--gutter);">
+  <!-- One .grid-group-label + .toc-grid pair per topic group, in the same order and with
+       the same names as the aside.toc groups. Do not put all sections in one flat grid. -->
+  <div class="grid-group-label">{{Group}}</div>
   <div class="toc-grid">
     <a href="#page-first"><span class="num">02 &middot; {{Group}}</span><span class="title">{{Section title}}</span><span class="desc">{{One or two sentences stating the decision, not the topic.}}</span></a>
-    <!-- one <a> per section, in reading order; the num carries "NN · Group" -->
+    <!-- one <a> per section, in reading order; the num carries "NN · Group".
+         Steps whose work can be outsourced to an external/paid service carry a badge
+         AFTER the desc span, plus a .grid-legend under the approach h2 naming the
+         service and the switch condition:
+         <span class="tag-paid">{{service}}-eligible</span> -->
     <div class="coming-soon"><span class="num">{{NN}} &middot; Planned</span><span class="title">{{Section title}}</span><span class="desc">{{What it will cover.}}</span></div>
   </div>
 </div>

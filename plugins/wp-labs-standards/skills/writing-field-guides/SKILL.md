@@ -38,7 +38,7 @@ number.
 | Cover `h1` | Short title, one phrase wrapped in `<em>` for the italic |
 | Cover `.lede` | Two to four sentences: what the guide is a guide to, then the two or three ideas it rests on, each in `<em>` |
 | Cover `.meta` | Three or four fields (Audience, Surface, Status). Status is `For review` until it is not |
-| Contents | One `.toc-grid` per group, announced by the inline-styled `h2`. `.num` carries `NN · Group`. Planned sections use `.coming-soon`, which is not a link |
+| Contents | Break the approach into its topic groups: one `.grid-group-label` + `.toc-grid` pair per group, in the same order and with the same names as the `aside.toc` groups — never one flat grid. `.num` carries `NN · Group`. Planned sections use `.coming-soon`, which is not a link |
 | `aside.toc` | Mirrors the cover groups. Short labels, not full section titles. Every `href` must resolve to a `<section id>` |
 | Section 01 | Always `About this guide`: the problem, who the guide is for, what is out of scope, and how to read it |
 | Body section | `h2` title, `p.section-lede`, prose with `h3` sub-headings, figures, then a closing `.callout` |
@@ -57,6 +57,20 @@ Every section id is `page-<slug>`, and sections are written adjacent
 - **What is out of scope**, explicitly. Documented, a gap is a known limitation; undocumented,
   it presents as a defect.
 - **A closing `.callout`** restating the decision so it survives on its own.
+
+## Pipelines and outsourceable steps
+
+When the guide documents a pipeline, say for each step whether its work can be outsourced to
+an external or paid service (for fetching, the reference is Oxylabs), and when to switch:
+
+- The stage table gets an **outsourceable** column: `yes — paid tier (NN)` linking to the
+  section that covers the service, or `no` with the reason (`no network`, `human judgment`).
+- The contents grid marks eligible steps with `<span class="tag-paid">{{service}}-eligible</span>`
+  after the `.desc` span, and a `.grid-legend` under the approach `h2` states the switch
+  condition once.
+- State the **when** explicitly, and default to not outsourcing: route per domain, only after
+  the run history shows repeated blocks (typed give-ups), never as the default — paid requests
+  are metered and most domains never need them.
 
 Prefer figures over prose for anything with shape: a pipeline, a set of links between tables, a
 specificity ranking, a log excerpt. One figure per idea, numbered `Fig. <section>.<n>`.
@@ -91,7 +105,9 @@ read-only: adding a component means copying an existing one, not writing new CSS
   at the bottom. Do not reference an `assets/toc.js`.
 - Components, all in the template: `.callout` (plus `.neutral`, `.preliminary`),
   `figure.code-figure` with `.tok-*` tints, plain `figure` for SVG, `table`,
-  `details.example` + `.example-body`, `.two-col` + `.card`, `nav.pager`, `.part-banner`.
+  `details.example` + `.example-body`, `.two-col` + `.card`, `nav.pager`, `.part-banner`,
+  `.grid-group-label` + `.grid-legend` + `.tag-paid` (contents groupings and
+  outsourceable-step badges).
 - SVG: `viewBox="0 0 760 H"` with `H` trimmed to the content, so the figure has no dead space.
   Use `.svg-label` / `.svg-title` / `.svg-body` / `.svg-mono`, accent fill `#dce9f0` with
   stroke `#005581` for emphasis and `#f4f7fa` / `#d0d7df` for neutral, and an `aria-label`.
