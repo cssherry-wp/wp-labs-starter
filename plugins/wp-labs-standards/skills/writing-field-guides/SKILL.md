@@ -1,6 +1,13 @@
 ---
 name: writing-field-guides
-description: Use when asked to write, extend, or restyle a WP Labs field guide or reference-architecture document — a single-file HTML guide with a cover, a sticky table of contents, numbered sections, SVG and code figures, and collapsible examples. Triggers on "field guide", "reference architecture doc", "write this up as a guide", "document these learnings", or a request to match an existing archetype/field-guide HTML file.
+description: >-
+  House style for WP Labs field guides and reference-architecture documents: a
+  single-file HTML guide with a cover, a sticky table of contents, numbered
+  sections, SVG and code figures, and collapsible examples. Invoked ONLY by the
+  explicit /writing-field-guides command, never auto-run — use it when asked to
+  write, extend, or restyle a field guide.
+user-invocable: true
+disable-model-invocation: true
 ---
 
 # Writing Field Guides
