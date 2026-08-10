@@ -85,13 +85,30 @@ To add another summarizer backend, add a case to `run_summarizer()` in `summariz
 
 The session dashboard (`session-dashboard.html`) shows Claude and Pi sessions together. Add a Pi sessions folder with the `⊕ Pi folder` button (appears once a Claude folder is loaded), filter by source with the `Source: All | Claude | Pi` pills in the filter bar, and spot Pi rows by the `Pi` badge next to the model name. Pi rows always show `—` for cost.
 
+## Comparing summarizer models
+
+`compare_models.py` scores summarizer output across models so you can see how a local model stacks up against the Claude default. Run the summarizer once per model into a separate DB named `test_<model>.db` (alongside the default `session_summaries.db`) in your analytics dir, then:
+
+```bash
+python3 compare_models.py \
+  --analytics-dir ~/ClaudeAnalytics \   # dir holding session_summaries.db + test_*.db
+  --default-db ~/ClaudeAnalytics/session_summaries.db \  # scoring reference
+  --out ~/ClaudeAnalytics/compare_models/results.json
+```
+
+It takes the most recent run day from each DB, restricts to the sessions summarized in *every* DB (fair comparison), fuzzy-diffs each model's array fields (`personal_learnings`, `unapplied_improvements`, tasks, flags) against the default, and scores each model 0–100. Output is `results.json` plus a self-contained `model_comparison_dashboard.html` (the `results.json` is baked into the template). Open the HTML to see a leaderboard and per-dimension matched/extra/missed breakdown. If the default DB is missing, the first `test_*.db` becomes the reference and self-scores near 100% (a warning is printed to stderr).
+
 ## Files
 
 ```
 plugins/wp-labs-sdlc/skills/summarize-ai-usage/
 ├── SKILL.md                         # skill entry point
-└── scripts/
-    ├── summarize_ai_usage.py        # main script
-    ├── test_summarize_ai_usage.py   # unit tests (stdlib unittest)
-    └── test_pi_parsing.py           # Pi format detection/parsing tests
+├── scripts/
+│   ├── summarize_ai_usage.py        # main script
+│   ├── compare_models.py            # score summarizer output across models
+│   ├── model_comparison_dashboard.html  # comparison dashboard template
+│   ├── test_summarize_ai_usage.py   # unit tests (stdlib unittest)
+│   └── test_pi_parsing.py           # Pi format detection/parsing tests
+└── tests/
+    └── test_model_comparison_dashboard.py  # Playwright tests for the comparison dashboard
 ```

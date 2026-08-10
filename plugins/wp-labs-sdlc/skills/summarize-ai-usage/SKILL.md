@@ -51,3 +51,8 @@ python3 "$(dirname "$0")/scripts/summarize_ai_usage.py" \
   --output "$HOME/ClaudeAnalytics/session_summaries.db" \
   "$@"
 ```
+
+To compare summarizer output across models, run the summarizer once per model
+into `test_<model>.db` files, then score them with
+`scripts/compare_models.py` (writes `results.json` + a comparison dashboard).
+See [`docs/summarize-ai-usage.md`](../../../../docs/summarize-ai-usage.md) for details.
