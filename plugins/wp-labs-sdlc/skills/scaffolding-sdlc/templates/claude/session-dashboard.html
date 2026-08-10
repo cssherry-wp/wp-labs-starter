@@ -412,11 +412,12 @@ async function tryAutoLoad(){
       setStatus('Click "Allow access" to reload.');showLanding(true);return;
     }
     claudeHandles=permed;
-    // Restore Pi handles
+    // Restore Pi handles. Only auto-restore already-granted ones; requesting
+    // permission needs a user gesture and would throw SecurityError on load,
+    // unwinding to the outer catch and resetting the whole dashboard. Ungranted
+    // Pi folders are re-added via the ⊕ Pi folder button.
     for(const h of piStoredHandles){
-      const perm=await h.queryPermission({mode:'read'});
-      if(perm==='granted')piHandles.push(h);
-      else{const p2=await h.requestPermission({mode:'read'});if(p2==='granted')piHandles.push(h);}
+      try{if(await h.queryPermission({mode:'read'})==='granted')piHandles.push(h);}catch{}
     }
     const cached=await loadCache();
     if(cached){

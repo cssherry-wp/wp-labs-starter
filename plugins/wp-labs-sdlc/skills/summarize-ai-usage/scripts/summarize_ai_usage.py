@@ -21,13 +21,17 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 # (input, output, cache_write, cache_read) per 1M tokens
+# (input, output, cache_write, cache_read) $/MTok. Keep in sync with the
+# PRICING table in session-dashboard.html so DB and dashboard costs agree.
 PRICING: dict[str, tuple[float, float, float, float]] = {
-    "claude-opus-4-8":           (15.0, 75.0,  18.75, 1.5),
-    "claude-opus-4-7":           (15.0, 75.0,  18.75, 1.5),
+    "claude-opus-5":             (5.0,  25.0,  6.25,  0.5),
+    "claude-opus-4-8":           (5.0,  25.0,  6.25,  0.5),
+    "claude-opus-4-7":           (5.0,  25.0,  6.25,  0.5),
+    "claude-opus-4-6":           (5.0,  25.0,  6.25,  0.5),
     "claude-sonnet-4-6":         (3.0,  15.0,  3.75,  0.3),
     "claude-sonnet-4-5":         (3.0,  15.0,  3.75,  0.3),
-    "claude-haiku-4-5":          (0.8,  4.0,   1.0,   0.08),
-    "claude-haiku-4-5-20251001": (0.8,  4.0,   1.0,   0.08),
+    "claude-haiku-4-5":          (1.0,  5.0,   1.25,  0.1),
+    "claude-haiku-4-5-20251001": (1.0,  5.0,   1.25,  0.1),
     "_default":                  (3.0,  15.0,  3.75,  0.3),
 }
 
@@ -131,6 +135,15 @@ def init_db(db_path: Path | str) -> sqlite3.Connection:
             con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
         except sqlite3.OperationalError:
             pass  # column already exists
+    # Path-scheme migration: rows written before source-prefixed paths are keyed
+    # "proj/uuid.jsonl"; the new scan writes "claude/proj/uuid.jsonl". Prefix the
+    # old rows so their hash lookup matches instead of re-summarizing + duplicating.
+    # Idempotent: project dirs start with "-", never "claude/"/"pi/", so a second
+    # run is a no-op. (Fixes: existing DB re-processed and double-counted on upgrade.)
+    con.execute(
+        "UPDATE sessions SET path = 'claude/' || path "
+        "WHERE path NOT LIKE 'claude/%' AND path NOT LIKE 'pi/%'"
+    )
     con.commit()
     return con
 
@@ -319,7 +332,8 @@ def extract_metadata(jsonl_path: Path | str) -> dict[str, Any]:
         "user_turns": user_turns, "assistant_turns": assistant_turns,
         "agents": agents, "away_summary": away_summary,
         "tasks": tasks, "workspace": workspace,
-        "cost_usd": compute_cost(model, inp, out, cw, cr),
+        # No pricing model for local models — docs promise NULL cost for Pi.
+        "cost_usd": None if is_pi else compute_cost(model, inp, out, cw, cr),
     }
 
 
@@ -567,6 +581,9 @@ def _user_parts(content: list) -> list[str]:
     Returns:
         List of formatted part strings.
     """
+    # Pi stores some messages as a plain string rather than a block list.
+    if isinstance(content, str):
+        return [content] if content else []
     parts = []
     for c in content:
         if not isinstance(c, dict):
@@ -594,6 +611,9 @@ def _assistant_parts(content: list) -> list[str]:
     Returns:
         List of formatted part strings.
     """
+    # Pi stores some messages as a plain string rather than a block list.
+    if isinstance(content, str):
+        return [_trim(content, _MAX_ASST_TEXT)] if content else []
     parts = []
     for c in content:
         if not isinstance(c, dict):
@@ -758,8 +778,10 @@ def build_session_block(item: SessionItem, queue_dir: Path | str, full_transcrip
     all_refs = _extract_refs(jsonl_path)
 
     duration = _duration_str(meta.get("started_at"), meta.get("last_activity_at"))
+    cost = meta.get("cost_usd")
+    cost_str = f"${cost:.4f}" if cost is not None else "n/a"
     header = f"Session {uuid} | {project} | {meta.get('started_at', '')}\n"
-    header += f"Duration: {duration} | Cost: ${meta.get('cost_usd', 0):.4f} | Turns: {meta.get('user_turns',0)}u/{meta.get('assistant_turns',0)}a | Model: {meta.get('model', 'unknown')}\n"
+    header += f"Duration: {duration} | Cost: {cost_str} | Turns: {meta.get('user_turns',0)}u/{meta.get('assistant_turns',0)}a | Model: {meta.get('model', 'unknown')}\n"
     inner = f"<title>{title}</title>\n"
     inner += "<tasks>\n" + ("\n".join(task_lines) if task_lines else "(none)") + "\n</tasks>\n"
     inner += f"<queue-items>\n{queue_text}\n</queue-items>\n"
@@ -863,10 +885,9 @@ def _call_omlx(prompt: str, model: str | None) -> tuple[str, dict[str, Any]]:
     except (FileNotFoundError, KeyError, json.JSONDecodeError) as e:
         raise RuntimeError(f"omlx config not readable at {models_path}: {e}") from e
     if not model:
-        try:
-            model = cfg.get("models", [{}])[0].get("id") or ""
-        except (IndexError, AttributeError):
-            model = ""
+        models = cfg.get("models") or []
+        first = models[0] if models else {}
+        model = (first.get("id") if isinstance(first, dict) else None) or ""
     payload = json.dumps({
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
@@ -1029,8 +1050,9 @@ def insert_agents(
 def _coerce_text(value: Any) -> str:
     """Coerce an LLM response field to a plain string.
 
-    Some models return summary_text as a list of bullet strings instead of a
-    single string. Joining preserves content without crashing sqlite3.
+    Some models return summary_text as a list of bullet strings or a dict
+    instead of a single string. Coercing any non-string preserves content
+    without crashing sqlite3 (which cannot bind list/dict TEXT parameters).
 
     Args:
         value: Raw value from the parsed LLM response dict.
@@ -1038,9 +1060,13 @@ def _coerce_text(value: Any) -> str:
     Returns:
         String representation suitable for a TEXT column.
     """
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
     if isinstance(value, list):
         return "\n".join(str(x) for x in value)
-    return value or ""
+    return json.dumps(value)
 
 
 def write_summary(
@@ -1514,8 +1540,9 @@ def main() -> None:
                     help="Directory for trimmed session files (default: <analytics_dir>/session_trimmed)")
     ap.add_argument("--obsidian-dir", default=None, metavar="DIR",
                     help="Save personal learnings as dated markdown files to this Obsidian vault directory (requires --apply-changes)")
-    ap.add_argument("--model", default="claude-sonnet-4-6",
-                    help="Claude model for summarization (default: claude-sonnet-4-6)")
+    ap.add_argument("--model", default=None,
+                    help="Model for summarization. Default: claude backend uses "
+                         "claude-sonnet-4-6; omlx/pi read the model from ~/.pi/agent/models.json")
     ap.add_argument("--since-hours", type=float, default=None, metavar="N",
                     help="Only process sessions whose file was modified in the last N hours")
     ap.add_argument("--pi-dir", default=None, metavar="DIR",
@@ -1539,7 +1566,9 @@ def main() -> None:
     else:
         pi_sessions_dir = Path(args.pi_dir)
 
-    if not sessions_dir.exists():
+    claude_dir_exists = sessions_dir.exists()
+    if not claude_dir_exists and not (pi_sessions_dir and pi_sessions_dir.exists()):
+        # Only a hard error when there's nothing to scan from either source.
         print(f"Sessions directory not found: {sessions_dir}", file=sys.stderr)
         sys.exit(1)
 
@@ -1547,7 +1576,10 @@ def main() -> None:
     archive_dir = Path(args.archive_dir) if args.archive_dir else analytics_dir / "session_trimmed"
 
     con = init_db(args.output)
-    to_process = scan_sessions(sessions_dir, con, since=since, source="claude")
+    to_process = (
+        scan_sessions(sessions_dir, con, since=since, source="claude")
+        if claude_dir_exists else []
+    )
     if pi_sessions_dir and pi_sessions_dir.exists():
         pi_items = scan_sessions(pi_sessions_dir, con, since=since, source="pi")
         to_process.extend(pi_items)

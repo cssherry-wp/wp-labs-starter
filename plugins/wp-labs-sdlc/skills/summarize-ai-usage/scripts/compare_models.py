@@ -15,6 +15,7 @@ import json
 import os
 import re
 import sqlite3
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -144,13 +145,7 @@ def _dedup(lst: list[str]) -> list[str]:
     Returns:
         List with duplicates removed, original order preserved.
     """
-    seen: set[str] = set()
-    out = []
-    for x in lst:
-        if x not in seen:
-            seen.add(x)
-            out.append(x)
-    return out
+    return list(dict.fromkeys(lst))
 
 
 def get_summarized_session_paths(db_path: Path) -> set[str]:
@@ -188,10 +183,7 @@ def find_common_session_paths(db_paths: list[Path]) -> set[str] | None:
     non_empty = [s for s in sets if s]
     if not non_empty:
         return None
-    common = non_empty[0]
-    for s in non_empty[1:]:
-        common = common & s
-    return common
+    return set.intersection(*non_empty)
 
 
 def _fetch_rows_for_date(
@@ -547,6 +539,14 @@ def build_results(analytics_dir: Path, default_db: Path) -> list[dict]:
     if not dbs:
         raise FileNotFoundError(f"No DBs found in {analytics_dir}")
 
+    if not default_db.exists():
+        print(
+            f"WARNING: reference DB {default_db} not found — scoring against "
+            f"'{dbs[0].stem}' instead, which will self-score ~100%. "
+            f"Run the default summarizer first for a meaningful baseline.",
+            file=sys.stderr,
+        )
+
     common = find_common_session_paths(dbs)
     if common is not None:
         print(f"Common sessions across {len(dbs)} DB(s): {len(common)}")
@@ -581,6 +581,9 @@ def write_dashboard(results: list[dict], template_path: Path, out_path: Path) ->
     """
     template = template_path.read_text()
     payload = json.dumps({"models": results}, separators=(",", ":"))
+    # Escape so untrusted summary text can't break out of the inline <script>
+    # (json.dumps leaves <, >, & literal, so a </script> would close the tag).
+    payload = payload.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     html = template.replace(_SENTINEL, f"window.__RESULTS__ = {payload}; // __RESULTS_JSON__")
     out_path.write_text(html)
 

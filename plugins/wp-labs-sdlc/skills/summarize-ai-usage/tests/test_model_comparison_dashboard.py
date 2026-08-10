@@ -13,7 +13,9 @@ import pytest
 from playwright.sync_api import Page, expect
 
 DASHBOARD = (Path(__file__).parent.parent / "scripts" / "model_comparison_dashboard.html").resolve()
-LIVE_DASHBOARD = Path.home() / "ClaudeAnalytics" / "compare_models" / "model_comparison_dashboard.html"
+LIVE_DASHBOARD = (
+    Path.home() / "ClaudeAnalytics" / "compare_models" / "model_comparison_dashboard.html"
+)
 
 
 # ── Synthetic data helpers ────────────────────────────────────────────────────
@@ -57,7 +59,7 @@ def _make_diffs(learnings: list[str], improvements: list[str]) -> dict:
     Returns:
         Diffs dict with empty matched/extra/missed lists for all array fields.
     """
-    empty = {"matched": [], "extra": [], "missed": []}
+    empty: dict = {"matched": [], "extra": [], "missed": []}
     return {
         "personal_learnings":     empty,
         "unapplied_improvements": empty,
@@ -315,7 +317,9 @@ def test_each_tab_panel_has_content(multi_model_dash: Page) -> None:
         panel_id = f"tp-{btn.get_attribute('data-tab')}"
         panel = multi_model_dash.locator(f"#{panel_id}")
         expect(panel).to_be_visible()
-        has_content = panel.locator(".item-chip").count() > 0 or panel.locator(".sum-text").count() > 0
+        has_content = (
+            panel.locator(".item-chip").count() > 0 or panel.locator(".sum-text").count() > 0
+        )
         assert has_content, f"Panel {panel_id} has no content"
 
 
@@ -334,7 +338,9 @@ def test_matched_extra_missed_chips_appear(page: Page, template_url: str) -> Non
     """Models with diff data render matched/extra/missed chips."""
     matched_diffs = {
         "personal_learnings": {
-            "matched": [{"text": "Use git worktrees", "matched_to": "Use git worktrees", "ratio": 1.0}],
+            "matched": [
+                {"text": "Use git worktrees", "matched_to": "Use git worktrees", "ratio": 1.0}
+            ],
             "extra":   [{"text": "New unique finding", "ratio": 0.0}],
             "missed":  [{"text": "Missed item from default"}],
         },

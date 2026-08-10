@@ -37,6 +37,7 @@ def test_extract_metadata_pi():
     assert meta["cache_write_tokens"] == 2
     assert meta["cache_read_tokens"] == 1
     assert meta["model"] == "llama3"
+    assert meta["cost_usd"] is None, "Pi sessions must have NULL cost (no local pricing)"
     pi_path.unlink()
 
 def test_extract_turns_pi():
@@ -46,6 +47,33 @@ def test_extract_turns_pi():
     assert any("Assistant" in t for t in turns)
     assert any("[bash]" in t for t in turns)
     pi_path.unlink()
+
+def test_extract_turns_pi_string_content():
+    # Pi may store message.content as a plain string, not a block list.
+    lines = [
+        {"type": "model_change", "model": "llama3", "timestamp": "2026-07-30T10:00:00Z"},
+        {"type": "message", "message": {"role": "user", "content": "just a string"},
+         "timestamp": "2026-07-30T10:00:01Z"},
+    ]
+    p = write_jsonl(lines)
+    turns = _extract_turns(p)
+    assert any("just a string" in t for t in turns), "string-content turn was dropped"
+    p.unlink()
+
+def test_path_migration_prefixes_legacy_rows(tmp_path):
+    from summarize_ai_usage import init_db
+    db = tmp_path / "legacy.db"
+    con = init_db(db)
+    # Simulate a legacy unprefixed row, then re-open to trigger migration.
+    con.execute("INSERT INTO sessions(path,file_hash,project) VALUES('proj/u.jsonl','h','proj')")
+    con.commit(); con.close()
+    con = init_db(db)
+    row = con.execute("SELECT path FROM sessions").fetchone()
+    assert row[0] == "claude/proj/u.jsonl", f"legacy path not migrated: {row[0]}"
+    # Idempotent: second open leaves it unchanged.
+    con.close(); con = init_db(db)
+    assert con.execute("SELECT path FROM sessions").fetchone()[0] == "claude/proj/u.jsonl"
+    con.close()
 
 def test_scan_sessions_source(tmp_path):
     from summarize_ai_usage import scan_sessions, init_db
