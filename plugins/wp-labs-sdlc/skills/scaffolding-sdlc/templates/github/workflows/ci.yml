@@ -9,7 +9,9 @@ on:
 jobs:
   changes:
     runs-on: ubuntu-latest
-    permissions: { contents: read }
+    # dorny/paths-filter calls the GitHub REST API to list PR files, which needs
+    # pull-requests: read beyond contents: read.
+    permissions: { contents: read, pull-requests: read }
     outputs:
       node: ${{ steps.filter.outputs.node }}
       frontend: ${{ steps.filter.outputs.frontend }}
