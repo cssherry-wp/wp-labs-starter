@@ -71,9 +71,13 @@ python3 summarize_ai_usage.py \
 
 `--model` is passed through to whichever `--summarizer` backend is active. `--summarizer omlx` and `--summarizer pi` read connection/model config from `~/.pi/agent/models.json`.
 
+## Running on a schedule
+
+On macOS, run `/schedule-summarize-ai-usage` to install a launchd LaunchAgent that runs the script directly every night at midnight (no live Claude Code session needed). Remove it with `/unschedule-summarize-ai-usage`. Both are user-invoked only — they make persistent system changes and (on first run) trigger real LLM calls over your full session backlog.
+
 ## Adapting for a team
 
-To run on a schedule (e.g. nightly), invoke the script directly and store the DB file in a shared location (e.g. a network drive or object storage). Do not commit the SQLite binary to git — it has no meaningful merge semantics. Use the `/schedule` skill to set up a cloud agent instead.
+To share results across a team, store the DB file in a shared location (e.g. a network drive or object storage) instead of `~/ClaudeAnalytics/`. Do not commit the SQLite binary to git — it has no meaningful merge semantics.
 
 To tune the confidence threshold, edit `apply_improvements()` in `summarize_ai_usage.py` — the split between queued and unapplied is a single comparison against 75.
 
