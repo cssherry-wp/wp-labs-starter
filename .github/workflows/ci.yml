@@ -14,6 +14,8 @@ jobs:
       dashboard: ${{ steps.filter.outputs.dashboard }}
       bash-tests: ${{ steps.filter.outputs.bash-tests }}
       python: ${{ steps.filter.outputs.python }}
+      compare-models: ${{ steps.filter.outputs.compare-models }}
+      summarize-scripts: ${{ steps.filter.outputs.summarize-scripts }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -30,6 +32,12 @@ jobs:
             python:
               - '**/*.py'
               - '**/pyproject.toml'
+            compare-models:
+              - 'plugins/wp-labs-sdlc/skills/summarize-ai-usage/scripts/compare_models.py'
+              - 'plugins/wp-labs-sdlc/skills/summarize-ai-usage/scripts/model_comparison_dashboard.html'
+              - 'plugins/wp-labs-sdlc/skills/summarize-ai-usage/tests/**'
+            summarize-scripts:
+              - 'plugins/wp-labs-sdlc/skills/summarize-ai-usage/scripts/**'
 
   python-lint:
     name: Python lint & typecheck
@@ -112,6 +120,36 @@ jobs:
       - run: uv sync --locked
       - run: uv run playwright install chromium --with-deps
       - run: uv run pytest
+
+  compare-models-e2e:
+    name: Playwright (model-comparison dashboard)
+    needs: changes
+    if: needs.changes.outputs.compare-models == 'true'
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    defaults:
+      run:
+        working-directory: plugins/wp-labs-sdlc/skills/summarize-ai-usage/tests
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync --locked
+      - run: uv run playwright install chromium --with-deps
+      - run: uv run pytest
+
+  summarize-scripts-tests:
+    name: Python tests (summarize-ai-usage scripts)
+    needs: changes
+    if: needs.changes.outputs.summarize-scripts == 'true'
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    defaults:
+      run:
+        working-directory: plugins/wp-labs-sdlc/skills/summarize-ai-usage/scripts
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - run: uvx pytest test_summarize_ai_usage.py test_pi_parsing.py
 
   bash-tests:
     name: Bash tests

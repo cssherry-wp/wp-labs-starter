@@ -428,6 +428,41 @@ def test_agent_block_shows_cost(dash: Page) -> None:
     expect(dash.locator(".agent-cost")).to_contain_text("$")
 
 
+def test_claude_footer_cost_uses_normalized_pricing(dash: Page) -> None:
+    """The Claude usage-footer cost runs the full chain correctly: parseJSONL
+    strips the `claude-` prefix and dated suffix so getPricing matches, and
+    calcCost bills all four token buckets (in/out/cache-write/cache-read).
+
+    Regression guard: if pricing keys regain a `claude-` prefix, normalization
+    breaks, or a bucket is dropped, the footer would silently show "—" or a
+    wrong dollar amount.
+    """
+    result = dash.evaluate(
+        r"""() => {
+            const line = JSON.stringify({
+                type: "assistant",
+                timestamp: "2026-01-01T00:00:00Z",
+                message: {
+                    model: "claude-sonnet-4-6-20250929",
+                    usage: {
+                        input_tokens: 1000000, output_tokens: 1000000,
+                        cache_creation_input_tokens: 200000,
+                        cache_read_input_tokens: 400000,
+                    },
+                    content: [{type: "text", text: "hi"}],
+                },
+            });
+            const p = parseJSONL(line);
+            return {model: p.model, cost: calcCost(p.model, p.usage, "claude")};
+        }"""
+    )
+    assert result["model"] == "sonnet-4-6", result["model"]
+    # $/MTok: in 3, out 15, cache-write 3.75 (1.25x in), cache-read 0.30
+    expected = (1_000_000 * 3 + 1_000_000 * 15 + 200_000 * 3.75 + 400_000 * 0.30) / 1e6
+    assert result["cost"] is not None, "Claude footer cost was null (getPricing miss)"
+    assert abs(result["cost"] - expected) < 1e-9, (result["cost"], expected)
+
+
 def test_agent_block_shows_tools(dash: Page) -> None:
     """Agent block shows tool names used by the agent."""
     tool_use_id = "toolu_04jkl"
