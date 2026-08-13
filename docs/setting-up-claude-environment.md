@@ -32,6 +32,8 @@ bash plugins/wp-labs-sdlc/skills/scaffolding-sdlc/scripts/setup-claude.sh
 
 The script is interactive: for each file it shows a diff against what's already in `~/.claude/` and prompts `[y/N]` before applying. Identical files are skipped silently.
 
+The config dir defaults to `~/.claude`, but honors `$CLAUDE_CONFIG_DIR` if set. Resolution order: `--claude-dir` > `$CLAUDE_CONFIG_DIR` > `~/.claude`.
+
 Optional flag:
 
 ```bash

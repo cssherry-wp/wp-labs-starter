@@ -1,10 +1,11 @@
 ---
 name: setup-claude
 description: >-
-  Configure the global ~/.claude/ environment (settings, plugins, CLAUDE.md,
-  rules, statusline) from wp-labs-sdlc templates. No args: initial setup on a
-  fresh machine. --sync: non-interactively apply any files that have drifted
-  from the latest plugin templates.
+  Configure the global Claude Code environment (settings, plugins, CLAUDE.md,
+  rules, statusline) from wp-labs-sdlc templates. Uses $CLAUDE_CONFIG_DIR if
+  set, otherwise ~/.claude. No args: initial setup on a fresh machine. --sync:
+  non-interactively apply any files that have drifted from the latest plugin
+  templates.
 user-invocable: true
 argument-hint: "[--sync]"
 disable-model-invocation: true

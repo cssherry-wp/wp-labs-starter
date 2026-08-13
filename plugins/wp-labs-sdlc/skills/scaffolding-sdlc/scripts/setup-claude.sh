@@ -3,6 +3,8 @@
 # Run on a fresh machine before opening any project in Claude Code, or with
 # --sync to non-interactively apply any drifted files.
 #
+# Config dir resolution: --claude-dir > $CLAUDE_CONFIG_DIR > ~/.claude
+#
 # Usage: bash path/to/setup-claude.sh [--claude-dir DIR] [--sync]
 set -euo pipefail
 
@@ -14,7 +16,7 @@ fi
 SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 TMPL="$SKILL_DIR/templates/claude"
 
-CLAUDE_DIR="$HOME/.claude"
+CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 SYNC=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
