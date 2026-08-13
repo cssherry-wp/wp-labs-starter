@@ -2,6 +2,7 @@
 set -euo pipefail
 
 HOOK="$(cd "$(dirname "$0")" && pwd)/pre-commit"
+LIB="$(dirname "$HOOK")/check-plugin-versions"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
@@ -89,7 +90,6 @@ else fail "sdlc version synced -> expected allow"; fi
 git reset -q HEAD plugins/wp-labs-sdlc
 
 # --- CI mode: explicit base/head commits instead of the git index ---
-LIB="$(cd "$(dirname "$0")" && pwd)/check-plugin-versions"
 repo2="$TMP/repo2"
 mkdir -p "$repo2"; cd "$repo2"
 git init -q
@@ -115,6 +115,22 @@ head_sha=$(git rev-parse HEAD)
 out=$(bash "$LIB" "$base_sha" "$head_sha" 2>&1) && rc=0 || rc=$?
 if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q "plugins/foo"; then pass "CI mode: no bump -> blocked"
 else fail "CI mode: no bump -> expected block, got rc=$rc out=$out"; fi
+
+# --- Test 10: pre-existing sdlc drift on base, unrelated change on head -> allowed ---
+git reset -q --hard "$base_sha"
+mkdir -p plugins/wp-labs-sdlc/skills/scaffolding-sdlc/templates/claude
+write_plugin wp-labs-sdlc 1.0.0
+cat > plugins/wp-labs-sdlc/skills/scaffolding-sdlc/templates/claude/statusline.sh <<'EOF'
+#!/usr/bin/env bash
+SDLC_SOURCE_VERSION="0.9.0"
+EOF
+git add -A && git commit -q -m drifted-base
+base_sha=$(git rev-parse HEAD)
+echo unrelated > README.md
+git add README.md && git commit -q -m unrelated
+head_sha=$(git rev-parse HEAD)
+if bash "$LIB" "$base_sha" "$head_sha" > /dev/null 2>&1; then pass "unrelated change, pre-existing sdlc drift -> allowed"
+else fail "unrelated change -> expected allow despite pre-existing sdlc drift"; fi
 
 echo ""
 echo "All tests passed."

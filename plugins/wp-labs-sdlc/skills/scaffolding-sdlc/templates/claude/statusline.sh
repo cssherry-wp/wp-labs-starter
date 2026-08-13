@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ~/.claude/statusline.sh
-# Line 1: folder [branch] | ±N | N% bar | ponytail | model | sid8 | cfg
+# Line 1: folder [branch] | ±N | N% bar | ponytail | model | sid8 | cfg | sdlc vX.Y.Z [(installed vN)]
 # Line 2: "first user msg" → "last user msg"  (if transcript available)
 # SDLC_SOURCE_VERSION must match plugins/wp-labs-sdlc/.claude-plugin/plugin.json's
 # "version" at the time this file was last generated/copied from that template.
