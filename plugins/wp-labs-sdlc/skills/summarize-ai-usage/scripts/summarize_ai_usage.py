@@ -1585,9 +1585,13 @@ def main() -> None:
     _default_analytics = os.environ.get("CLAUDE_ANALYTICS_DIR", os.path.expanduser("~/ClaudeAnalytics"))
     ap = argparse.ArgumentParser(description="Summarize Claude Code sessions via LLM")
     ap.add_argument("--claude-dir", default=os.path.expanduser("~/.claude"),
-                    help="Claude config directory (default: ~/.claude)")
+                    help="Claude config directory, or a comma-separated list of them to "
+                         "summarize several configs in one pass (default: ~/.claude). "
+                         "The projects/ dir of each is scanned; the first is treated as "
+                         "primary for queue/ and CLAUDE.md lookups.")
     ap.add_argument("--sessions-dir", default=None,
-                    help="Session projects directory (default: <claude-dir>/projects)")
+                    help="Session projects directory, overriding every --claude-dir "
+                         "projects/ path (default: <claude-dir>/projects)")
     ap.add_argument("--output", default=os.path.join(_default_analytics, "session_summaries.db"),
                     help="SQLite output path (default: $CLAUDE_ANALYTICS_DIR/session_summaries.db)")
     ap.add_argument("--apply-changes", action="store_true",
@@ -1607,8 +1611,14 @@ def main() -> None:
                     help="Summarization backend (default: claude)")
     args = ap.parse_args()
 
-    claude_dir = Path(args.claude_dir)
-    sessions_dir = Path(args.sessions_dir) if args.sessions_dir else claude_dir / "projects"
+    # Every config dir listed gets its projects/ scanned, so a machine holding
+    # several Claude configs is summarized in one pass. The first is primary: its
+    # queue/ and CLAUDE.md are the ones improvement findings are written against.
+    claude_dirs = [Path(os.path.expanduser(d)) for d in args.claude_dir.split(",") if d.strip()]
+    if not claude_dirs:
+        print("--claude-dir must name at least one directory", file=sys.stderr)
+        sys.exit(1)
+    claude_dir = claude_dirs[0]
     queue_dir = claude_dir / "queue"
     obsidian_dir = Path(args.obsidian_dir) if args.obsidian_dir else None
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -1622,20 +1632,32 @@ def main() -> None:
     else:
         pi_sessions_dir = Path(args.pi_dir)
 
-    claude_dir_exists = sessions_dir.exists()
-    if not claude_dir_exists and not (pi_sessions_dir and pi_sessions_dir.exists()):
-        # Only a hard error when there's nothing to scan from either source.
-        print(f"Sessions directory not found: {sessions_dir}", file=sys.stderr)
+    sessions_dirs = (
+        [Path(args.sessions_dir)] if args.sessions_dir
+        else [d / "projects" for d in claude_dirs]
+    )
+    found_dirs = [d for d in sessions_dirs if d.exists()]
+    has_pi = bool(pi_sessions_dir and pi_sessions_dir.exists())
+    if not found_dirs and not has_pi:
+        # Only a hard error when there's nothing to scan from any source.
+        print(
+            "Sessions directory not found: " + ", ".join(str(d) for d in sessions_dirs),
+            file=sys.stderr,
+        )
         sys.exit(1)
+    for missing in (d for d in sessions_dirs if not d.exists()):
+        print(f"Sessions dir not found (skipped): {missing}", file=sys.stderr)
 
     analytics_dir = Path(args.output).parent
     archive_dir = Path(args.archive_dir) if args.archive_dir else analytics_dir / "session_trimmed"
 
     con = init_db(args.output)
-    to_process = (
-        scan_sessions(sessions_dir, con, since=since, source="claude")
-        if claude_dir_exists else []
-    )
+    to_process = []
+    for d in found_dirs:
+        items = scan_sessions(d, con, since=since, source="claude")
+        to_process.extend(items)
+        if len(found_dirs) > 1:
+            print(f"Scanned {d}: {len(items)} session(s) to process.")
     if pi_sessions_dir and pi_sessions_dir.exists():
         pi_items = scan_sessions(pi_sessions_dir, con, since=since, source="pi")
         to_process.extend(pi_items)
