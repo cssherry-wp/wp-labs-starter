@@ -103,6 +103,70 @@ CREATE TABLE IF NOT EXISTS session_summary_items (
 """
 
 
+# Source labels scan_sessions can prefix a stored path with. A path starting with
+# any of these is already migrated; anything else is a legacy pre-prefix row.
+_SOURCE_PREFIXES = ("claude", "pi")
+
+
+def _migrate_path_scheme(con: sqlite3.Connection) -> None:
+    """Prefix legacy unprefixed session paths with "claude/", merging duplicates.
+
+    Rows written before source-prefixed paths are keyed "proj/uuid.jsonl"; the
+    current scan writes "claude/proj/uuid.jsonl". These are all Claude sessions,
+    so prefixing the old rows keeps their hash lookup matching instead of
+    re-summarizing and double-counting.
+
+    A DB written by the version that emitted prefixed paths but predates this
+    migration holds BOTH twins for the same session file, so a bare UPDATE
+    raises "UNIQUE constraint failed: sessions.path" and no run can ever start.
+    Because sessions.path is UNIQUE, two rows cannot both survive for one file;
+    the twins are merged instead of one being discarded. The prefixed row (the
+    newer write, carrying the current file_hash) is kept, and everything the
+    legacy row holds is moved onto it: its summary links are re-pointed, and
+    any title or away_summary the survivor lacks is carried over. No summary
+    text is deleted.
+
+    Idempotent: an already-prefixed row starts with a known source prefix, so a
+    second run is a no-op. Any new source label added to scan_sessions must be
+    added to _SOURCE_PREFIXES below, or its rows get re-prefixed.
+
+    Args:
+        con: Open connection to migrate, in an uncommitted transaction.
+    """
+    unprefixed = " AND ".join(f"{{col}} NOT LIKE '{p}/%'" for p in _SOURCE_PREFIXES)
+    con.execute(
+        "CREATE TEMP TABLE _dupe_pairs AS "
+        "SELECT o.id AS old_id, n.id AS new_id FROM sessions o "
+        "JOIN sessions n ON n.path = 'claude/' || o.path "
+        f"WHERE {unprefixed.format(col='o.path')}"
+    )
+    # Re-point the legacy row's summary links onto the surviving row. OR IGNORE
+    # covers the case where both twins already link to the same summary; the
+    # leftover duplicate link is removed by the following DELETE.
+    con.execute(
+        "UPDATE OR IGNORE session_summary_items SET session_id = "
+        "(SELECT new_id FROM _dupe_pairs WHERE old_id = session_id) "
+        "WHERE session_id IN (SELECT old_id FROM _dupe_pairs)"
+    )
+    con.execute(
+        "DELETE FROM session_summary_items WHERE session_id IN (SELECT old_id FROM _dupe_pairs)"
+    )
+    # Carry over user-authored and derived text the surviving row is missing.
+    for col in ("user_title", "ai_title", "away_summary", "workspace"):
+        con.execute(
+            f"UPDATE sessions SET {col} = COALESCE({col}, "
+            f"(SELECT o.{col} FROM sessions o JOIN _dupe_pairs p ON p.old_id = o.id "
+            "WHERE p.new_id = sessions.id)) "
+            f"WHERE {col} IS NULL AND id IN (SELECT new_id FROM _dupe_pairs)"
+        )
+    con.execute("DELETE FROM sessions WHERE id IN (SELECT old_id FROM _dupe_pairs)")
+    con.execute("DROP TABLE _dupe_pairs")
+    con.execute(
+        "UPDATE sessions SET path = 'claude/' || path "
+        f"WHERE {unprefixed.format(col='path')}"
+    )
+
+
 def init_db(db_path: Path | str) -> sqlite3.Connection:
     """Create the database and schema if needed; return an open connection.
 
@@ -135,15 +199,7 @@ def init_db(db_path: Path | str) -> sqlite3.Connection:
             con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
         except sqlite3.OperationalError:
             pass  # column already exists
-    # Path-scheme migration: rows written before source-prefixed paths are keyed
-    # "proj/uuid.jsonl"; the new scan writes "claude/proj/uuid.jsonl". Prefix the
-    # old rows so their hash lookup matches instead of re-summarizing + duplicating.
-    # Idempotent: project dirs start with "-", never "claude/"/"pi/", so a second
-    # run is a no-op. (Fixes: existing DB re-processed and double-counted on upgrade.)
-    con.execute(
-        "UPDATE sessions SET path = 'claude/' || path "
-        "WHERE path NOT LIKE 'claude/%' AND path NOT LIKE 'pi/%'"
-    )
+    _migrate_path_scheme(con)
     con.commit()
     return con
 
@@ -1529,9 +1585,13 @@ def main() -> None:
     _default_analytics = os.environ.get("CLAUDE_ANALYTICS_DIR", os.path.expanduser("~/ClaudeAnalytics"))
     ap = argparse.ArgumentParser(description="Summarize Claude Code sessions via LLM")
     ap.add_argument("--claude-dir", default=os.path.expanduser("~/.claude"),
-                    help="Claude config directory (default: ~/.claude)")
+                    help="Claude config directory, or a comma-separated list of them to "
+                         "summarize several configs in one pass (default: ~/.claude). "
+                         "The projects/ dir of each is scanned; the first is treated as "
+                         "primary for queue/ and CLAUDE.md lookups.")
     ap.add_argument("--sessions-dir", default=None,
-                    help="Session projects directory (default: <claude-dir>/projects)")
+                    help="Session projects directory, overriding every --claude-dir "
+                         "projects/ path (default: <claude-dir>/projects)")
     ap.add_argument("--output", default=os.path.join(_default_analytics, "session_summaries.db"),
                     help="SQLite output path (default: $CLAUDE_ANALYTICS_DIR/session_summaries.db)")
     ap.add_argument("--apply-changes", action="store_true",
@@ -1551,8 +1611,14 @@ def main() -> None:
                     help="Summarization backend (default: claude)")
     args = ap.parse_args()
 
-    claude_dir = Path(args.claude_dir)
-    sessions_dir = Path(args.sessions_dir) if args.sessions_dir else claude_dir / "projects"
+    # Every config dir listed gets its projects/ scanned, so a machine holding
+    # several Claude configs is summarized in one pass. The first is primary: its
+    # queue/ and CLAUDE.md are the ones improvement findings are written against.
+    claude_dirs = [Path(os.path.expanduser(d)) for d in args.claude_dir.split(",") if d.strip()]
+    if not claude_dirs:
+        print("--claude-dir must name at least one directory", file=sys.stderr)
+        sys.exit(1)
+    claude_dir = claude_dirs[0]
     queue_dir = claude_dir / "queue"
     obsidian_dir = Path(args.obsidian_dir) if args.obsidian_dir else None
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -1566,20 +1632,32 @@ def main() -> None:
     else:
         pi_sessions_dir = Path(args.pi_dir)
 
-    claude_dir_exists = sessions_dir.exists()
-    if not claude_dir_exists and not (pi_sessions_dir and pi_sessions_dir.exists()):
-        # Only a hard error when there's nothing to scan from either source.
-        print(f"Sessions directory not found: {sessions_dir}", file=sys.stderr)
+    sessions_dirs = (
+        [Path(args.sessions_dir)] if args.sessions_dir
+        else [d / "projects" for d in claude_dirs]
+    )
+    found_dirs = [d for d in sessions_dirs if d.exists()]
+    has_pi = bool(pi_sessions_dir and pi_sessions_dir.exists())
+    if not found_dirs and not has_pi:
+        # Only a hard error when there's nothing to scan from any source.
+        print(
+            "Sessions directory not found: " + ", ".join(str(d) for d in sessions_dirs),
+            file=sys.stderr,
+        )
         sys.exit(1)
+    for missing in (d for d in sessions_dirs if not d.exists()):
+        print(f"Sessions dir not found (skipped): {missing}", file=sys.stderr)
 
     analytics_dir = Path(args.output).parent
     archive_dir = Path(args.archive_dir) if args.archive_dir else analytics_dir / "session_trimmed"
 
     con = init_db(args.output)
-    to_process = (
-        scan_sessions(sessions_dir, con, since=since, source="claude")
-        if claude_dir_exists else []
-    )
+    to_process = []
+    for d in found_dirs:
+        items = scan_sessions(d, con, since=since, source="claude")
+        to_process.extend(items)
+        if len(found_dirs) > 1:
+            print(f"Scanned {d}: {len(items)} session(s) to process.")
     if pi_sessions_dir and pi_sessions_dir.exists():
         pi_items = scan_sessions(pi_sessions_dir, con, since=since, source="pi")
         to_process.extend(pi_items)

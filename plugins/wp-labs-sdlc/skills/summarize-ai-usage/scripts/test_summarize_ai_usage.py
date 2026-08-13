@@ -21,6 +21,7 @@ from summarize_ai_usage import (
     _save_learnings_to_obsidian,
     _user_parts,
     init_db,
+    main,
     _resolve_improvement_dest,
     apply_improvements,
     compute_cost,
@@ -709,6 +710,170 @@ class TestPersonalLearnings(unittest.TestCase):
             self.assertIn("personal_learnings", cols)
         finally:
             Path(db_path).unlink(missing_ok=True)
+
+
+class TestPathSchemeMigration(unittest.TestCase):
+    """init_db migrates legacy unprefixed session paths to "claude/" paths."""
+
+    def _seed(self, db_path: str, rows: list[tuple[str, str]], titles: dict[int, str] | None = None) -> None:
+        """Create a sessions/summaries DB and insert (path, file_hash) rows.
+
+        Args:
+            db_path: Path to the SQLite file to create.
+            rows: (path, file_hash) pairs to insert, each linked to its own summary.
+            titles: Optional {row number: user_title} to set on specific rows.
+        """
+        titles = titles or {}
+        con = init_db(db_path)
+        for i, (path, file_hash) in enumerate(rows, start=1):
+            con.execute(
+                "INSERT INTO sessions (id, path, file_hash, project, user_title) "
+                "VALUES (?, ?, ?, 'proj', ?)",
+                (i, path, file_hash, titles.get(i)),
+            )
+            con.execute(
+                "INSERT INTO summaries (id, created_at, summary_text) VALUES (?, '2026-01-01', ?)",
+                (i, f"summary-{i}"),
+            )
+            con.execute(
+                "INSERT INTO session_summary_items (session_id, summary_id) VALUES (?, ?)", (i, i)
+            )
+        con.commit()
+        con.close()
+
+    def test_unprefixed_paths_get_prefixed(self) -> None:
+        """A legacy-only DB has its paths prefixed, with no rows lost."""
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = str(Path(tmp) / "legacy.db")
+            self._seed(db_path, [("-proj/a.jsonl", "h1"), ("-proj/b.jsonl", "h2")])
+            con = init_db(db_path)
+            paths = {r[0] for r in con.execute("SELECT path FROM sessions")}
+            con.close()
+            self.assertEqual(paths, {"claude/-proj/a.jsonl", "claude/-proj/b.jsonl"})
+
+    def test_duplicate_twin_is_merged_not_dropped(self) -> None:
+        """A half-migrated DB holding both twins merges them, keeping all summaries.
+
+        Regression: init_db crashed with "UNIQUE constraint failed: sessions.path",
+        blocking every scheduled run. sessions.path is UNIQUE so only one row can
+        hold the path, but no summary text may be lost in the merge.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = str(Path(tmp) / "half.db")
+            self._seed(
+                db_path,
+                [
+                    ("-proj/a.jsonl", "old"),         # legacy twin, summary 1, has a title
+                    ("claude/-proj/a.jsonl", "new"),  # prefixed twin, summary 2, no title
+                    ("-proj/b.jsonl", "solo"),        # legacy, no twin
+                ],
+                titles={1: "kept-title"},
+            )
+            con = init_db(db_path)  # must not raise
+            rows = dict(con.execute("SELECT path, file_hash FROM sessions"))
+            summaries = {r[0] for r in con.execute("SELECT id FROM summaries")}
+            title = con.execute(
+                "SELECT user_title FROM sessions WHERE path='claude/-proj/a.jsonl'"
+            ).fetchone()[0]
+            merged_links = {
+                r[0] for r in con.execute(
+                    "SELECT i.summary_id FROM session_summary_items i JOIN sessions s "
+                    "ON s.id = i.session_id WHERE s.path='claude/-proj/a.jsonl'"
+                )
+            }
+            orphans = con.execute(
+                "SELECT COUNT(*) FROM session_summary_items "
+                "WHERE session_id NOT IN (SELECT id FROM sessions)"
+            ).fetchone()[0]
+            con.close()
+            self.assertEqual(rows, {"claude/-proj/a.jsonl": "new", "claude/-proj/b.jsonl": "solo"})
+            self.assertEqual(summaries, {1, 2, 3}, "no summary text may be deleted")
+            self.assertEqual(merged_links, {1, 2}, "both twins' summaries link to the survivor")
+            self.assertEqual(title, "kept-title", "legacy title must carry over to the survivor")
+            self.assertEqual(orphans, 0, "no link may point at a deleted row")
+
+    def test_secondary_config_sessions_share_the_claude_prefix(self) -> None:
+        """Sessions from a secondary config dir are stored under "claude/".
+
+        They are Claude sessions like any other, so they must not create a new
+        prefix that the migration would later treat as a legacy row.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            proj_dir = Path(tmp) / "projects" / "-other-proj"
+            proj_dir.mkdir(parents=True)
+            _write_jsonl(proj_dir / "s.jsonl", [_USER, _ASSISTANT])
+            con = init_db(str(Path(tmp) / "extra.db"))
+            items = scan_sessions(str(proj_dir.parent), con, source="claude")
+            con.close()
+            self.assertEqual([i[1] for i in items], ["claude/-other-proj/s.jsonl"])
+
+    def test_migration_is_idempotent(self) -> None:
+        """Running init_db twice leaves already-prefixed paths untouched."""
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = str(Path(tmp) / "idem.db")
+            self._seed(db_path, [("claude/-proj/a.jsonl", "h1"), ("pi/-proj/b.jsonl", "h2")])
+            init_db(db_path).close()
+            con = init_db(db_path)
+            paths = {r[0] for r in con.execute("SELECT path FROM sessions")}
+            con.close()
+            self.assertEqual(paths, {"claude/-proj/a.jsonl", "pi/-proj/b.jsonl"})
+
+
+class TestMultipleConfigDirs(unittest.TestCase):
+    """--claude-dir accepts a comma-separated list of config dirs."""
+
+    def _run_main(self, tmp: str, claude_dir_arg: str) -> list[str]:
+        """Run main() with a --claude-dir value and return the dirs it scanned.
+
+        Args:
+            tmp: Temp dir to write the output DB into.
+            claude_dir_arg: Value passed to --claude-dir.
+
+        Returns:
+            Stringified paths passed to scan_sessions, in call order.
+        """
+        scanned: list[str] = []
+
+        def fake_scan(d, con, since=None, source="claude"):
+            scanned.append(str(d))
+            return []
+
+        argv = [
+            "summarize_ai_usage.py",
+            "--claude-dir", claude_dir_arg,
+            "--output", str(Path(tmp) / "out.db"),
+            "--pi-dir", "",
+        ]
+        with patch("sys.argv", argv), patch("summarize_ai_usage.scan_sessions", fake_scan):
+            main()
+        return scanned
+
+    def test_comma_separated_dirs_are_all_scanned(self) -> None:
+        """Each config dir in the list has its projects/ dir scanned."""
+        with tempfile.TemporaryDirectory() as tmp:
+            first, second = Path(tmp) / "primary", Path(tmp) / "secondary"
+            for d in (first, second):
+                (d / "projects").mkdir(parents=True)
+            scanned = self._run_main(tmp, f"{first},{second}")
+            self.assertEqual(
+                scanned, [str(first / "projects"), str(second / "projects")]
+            )
+
+    def test_single_dir_still_works(self) -> None:
+        """A plain single-value --claude-dir is unchanged by comma support."""
+        with tempfile.TemporaryDirectory() as tmp:
+            only = Path(tmp) / "solo"
+            (only / "projects").mkdir(parents=True)
+            self.assertEqual(self._run_main(tmp, str(only)), [str(only / "projects")])
+
+    def test_missing_dir_in_list_is_skipped_not_fatal(self) -> None:
+        """A listed dir that does not exist is skipped while the others still scan."""
+        with tempfile.TemporaryDirectory() as tmp:
+            real = Path(tmp) / "real"
+            (real / "projects").mkdir(parents=True)
+            gone = Path(tmp) / "gone"
+            scanned = self._run_main(tmp, f"{gone},{real}")
+            self.assertEqual(scanned, [str(real / "projects")])
 
 
 class TestExtractRefs(unittest.TestCase):

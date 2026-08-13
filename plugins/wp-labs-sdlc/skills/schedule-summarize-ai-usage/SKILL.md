@@ -64,6 +64,20 @@ JOB_PATH_ENV="$(dirname "$CLAUDE_BIN"):$(dirname "$PYTHON_BIN"):/usr/bin:/bin:/u
 LABEL="com.wp-labs.summarize-ai-usage"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 
+# A machine may keep more than one Claude config dir (separate profiles or
+# clients), each with its own sessions. A job that scans only the primary one
+# silently misses the rest, so every sibling config dir found is appended to the
+# comma-separated --claude-dir list. Detected rather than hardcoded, so this is a
+# no-op where no siblings exist.
+CLAUDE_DIRS="$CLAUDE_DIR"
+for d in "$HOME"/.claude*/; do
+  d="${d%/}"
+  [ -d "$d/projects" ] || continue
+  [ "$d" = "$CLAUDE_DIR" ] && continue
+  CLAUDE_DIRS="$CLAUDE_DIRS,$d"
+  echo "Also scanning: $d"
+done
+
 mkdir -p "$(dirname "$LOG_PATH")" "$(dirname "$PLIST")"
 
 cat > "$PLIST" <<PLIST
@@ -78,7 +92,7 @@ cat > "$PLIST" <<PLIST
 		<string>$PYTHON_BIN</string>
 		<string>$SCRIPT</string>
 		<string>--claude-dir</string>
-		<string>$CLAUDE_DIR</string>
+		<string>$CLAUDE_DIRS</string>
 		<string>--output</string>
 		<string>$DB_PATH</string>
 	</array>
