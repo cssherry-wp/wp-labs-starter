@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+HOOK="$(cd "$(dirname "$0")" && pwd)/pre-commit"
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+
+pass() { printf 'PASS: %s\n' "$1"; }
+fail() { printf 'FAIL: %s\n' "$1"; exit 1; }
+
+repo="$TMP/repo"
+mkdir -p "$repo"
+cd "$repo"
+git init -q
+git config user.email test@test.com
+git config user.name test
+
+write_plugin() { # name version
+  mkdir -p "plugins/$1/.claude-plugin"
+  printf '{"name":"%s","version":"%s"}\n' "$1" "$2" > "plugins/$1/.claude-plugin/plugin.json"
+}
+
+write_plugin foo 1.0.0
+mkdir -p plugins/wp-labs-sdlc/skills/scaffolding-sdlc/templates/claude
+write_plugin wp-labs-sdlc 1.0.0
+cat > plugins/wp-labs-sdlc/skills/scaffolding-sdlc/templates/claude/statusline.sh <<'EOF'
+#!/usr/bin/env bash
+SDLC_SOURCE_VERSION="1.0.0"
+EOF
+git add -A && git commit -q -m baseline
+git update-ref refs/remotes/origin/main HEAD
+
+run_hook() { bash "$HOOK"; }
+
+# --- Test 1: no plugin touched -> allowed ---
+echo x > README.md
+git add README.md
+if run_hook > /dev/null 2>&1; then pass "no plugin touched -> allowed"
+else fail "no plugin touched -> expected allow"; fi
+git reset -q HEAD README.md; rm -f README.md
+
+# --- Test 2: plugin changed, version bumped -> allowed ---
+write_plugin foo 1.1.0
+git add plugins/foo
+if run_hook > /dev/null 2>&1; then pass "version bumped -> allowed"
+else fail "version bumped -> expected allow"; fi
+git reset -q HEAD plugins/foo
+
+# --- Test 3: plugin changed, version NOT bumped -> blocked ---
+mkdir -p plugins/foo/skills
+echo "content" > plugins/foo/skills/note.md
+git add plugins/foo/skills/note.md
+out=$(run_hook 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q "plugins/foo"; then pass "no version bump -> blocked"
+else fail "no version bump -> expected block, got rc=$rc out=$out"; fi
+git reset -q HEAD plugins/foo/skills/note.md; rm -rf plugins/foo/skills
+
+# --- Test 4: plugin changed, version decremented -> blocked ---
+write_plugin foo 0.9.0
+git add plugins/foo
+out=$(run_hook 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q "plugins/foo"; then pass "version decremented -> blocked"
+else fail "version decremented -> expected block, got rc=$rc out=$out"; fi
+git reset -q HEAD plugins/foo
+write_plugin foo 1.0.0
+
+# --- Test 5: brand new plugin, not on origin/main -> allowed regardless of version ---
+write_plugin bar 0.1.0
+git add plugins/bar
+if run_hook > /dev/null 2>&1; then pass "new plugin -> allowed"
+else fail "new plugin -> expected allow"; fi
+git reset -q HEAD plugins/bar; rm -rf plugins/bar
+
+# --- Test 6: sdlc plugin.json bumped but SDLC_SOURCE_VERSION not synced -> blocked ---
+write_plugin wp-labs-sdlc 1.1.0
+git add plugins/wp-labs-sdlc/.claude-plugin/plugin.json
+out=$(run_hook 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q "SDLC_SOURCE_VERSION"; then pass "sdlc version drift -> blocked"
+else fail "sdlc version drift -> expected block, got rc=$rc out=$out"; fi
+
+# --- Test 7: SDLC_SOURCE_VERSION synced to match -> allowed ---
+cat > plugins/wp-labs-sdlc/skills/scaffolding-sdlc/templates/claude/statusline.sh <<'EOF'
+#!/usr/bin/env bash
+SDLC_SOURCE_VERSION="1.1.0"
+EOF
+git add plugins/wp-labs-sdlc/skills/scaffolding-sdlc/templates/claude/statusline.sh
+if run_hook > /dev/null 2>&1; then pass "sdlc version synced -> allowed"
+else fail "sdlc version synced -> expected allow"; fi
+git reset -q HEAD plugins/wp-labs-sdlc
+
+# --- CI mode: explicit base/head commits instead of the git index ---
+LIB="$(cd "$(dirname "$0")" && pwd)/check-plugin-versions"
+repo2="$TMP/repo2"
+mkdir -p "$repo2"; cd "$repo2"
+git init -q
+git config user.email test@test.com
+git config user.name test
+write_plugin foo 1.0.0
+git add -A && git commit -q -m base
+base_sha=$(git rev-parse HEAD)
+
+# --- Test 8: head bumps version -> allowed ---
+write_plugin foo 1.1.0
+git add -A && git commit -q -m bump
+head_sha=$(git rev-parse HEAD)
+if bash "$LIB" "$base_sha" "$head_sha" > /dev/null 2>&1; then pass "CI mode: version bumped -> allowed"
+else fail "CI mode: version bumped -> expected allow"; fi
+
+# --- Test 9: head changes plugin without bumping -> blocked ---
+git reset -q --hard "$base_sha"
+mkdir -p plugins/foo/skills
+echo "content" > plugins/foo/skills/note.md
+git add -A && git commit -q -m nobump
+head_sha=$(git rev-parse HEAD)
+out=$(bash "$LIB" "$base_sha" "$head_sha" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q "plugins/foo"; then pass "CI mode: no bump -> blocked"
+else fail "CI mode: no bump -> expected block, got rc=$rc out=$out"; fi
+
+echo ""
+echo "All tests passed."

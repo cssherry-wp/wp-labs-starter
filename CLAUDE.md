@@ -11,6 +11,21 @@ Any change to a plugin under `plugins/` MUST increment that plugin's `version` i
 
 Bump in the same PR as the change. A plugin change without a version bump is incomplete.
 
+A `pre-commit` git hook (`.githooks/pre-commit`) blocks the commit when a changed plugin's
+`version` isn't greater than `origin/main`'s, and when `wp-labs-sdlc`'s `SDLC_SOURCE_VERSION`
+(see below) doesn't match its `plugin.json`. It only sees whatever `origin/main` last resolved
+to locally — `git fetch` first if unsure. One-time setup per clone, since `.githooks` isn't
+git's default hooks path:
+
+```
+git config core.hooksPath .githooks
+```
+
+The same rule runs in CI (`.github/workflows/ci.yml`, "Plugin version bump check" job) via the
+shared `.githooks/check-plugin-versions` script, comparing the PR's head commit against its
+base branch — a backstop for anyone who hasn't set `core.hooksPath` or who commits with
+`--no-verify`.
+
 ### wp-labs-sdlc: sync statusline.sh version
 
 Whenever `plugins/wp-labs-sdlc/.claude-plugin/plugin.json`'s `version` changes, also update

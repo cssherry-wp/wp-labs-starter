@@ -150,5 +150,6 @@ plugin is enabled.
 ## Maintaining
 
 - Bump a plugin's `version` in its `.claude-plugin/plugin.json` when you change it; the team picks
-  up changes on `/plugin update` (or `/plugin marketplace update wp-labs-starter`).
+  up changes on `/plugin update` (or `/plugin marketplace update wp-labs-starter`). A pre-commit
+  hook enforces this — one-time setup per clone: `git config core.hooksPath .githooks`.
 - The superpowers fork auto-refreshes weekly — see [spec → plan lifecycle](docs/superpowers-spec-lifecycle.md) and [`FORK.md`](plugins/wp-labs-superpowers/FORK.md) for details.

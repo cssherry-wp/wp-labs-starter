@@ -7,6 +7,20 @@ on:
     branches: [main]
 
 jobs:
+  plugin-versions:
+    name: Plugin version bump check
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+      - env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch origin "$BASE_REF"
+          bash .githooks/check-plugin-versions "origin/$BASE_REF" HEAD
+
   changes:
     runs-on: ubuntu-latest
     permissions: { contents: read }
