@@ -11,6 +11,22 @@ Any change to a plugin under `plugins/` MUST increment that plugin's `version` i
 
 Bump in the same PR as the change. A plugin change without a version bump is incomplete.
 
+### wp-labs-sdlc: sync statusline.sh version
+
+Whenever `plugins/wp-labs-sdlc/.claude-plugin/plugin.json`'s `version` changes, also update
+`SDLC_SOURCE_VERSION` in
+`plugins/wp-labs-sdlc/skills/scaffolding-sdlc/templates/claude/statusline.sh` to match, then
+copy the file to the live location:
+
+```
+cp plugins/wp-labs-sdlc/skills/scaffolding-sdlc/templates/claude/statusline.sh \
+   ~/.claude/statusline.sh
+```
+
+The statusline footer shows this hardcoded version next to the installed plugin's actual
+cache version, flagging when they drift — that check is only useful if the hardcoded value
+tracks `plugin.json`.
+
 ## session-dashboard.html deploy
 
 After any edit to `plugins/wp-labs-sdlc/skills/scaffolding-sdlc/templates/claude/session-dashboard.html`,
