@@ -711,6 +711,98 @@ class TestPersonalLearnings(unittest.TestCase):
             Path(db_path).unlink(missing_ok=True)
 
 
+class TestPathSchemeMigration(unittest.TestCase):
+    """init_db migrates legacy unprefixed session paths to "claude/" paths."""
+
+    def _seed(self, db_path: str, rows: list[tuple[str, str]], titles: dict[int, str] | None = None) -> None:
+        """Create a sessions/summaries DB and insert (path, file_hash) rows.
+
+        Args:
+            db_path: Path to the SQLite file to create.
+            rows: (path, file_hash) pairs to insert, each linked to its own summary.
+            titles: Optional {row number: user_title} to set on specific rows.
+        """
+        titles = titles or {}
+        con = init_db(db_path)
+        for i, (path, file_hash) in enumerate(rows, start=1):
+            con.execute(
+                "INSERT INTO sessions (id, path, file_hash, project, user_title) "
+                "VALUES (?, ?, ?, 'proj', ?)",
+                (i, path, file_hash, titles.get(i)),
+            )
+            con.execute(
+                "INSERT INTO summaries (id, created_at, summary_text) VALUES (?, '2026-01-01', ?)",
+                (i, f"summary-{i}"),
+            )
+            con.execute(
+                "INSERT INTO session_summary_items (session_id, summary_id) VALUES (?, ?)", (i, i)
+            )
+        con.commit()
+        con.close()
+
+    def test_unprefixed_paths_get_prefixed(self) -> None:
+        """A legacy-only DB has its paths prefixed, with no rows lost."""
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = str(Path(tmp) / "legacy.db")
+            self._seed(db_path, [("-proj/a.jsonl", "h1"), ("-proj/b.jsonl", "h2")])
+            con = init_db(db_path)
+            paths = {r[0] for r in con.execute("SELECT path FROM sessions")}
+            con.close()
+            self.assertEqual(paths, {"claude/-proj/a.jsonl", "claude/-proj/b.jsonl"})
+
+    def test_duplicate_twin_is_merged_not_dropped(self) -> None:
+        """A half-migrated DB holding both twins merges them, keeping all summaries.
+
+        Regression: init_db crashed with "UNIQUE constraint failed: sessions.path",
+        blocking every scheduled run. sessions.path is UNIQUE so only one row can
+        hold the path, but no summary text may be lost in the merge.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = str(Path(tmp) / "half.db")
+            self._seed(
+                db_path,
+                [
+                    ("-proj/a.jsonl", "old"),         # legacy twin, summary 1, has a title
+                    ("claude/-proj/a.jsonl", "new"),  # prefixed twin, summary 2, no title
+                    ("-proj/b.jsonl", "solo"),        # legacy, no twin
+                ],
+                titles={1: "kept-title"},
+            )
+            con = init_db(db_path)  # must not raise
+            rows = dict(con.execute("SELECT path, file_hash FROM sessions"))
+            summaries = {r[0] for r in con.execute("SELECT id FROM summaries")}
+            title = con.execute(
+                "SELECT user_title FROM sessions WHERE path='claude/-proj/a.jsonl'"
+            ).fetchone()[0]
+            merged_links = {
+                r[0] for r in con.execute(
+                    "SELECT i.summary_id FROM session_summary_items i JOIN sessions s "
+                    "ON s.id = i.session_id WHERE s.path='claude/-proj/a.jsonl'"
+                )
+            }
+            orphans = con.execute(
+                "SELECT COUNT(*) FROM session_summary_items "
+                "WHERE session_id NOT IN (SELECT id FROM sessions)"
+            ).fetchone()[0]
+            con.close()
+            self.assertEqual(rows, {"claude/-proj/a.jsonl": "new", "claude/-proj/b.jsonl": "solo"})
+            self.assertEqual(summaries, {1, 2, 3}, "no summary text may be deleted")
+            self.assertEqual(merged_links, {1, 2}, "both twins' summaries link to the survivor")
+            self.assertEqual(title, "kept-title", "legacy title must carry over to the survivor")
+            self.assertEqual(orphans, 0, "no link may point at a deleted row")
+
+    def test_migration_is_idempotent(self) -> None:
+        """Running init_db twice leaves already-prefixed paths untouched."""
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = str(Path(tmp) / "idem.db")
+            self._seed(db_path, [("claude/-proj/a.jsonl", "h1"), ("pi/-proj/b.jsonl", "h2")])
+            init_db(db_path).close()
+            con = init_db(db_path)
+            paths = {r[0] for r in con.execute("SELECT path FROM sessions")}
+            con.close()
+            self.assertEqual(paths, {"claude/-proj/a.jsonl", "pi/-proj/b.jsonl"})
+
+
 class TestExtractRefs(unittest.TestCase):
     """_extract_refs preserves full URLs and deduplicates."""
 

@@ -103,6 +103,70 @@ CREATE TABLE IF NOT EXISTS session_summary_items (
 """
 
 
+# Source labels scan_sessions can prefix a stored path with. A path starting with
+# any of these is already migrated; anything else is a legacy pre-prefix row.
+_SOURCE_PREFIXES = ("claude", "pi")
+
+
+def _migrate_path_scheme(con: sqlite3.Connection) -> None:
+    """Prefix legacy unprefixed session paths with "claude/", merging duplicates.
+
+    Rows written before source-prefixed paths are keyed "proj/uuid.jsonl"; the
+    current scan writes "claude/proj/uuid.jsonl". These are all Claude sessions,
+    so prefixing the old rows keeps their hash lookup matching instead of
+    re-summarizing and double-counting.
+
+    A DB written by the version that emitted prefixed paths but predates this
+    migration holds BOTH twins for the same session file, so a bare UPDATE
+    raises "UNIQUE constraint failed: sessions.path" and no run can ever start.
+    Because sessions.path is UNIQUE, two rows cannot both survive for one file;
+    the twins are merged instead of one being discarded. The prefixed row (the
+    newer write, carrying the current file_hash) is kept, and everything the
+    legacy row holds is moved onto it: its summary links are re-pointed, and
+    any title or away_summary the survivor lacks is carried over. No summary
+    text is deleted.
+
+    Idempotent: an already-prefixed row starts with a known source prefix, so a
+    second run is a no-op. Any new source label added to scan_sessions must be
+    added to _SOURCE_PREFIXES below, or its rows get re-prefixed.
+
+    Args:
+        con: Open connection to migrate, in an uncommitted transaction.
+    """
+    unprefixed = " AND ".join(f"{{col}} NOT LIKE '{p}/%'" for p in _SOURCE_PREFIXES)
+    con.execute(
+        "CREATE TEMP TABLE _dupe_pairs AS "
+        "SELECT o.id AS old_id, n.id AS new_id FROM sessions o "
+        "JOIN sessions n ON n.path = 'claude/' || o.path "
+        f"WHERE {unprefixed.format(col='o.path')}"
+    )
+    # Re-point the legacy row's summary links onto the surviving row. OR IGNORE
+    # covers the case where both twins already link to the same summary; the
+    # leftover duplicate link is removed by the following DELETE.
+    con.execute(
+        "UPDATE OR IGNORE session_summary_items SET session_id = "
+        "(SELECT new_id FROM _dupe_pairs WHERE old_id = session_id) "
+        "WHERE session_id IN (SELECT old_id FROM _dupe_pairs)"
+    )
+    con.execute(
+        "DELETE FROM session_summary_items WHERE session_id IN (SELECT old_id FROM _dupe_pairs)"
+    )
+    # Carry over user-authored and derived text the surviving row is missing.
+    for col in ("user_title", "ai_title", "away_summary", "workspace"):
+        con.execute(
+            f"UPDATE sessions SET {col} = COALESCE({col}, "
+            f"(SELECT o.{col} FROM sessions o JOIN _dupe_pairs p ON p.old_id = o.id "
+            "WHERE p.new_id = sessions.id)) "
+            f"WHERE {col} IS NULL AND id IN (SELECT new_id FROM _dupe_pairs)"
+        )
+    con.execute("DELETE FROM sessions WHERE id IN (SELECT old_id FROM _dupe_pairs)")
+    con.execute("DROP TABLE _dupe_pairs")
+    con.execute(
+        "UPDATE sessions SET path = 'claude/' || path "
+        f"WHERE {unprefixed.format(col='path')}"
+    )
+
+
 def init_db(db_path: Path | str) -> sqlite3.Connection:
     """Create the database and schema if needed; return an open connection.
 
@@ -135,15 +199,7 @@ def init_db(db_path: Path | str) -> sqlite3.Connection:
             con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
         except sqlite3.OperationalError:
             pass  # column already exists
-    # Path-scheme migration: rows written before source-prefixed paths are keyed
-    # "proj/uuid.jsonl"; the new scan writes "claude/proj/uuid.jsonl". Prefix the
-    # old rows so their hash lookup matches instead of re-summarizing + duplicating.
-    # Idempotent: project dirs start with "-", never "claude/"/"pi/", so a second
-    # run is a no-op. (Fixes: existing DB re-processed and double-counted on upgrade.)
-    con.execute(
-        "UPDATE sessions SET path = 'claude/' || path "
-        "WHERE path NOT LIKE 'claude/%' AND path NOT LIKE 'pi/%'"
-    )
+    _migrate_path_scheme(con)
     con.commit()
     return con
 
