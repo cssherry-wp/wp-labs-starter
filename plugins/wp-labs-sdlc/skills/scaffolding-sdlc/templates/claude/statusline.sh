@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # ~/.claude/statusline.sh
-# Line 1: folder [branch] | ±N | N% bar | ponytail | model | sid8 | cfg
+# Line 1: folder [branch] | ±N | N% bar | ponytail | model | sid8 | cfg | sdlc vX.Y.Z [(installed vN)]
 # Line 2: "first user msg" → "last user msg"  (if transcript available)
+# SDLC_SOURCE_VERSION must match plugins/wp-labs-sdlc/.claude-plugin/plugin.json's
+# "version" at the time this file was last generated/copied from that template.
+SDLC_SOURCE_VERSION="0.18.0"
 set -uo pipefail
 
 R=$'\033[0m'   CY=$'\033[36m'  GR=$'\033[32m'
@@ -106,6 +109,10 @@ cfg="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 _pt=$(ls -d "$cfg"/plugins/cache/ponytail/ponytail/*/hooks/ponytail-statusline.sh 2>/dev/null | sort -V | tail -1 || true)
 pt=$([[ -f "${_pt:-}" ]] && bash "$_pt" 2>/dev/null || true)
 
+# wp-labs-sdlc plugin version (installed hooks/CLAUDE.md/dashboard come from this)
+_sdlc_dir=$(ls -d "$cfg"/plugins/cache/*/wp-labs-sdlc/*/ 2>/dev/null | sort -V | tail -1 || true)
+sdlc_ver=$(basename "${_sdlc_dir%/}" 2>/dev/null || true)
+
 # --- Line 1 ---
 out="${CY}${folder}${branch:+ [$branch]}${R}"
 [[ -n "$sync" ]] && out+=" | ${YL}${sync}${R}"
@@ -114,6 +121,8 @@ out+=" | ${bar_c}${token_pct}% ${bar}${R}${cost_str:+ ${DM}${cost_str}${R}}${dur
 out+=" | ${model:-${DM}(new)${R}}"
 [[ -n "$session_id" ]] && out+=" | ${DM}${session_id}${R}"
 out+=" | ${DM}${cfg/$HOME/~}${R}"
+out+=" | ${DM}sdlc v${SDLC_SOURCE_VERSION}${R}"
+[[ -n "$sdlc_ver" && "$sdlc_ver" != "$SDLC_SOURCE_VERSION" ]] && out+=" ${YL}(installed v${sdlc_ver})${R}"
 echo "$out"
 
 # --- Line 2: first → last user message, or hint when session has no messages yet ---

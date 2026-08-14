@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# pre-commit: see check-plugin-versions for the actual rule.
+# One-time setup per clone: git config core.hooksPath .githooks
+set -uo pipefail
+exec "$(cd "$(dirname "$0")" && pwd)/check-plugin-versions" origin/main
