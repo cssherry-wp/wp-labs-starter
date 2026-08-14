@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard Template</title>
+<style>
+/* ============================================================
+   WP Labs dashboards, house style. Treat as read-only: add a
+   component by copying an existing one, not by writing new CSS.
+   ============================================================ */
+:root{
+  --bg:#0d1117;--panel:#161b22;--panel2:#1c2128;--panel3:#21262d;
+  --border:#30363d;--border2:#21262d;
+  --ink:#c9d1d9;--muted:#8b949e;--dim:#6e7681;
+  --accent:#7c3aed;--accent2:#6d28d9;--accent-s:rgba(124,58,237,.14);
+  --good:#2ea043;--good-s:rgba(46,160,67,.18);
+  --warn:#d29922;--warn-s:rgba(210,153,34,.18);
+  --err:#f85149;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+}
+@media(prefers-color-scheme:light){:root{
+  --bg:#f6f8fa;--panel:#fff;--panel2:#f6f8fa;--panel3:#eaeef2;
+  --border:#d0d7de;--border2:#e1e4e8;
+  --ink:#24292f;--muted:#57606a;--dim:#8c959f;
+  --accent:#6d28d9;--accent2:#5b21b6;--accent-s:rgba(109,40,217,.1);
+  --good:#1a7f37;--good-s:rgba(26,127,55,.12);
+  --warn:#9a6700;--warn-s:rgba(154,103,0,.12);
+}}
+:root[data-theme=dark]{--bg:#0d1117;--panel:#161b22;--panel2:#1c2128;--panel3:#21262d;--border:#30363d;--border2:#21262d;--ink:#c9d1d9;--muted:#8b949e;--dim:#6e7681;--accent:#7c3aed;--accent2:#6d28d9;--accent-s:rgba(124,58,237,.14);--good:#2ea043;--good-s:rgba(46,160,67,.18);--warn:#d29922;--warn-s:rgba(210,153,34,.18);}
+:root[data-theme=light]{--bg:#f6f8fa;--panel:#fff;--panel2:#f6f8fa;--panel3:#eaeef2;--border:#d0d7de;--border2:#e1e4e8;--ink:#24292f;--muted:#57606a;--dim:#8c959f;--accent:#6d28d9;--accent2:#5b21b6;--accent-s:rgba(109,40,217,.1);--good:#1a7f37;--good-s:rgba(26,127,55,.12);--warn:#9a6700;--warn-s:rgba(154,103,0,.12);}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:13.5px;-webkit-font-smoothing:antialiased}
+body{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;line-height:1.5;min-height:100vh;display:flex;flex-direction:column}
+button,input,select{font:inherit;color:inherit;background:none}
+
+/* Header: title left, controls right. `.grow` pushes the filter icon
+   and theme toggle to the upper-right corner regardless of window width. */
+header{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--border);padding:8px 14px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+header h1{font-size:13.5px;font-weight:700;letter-spacing:-.01em;white-space:nowrap}
+.grow{flex:1}
+#search{border:1px solid var(--border);border-radius:6px;padding:3px 8px;min-width:160px;outline:none;background:var(--panel2);font-size:12px}
+#search:focus{border-color:var(--accent)}
+#filterInfo{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--accent);white-space:nowrap}
+#filterInfo .fi{display:inline-flex;align-items:center;gap:4px;cursor:default}
+#filterInfo a{color:var(--muted);font-size:12px}
+#filterInfo a:hover{color:var(--ink)}
+.hbtn{border:1px solid var(--border);border-radius:6px;padding:3px 9px;cursor:pointer;font-size:12px;background:var(--panel2)}
+.hbtn:hover{border-color:var(--accent)}
+
+/* Filter bar: one pill group per filter dimension. */
+#filterBar{padding:6px 14px;border-bottom:1px solid var(--border2);display:none;gap:7px;align-items:center;flex-wrap:wrap}
+.fl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+.pill{border:1px solid var(--border);border-radius:999px;padding:2px 8px;font-size:11.5px;cursor:pointer;background:var(--panel2);white-space:nowrap}
+.pill:hover{border-color:var(--accent)}
+.pill.on{background:var(--accent-s);border-color:var(--accent);color:var(--accent)}
+
+/* Stats strip */
+#stats{padding:5px 14px;border-bottom:1px solid var(--border2);display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.sv{color:var(--ink);font-weight:600;margin-right:2px;font-variant-numeric:tabular-nums}
+.sdot{color:var(--border)}
+
+/* Drill-down table, bottom of the page */
+#tblHead{padding:8px 14px 4px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+#tblLabel{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em}
+#tableSearchInp{border:1px solid var(--border);border-radius:4px;padding:4px 10px;background:transparent;color:var(--ink);font-size:12px;width:220px;outline:none}
+#tableSearchInp:focus{border-color:var(--accent)}
+#tableSection{flex:1;padding:0 14px 20px}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden;min-width:640px}
+th{text-align:left;padding:5px 9px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);background:var(--panel2);cursor:pointer;user-select:none;white-space:nowrap}
+th:hover{color:var(--ink)}
+th .sa{margin-left:3px;opacity:.5;font-size:10px}
+td{padding:5px 9px;border-bottom:1px solid var(--border2);vertical-align:top}
+tr:last-child td{border-bottom:none}
+tr.rrow{cursor:pointer}
+tr.rrow:hover td{background:color-mix(in srgb,var(--accent) 5%,transparent)}
+tr.rrow.open-row td{background:color-mix(in srgb,var(--accent) 6%,transparent)}
+tr.detail-row td{padding:0;border-bottom:1px solid var(--border)}
+.detail-inner{padding:11px 13px;background:var(--panel2);font-family:var(--mono);font-size:11.5px;white-space:pre-wrap;word-break:break-word}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:1px 6px;border-radius:999px;border:1px solid}
+</style>
+</head>
+<body>
+<header>
+  <h1>Dashboard Template</h1>
+  <div class="grow"></div>
+  <input type="text" id="search" placeholder="Search…" autocomplete="off">
+  <span id="filterInfo"></span>
+  <button type="button" class="hbtn" id="themeBtn" title="Toggle theme">◑</button>
+</header>
+
+<div id="stats"></div>
+<div id="filterBar"></div>
+
+<div id="tblHead"><span id="tblLabel"></span><input id="tableSearchInp" type="text" placeholder="Search rows…" autocomplete="off"></div>
+<section id="tableSection"></section>
+
+<script>
+// ─── Sample data ──────────────────────────────────────────────────────────────
+// Replace DATA and loadData() with the real source: fetch(), the File System
+// Access API, or an inline JSON blob baked in at build time. Every other
+// function below (filters, URL sync, table, drill-down) is generic over any
+// array of flat objects and does not need to change.
+const CATEGORIES=['billing','onboarding','support','infra'];
+const STATUSES=['open','done','blocked'];
+function loadData(){
+  const rows=[];
+  for(let i=0;i<24;i++){
+    const d=new Date(Date.now()-i*36e5*7);
+    rows.push({
+      id:'rec-'+(1000+i),
+      date:d,
+      category:CATEGORIES[i%CATEGORIES.length],
+      status:STATUSES[i%STATUSES.length],
+      value:Math.round((Math.random()*900+100))/10,
+      label:'Sample record #'+i,
+    });
+  }
+  return rows;
+}
+let DATA=loadData();
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let activeCategory='all', activeStatus='all';
+let searchQuery='', tableSearch='', sortCol='date', sortAsc=false, expandedId=null;
+
+// ─── Theme ────────────────────────────────────────────────────────────────────
+document.getElementById('themeBtn').addEventListener('click',()=>{
+  const cur=document.documentElement.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+  document.documentElement.dataset.theme=cur==='dark'?'light':'dark';
+});
+
+// ─── URL state ────────────────────────────────────────────────────────────────
+// Filters, search, and sort all round-trip through the URL so a filtered view
+// can be copy-pasted as a link and reopen to the same state.
+function readUrl(){
+  const p=new URLSearchParams(location.search);
+  if(p.get('category'))activeCategory=p.get('category');
+  if(p.get('status'))activeStatus=p.get('status');
+  if(p.get('sort'))sortCol=p.get('sort');
+  if(p.get('asc'))sortAsc=p.get('asc')==='1';
+  if(p.get('q')){searchQuery=p.get('q');document.getElementById('search').value=searchQuery;}
+  if(p.get('tq')){tableSearch=p.get('tq');document.getElementById('tableSearchInp').value=tableSearch;}
+}
+function syncUrl(){
+  const p=new URLSearchParams();
+  if(activeCategory!=='all')p.set('category',activeCategory);
+  if(activeStatus!=='all')p.set('status',activeStatus);
+  if(sortCol!=='date')p.set('sort',sortCol);
+  if(sortAsc)p.set('asc','1');
+  if(searchQuery)p.set('q',searchQuery);
+  if(tableSearch)p.set('tq',tableSearch);
+  try{history.replaceState(null,'',p.toString()?'?'+p:location.pathname);}catch{}
+}
+
+// ─── Filter icon (upper right) ────────────────────────────────────────────────
+const FUNNEL='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 4h18l-7 8v7l-4 2v-9z"/></svg>';
+function activeFilterLines(){
+  const lines=[];
+  if(activeCategory!=='all')lines.push('category: '+activeCategory);
+  if(activeStatus!=='all')lines.push('status: '+activeStatus);
+  if(searchQuery)lines.push('search: "'+searchQuery+'"');
+  if(tableSearch)lines.push('table search: "'+tableSearch+'"');
+  if(sortCol!=='date'||sortAsc)lines.push('sort: '+sortCol+(sortAsc?' ↑':' ↓'));
+  return lines;
+}
+function renderFilterInfo(){
+  const box=document.getElementById('filterInfo');
+  const lines=activeFilterLines();
+  if(!lines.length){box.innerHTML='';return;}
+  box.innerHTML=`<span class="fi" title="${esc(lines.join('\n'))}">${FUNNEL} ${lines.length} filter${lines.length>1?'s':''}</span> · <a href="#" id="clearAll">clear all</a>`;
+  document.getElementById('clearAll').onclick=e=>{e.preventDefault();clearAllFilters();};
+}
+function clearAllFilters(){
+  activeCategory='all';activeStatus='all';searchQuery='';tableSearch='';sortCol='date';sortAsc=false;expandedId=null;
+  document.getElementById('search').value='';document.getElementById('tableSearchInp').value='';
+  syncUrl();render();
+}
+
+// ─── Filters ──────────────────────────────────────────────────────────────────
+function applyFilters(){
+  const q=searchQuery.toLowerCase();
+  return DATA.filter(r=>{
+    if(activeCategory!=='all'&&r.category!==activeCategory)return false;
+    if(activeStatus!=='all'&&r.status!==activeStatus)return false;
+    if(q&&!(r.label.toLowerCase().includes(q)||r.id.toLowerCase().includes(q)))return false;
+    return true;
+  });
+}
+function renderFilterBar(){
+  const bar=document.getElementById('filterBar');
+  bar.style.display='flex';
+  const pills=(field,options,active)=>['all',...options].map(v=>
+    `<span class="pill${active===v?' on':''}" data-field="${field}" data-val="${v}">${v}</span>`).join('');
+  bar.innerHTML=`
+    <span class="fl">Category</span>${pills('category',CATEGORIES,activeCategory)}
+    <span class="fl">Status</span>${pills('status',STATUSES,activeStatus)}`;
+  bar.querySelectorAll('.pill').forEach(el=>el.addEventListener('click',()=>{
+    const field=el.dataset.field, val=el.dataset.val;
+    if(field==='category')activeCategory=val;else activeStatus=val;
+    syncUrl();render();
+  }));
+}
+
+// ─── Stats ────────────────────────────────────────────────────────────────────
+function renderStats(filtered){
+  const total=filtered.reduce((s,r)=>s+r.value,0);
+  document.getElementById('stats').innerHTML=
+    `<span><span class="sv">${filtered.length}</span>records</span><span class="sdot">·</span>`+
+    `<span><span class="sv">${total.toFixed(1)}</span>total value</span>`;
+}
+
+// ─── Table + drill-down ───────────────────────────────────────────────────────
+function renderTable(filtered){
+  const cols=[
+    {key:'date',label:'Date',w:'110px'},{key:'id',label:'ID',w:'90px'},
+    {key:'category',label:'Category',w:'110px'},{key:'status',label:'Status',w:'90px'},
+    {key:'value',label:'Value',w:'70px'},{key:'label',label:'Label'},
+  ];
+  const tq=tableSearch.toLowerCase();
+  const rows=(tq?filtered.filter(r=>r.label.toLowerCase().includes(tq)||r.id.toLowerCase().includes(tq)):filtered)
+    .slice().sort((a,b)=>{
+      let cmp;
+      if(sortCol==='date')cmp=a.date-b.date;
+      else if(sortCol==='value')cmp=a.value-b.value;
+      else cmp=String(a[sortCol]).localeCompare(String(b[sortCol]));
+      return sortAsc?cmp:-cmp;
+    });
+  document.getElementById('tblLabel').textContent=rows.length+' record'+(rows.length!==1?'s':'');
+  const thead=cols.map(c=>{
+    const arrow=sortCol===c.key?(sortAsc?'▲':'▼'):'';
+    return `<th data-col="${c.key}" style="width:${c.w||'auto'}">${c.label}<span class="sa">${arrow}</span></th>`;
+  }).join('');
+  const statusColor={open:'var(--warn)',done:'var(--good)',blocked:'var(--err)'};
+  const body=rows.map(r=>`<tr class="rrow" data-id="${r.id}">
+    <td>${r.date.toLocaleDateString()}</td>
+    <td style="font-family:var(--mono)">${esc(r.id)}</td>
+    <td>${esc(r.category)}</td>
+    <td><span class="badge" style="color:${statusColor[r.status]};border-color:${statusColor[r.status]}55">${esc(r.status)}</span></td>
+    <td>${r.value.toFixed(1)}</td>
+    <td>${esc(r.label)}</td>
+  </tr>`).join('');
+  const sec=document.getElementById('tableSection');
+  sec.innerHTML=rows.length
+    ? `<div class="tbl-wrap"><table><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table></div>`
+    : '<p style="color:var(--dim);padding:20px">No records match.</p>';
+  sec.querySelectorAll('th[data-col]').forEach(th=>th.addEventListener('click',()=>{
+    if(sortCol===th.dataset.col)sortAsc=!sortAsc;else{sortCol=th.dataset.col;sortAsc=false;}
+    syncUrl();render();
+  }));
+  sec.querySelectorAll('tr.rrow').forEach(tr=>tr.addEventListener('click',()=>toggleRow(tr.dataset.id,rows)));
+  if(expandedId){
+    const tr=sec.querySelector(`tr[data-id="${expandedId}"]`);
+    const rec=rows.find(r=>r.id===expandedId);
+    if(tr&&rec)insertDetailRow(tr,rec);
+  }
+}
+// Drill-into-raw-data: expanding a row prints every field of that record, not
+// just what the table column set shows. Swap the JSON dump for a richer
+// layout once the schema is known, but keep showing the whole record.
+function toggleRow(id,rows){
+  const sec=document.getElementById('tableSection');
+  if(expandedId===id){
+    sec.querySelector(`tr.detail-row[data-for="${id}"]`)?.remove();
+    sec.querySelector(`tr[data-id="${id}"]`)?.classList.remove('open-row');
+    expandedId=null;return;
+  }
+  sec.querySelectorAll('tr.detail-row').forEach(r=>r.remove());
+  sec.querySelectorAll('tr.rrow.open-row').forEach(r=>r.classList.remove('open-row'));
+  const tr=sec.querySelector(`tr[data-id="${id}"]`);if(!tr)return;
+  tr.classList.add('open-row');expandedId=id;
+  const rec=rows.find(r=>r.id===id);if(rec)insertDetailRow(tr,rec);
+}
+function insertDetailRow(tr,rec){
+  const detail=document.createElement('tr');
+  detail.className='detail-row';detail.dataset.for=rec.id;
+  const cell=document.createElement('td');
+  cell.colSpan=6;
+  cell.innerHTML=`<div class="detail-inner">${esc(JSON.stringify(rec,null,2))}</div>`;
+  detail.appendChild(cell);
+  tr.after(detail);
+}
+
+// ─── Render + boot ────────────────────────────────────────────────────────────
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function render(){
+  const filtered=applyFilters();
+  renderFilterInfo();
+  renderFilterBar();
+  renderStats(filtered);
+  renderTable(filtered);
+}
+document.getElementById('search').addEventListener('input',e=>{searchQuery=e.target.value;syncUrl();render();});
+document.getElementById('tableSearchInp').addEventListener('input',e=>{tableSearch=e.target.value;syncUrl();render();});
+readUrl();
+render();
+</script>
+</body>
+</html>
