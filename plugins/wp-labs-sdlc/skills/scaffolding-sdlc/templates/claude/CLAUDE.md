@@ -6,6 +6,10 @@ Before acting on any new request, consider whether it is ambiguous. If the inten
 
 When a request could reasonably be interpreted in more than one way, surface the ambiguity explicitly and ask the user to clarify before taking action.
 
+## Tool Usage Notes
+
+- **ScheduleWakeup**: pass `prompt`, `reason`, and `noop` together whenever `stop` is not `true` — omitting `prompt` throws an error. Don't call it just to wait on a harness-tracked background task (e.g. a backgrounded `Bash` command or `Monitor`) — those notify automatically on completion; reserve it for `/loop` dynamic-mode pacing.
+
 ## Git Commit Policy
 
 After making any code changes in a git repository, always create a git commit before finishing. The commit message must include:
