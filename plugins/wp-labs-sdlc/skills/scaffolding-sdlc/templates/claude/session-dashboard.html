@@ -259,7 +259,7 @@ const FUNNEL='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke
 // ─── State ──────────────────────────────────────────────────────────────────
 let claudeHandles=[], piHandles=[], analyticsHandle=null, uuidToName={}, allSessions=[], filteredSessions=[], tableFilteredSessions=[];
 let activeProject='all', activeDateFilter='all', activeTaskType='all', activeSource='all';
-let activeToolFilters=new Set(), activeSessionFilter='', activeQueueStatus='';
+let activeToolFilters=new Set(), activeSessionFilter='', activeQueueStatus='', activeAccounts=new Set();
 let chartHighlightProj=null;
 let customDateFrom=null, customDateTo=null;
 let searchQuery='', tableSearch='', sortCol='date', sortAsc=false, expandedUuid=null;
@@ -424,10 +424,7 @@ async function tryAutoLoad(){
       allSessions=deserializeCache(cached.data);
       document.getElementById('addDirBtn').style.display='';
       document.getElementById('piDirBtn').style.display='';
-      document.getElementById('dirPills').innerHTML=[
-        ...claudeHandles.map(h=>`<span style="font-size:11px;color:var(--muted);padding:1px 7px;border:1px solid var(--border2);border-radius:4px" title="${esc(h.name)}">${esc(h.name)}</span>`),
-        ...piHandles.map(h=>`<span style="font-size:11px;color:var(--pi-accent);padding:1px 7px;border:1px solid var(--border2);border-radius:4px" title="Pi: ${esc(h.name)}">Pi:${esc(h.name)}</span>`),
-      ].join('');
+      renderDirPills();
       showLanding(false);render();setStatus(`${allSessions.length} sessions (checking…)`);
       const stale=await hasNewerFiles(claudeHandles,piHandles,cached.ts);
       if(stale){setStatus('New data found, reloading…');await load();}
@@ -446,12 +443,29 @@ document.getElementById('piDirBtn').addEventListener('click',openPiDir);
 function showLanding(show){document.getElementById('landing').style.display=show?'':'none';}
 
 // ─── Session factory ─────────────────────────────────────────────────────────
-function mkSession(uuid,project,source='claude'){
+function dirPillHtml(source,name){
+  const key=source+'|'+name;
+  const on=activeAccounts.has(key);
+  const label=source==='pi'?'Pi:'+name:name;
+  return`<span class="pill${on?' on':''}" data-account="${esc(key)}" title="${esc(label)} — click to filter"${source==='pi'&&!on?' style="color:var(--pi-accent)"':''}>${esc(label)}</span>`;
+}
+function renderDirPills(){
+  document.getElementById('dirPills').innerHTML=[
+    ...claudeHandles.map(h=>dirPillHtml('claude',h.name)),
+    ...piHandles.map(h=>dirPillHtml('pi',h.name)),
+  ].join('');
+  document.querySelectorAll('#dirPills [data-account]').forEach(p=>p.addEventListener('click',()=>{
+    const k=p.dataset.account;
+    if(activeAccounts.has(k))activeAccounts.delete(k);else activeAccounts.add(k);
+    syncUrl();render();renderDirPills();
+  }));
+}
+function mkSession(uuid,project,source='claude',account=null){
   const projectLabel=decodeProjectName(project);
   const projectNorm=normalizeProject(projectLabel);
   const _wtRaw=projectLabel!==projectNorm&&projectLabel.startsWith(projectNorm)?projectLabel.slice(projectNorm.length).replace(/^-+/,''):null;
   const projectWorktree=_wtRaw?_wtRaw.replace(/^claude-worktrees-/,''):null;
-  return{uuid,project,projectLabel,projectNorm,projectWorktree,source,title:null,name:null,startedAt:null,lastActivityAt:null,model:null,color:null,usage:{in:0,out:0,cw:0,cr:0},userTurns:[],commands:[],queueItems:[],claudeTasks:[],lastAssistantText:null,prLinks:[],tools:[],skills:[],agents:[]};
+  return{uuid,project,projectLabel,projectNorm,projectWorktree,source,account,title:null,name:null,startedAt:null,lastActivityAt:null,model:null,color:null,usage:{in:0,out:0,cw:0,cr:0},userTurns:[],commands:[],queueItems:[],claudeTasks:[],lastAssistantText:null,prLinks:[],tools:[],skills:[],agents:[]};
 }
 function mergeJSONL(s,p){
   if(p.title)s.title=p.title;
@@ -487,7 +501,7 @@ async function load(){
         for await(const[fn,fh]of pd){
           if(fh.kind==='file'&&fn.endsWith('.jsonl')){
             const uuid=fn.slice(0,-6);
-            try{const p=parseJSONL(await(await fh.getFile()).text());if(!sessions.has(uuid))sessions.set(uuid,mkSession(uuid,proj));const s=sessions.get(uuid);if(!s.name)s.name=uuidToName[uuid]||null;mergeJSONL(s,p);}catch{}
+            try{const p=parseJSONL(await(await fh.getFile()).text());if(!sessions.has(uuid))sessions.set(uuid,mkSession(uuid,proj,'claude',rootHandle.name));const s=sessions.get(uuid);if(!s.name)s.name=uuidToName[uuid]||null;mergeJSONL(s,p);}catch{}
             done++;if(done%20===0){setStatus(`Loading… ${done}/${total}`);showProgress(true,total?done/total:0);await tick();}
           } else if(fh.kind==='directory'){
             pendingAgentDirs.push([fn,fh]);
@@ -511,7 +525,7 @@ async function load(){
         }
       }
     }catch(e){console.warn('projects',e);}
-    try{const qH=await rootHandle.getDirectoryHandle('queue');for await(const[fn,fh]of qH){if(!fn.endsWith('.md')||fh.kind!=='file')continue;const uuid=fn.slice(0,-3);try{const items=parseQueueMD(await(await fh.getFile()).text());if(!sessions.has(uuid))sessions.set(uuid,mkSession(uuid,'queue-only'));sessions.get(uuid).queueItems=items;}catch{}}}catch{}
+    try{const qH=await rootHandle.getDirectoryHandle('queue');for await(const[fn,fh]of qH){if(!fn.endsWith('.md')||fh.kind!=='file')continue;const uuid=fn.slice(0,-3);try{const items=parseQueueMD(await(await fh.getFile()).text());if(!sessions.has(uuid))sessions.set(uuid,mkSession(uuid,'queue-only','claude',rootHandle.name));sessions.get(uuid).queueItems=items;}catch{}}}catch{}
   }
   for(const piHandle of piHandles){
     try{const sH=await resolvePiSessionsDir(piHandle);for await(const[,pd]of sH){if(pd.kind!=='directory')continue;for await(const[fn]of pd){if(fn.endsWith('.jsonl'))total++;}}}catch{}
@@ -530,7 +544,7 @@ async function load(){
             const uuid=fn.slice(0,-6);
             try{
               const p=parseJSONL(await(await fh.getFile()).text(),'pi');
-              if(!sessions.has(uuid))sessions.set(uuid,mkSession(uuid,proj,'pi'));
+              if(!sessions.has(uuid))sessions.set(uuid,mkSession(uuid,proj,'pi',piHandle.name));
               const s=sessions.get(uuid);
               mergeJSONL(s,p);
             }catch{}
@@ -567,10 +581,7 @@ async function load(){
   showProgress(false);
   document.getElementById('addDirBtn').style.display='';
   document.getElementById('piDirBtn').style.display='';
-  document.getElementById('dirPills').innerHTML=[
-    ...claudeHandles.map(h=>`<span style="font-size:11px;color:var(--muted);padding:1px 7px;border:1px solid var(--border2);border-radius:4px" title="${esc(h.name)}">${esc(h.name)}</span>`),
-    ...piHandles.map(h=>`<span style="font-size:11px;color:var(--pi-accent);padding:1px 7px;border:1px solid var(--border2);border-radius:4px" title="Pi: ${esc(h.name)}">Pi:${esc(h.name)}</span>`),
-  ].join('');
+  renderDirPills();
   render();
   saveCache(allSessions);
 }
@@ -756,6 +767,7 @@ function readUrl(){
   if(p.get('to'))customDateTo=+p.get('to');
   if(p.get('type'))activeTaskType=p.get('type');
   if(p.get('source'))activeSource=p.get('source');
+  if(p.get('accounts'))activeAccounts=new Set(p.get('accounts').split(',').filter(Boolean));
   if(p.get('tools'))activeToolFilters=new Set(p.get('tools').split(',').filter(Boolean));
   if(p.get('sort'))sortCol=p.get('sort');
   if(p.get('asc'))sortAsc=p.get('asc')==='1';
@@ -771,6 +783,7 @@ function syncUrl(){
   if(activeDateFilter==='custom'){if(customDateFrom)p.set('from',customDateFrom);if(customDateTo)p.set('to',customDateTo);}
   if(activeTaskType!=='all')p.set('type',activeTaskType);
   if(activeSource!=='all')p.set('source',activeSource);
+  if(activeAccounts.size)p.set('accounts',[...activeAccounts].join(','));
   if(activeToolFilters.size)p.set('tools',[...activeToolFilters].join(','));
   if(activeSessionFilter)p.set('session',activeSessionFilter);
   if(activeQueueStatus)p.set('qstatus',activeQueueStatus);
@@ -791,6 +804,7 @@ function activeFilterLines(){
   }
   if(activeTaskType!=='all'){const names={chat:'chat',commands:'commands',queued:'queued',tasks:'claude tasks'};lines.push('type: '+(names[activeTaskType]||activeTaskType));}
   if(activeSource!=='all')lines.push('source: '+activeSource);
+  if(activeAccounts.size)lines.push('account: '+[...activeAccounts].map(k=>k.split('|')[1]).join(', '));
   if(activeToolFilters.size)lines.push('tools: '+[...activeToolFilters].join(', '));
   if(activeSessionFilter)lines.push('session: '+activeSessionFilter.slice(0,8)+'…');
   if(activeQueueStatus)lines.push('queue: '+activeQueueStatus);
@@ -811,10 +825,10 @@ function renderFilterInfo(){
   document.getElementById('clearAll').onclick=e=>{e.preventDefault();clearAllFilters();};
 }
 function clearAllFilters(){
-  activeProject='all';activeDateFilter='all';activeTaskType='all';activeSource='all';searchQuery='';tableSearch='';sortCol='date';sortAsc=false;expandedUuid=null;activeToolFilters=new Set();activeSessionFilter='';activeQueueStatus='';customDateFrom=null;customDateTo=null;_filterBarKey=null;
+  activeProject='all';activeDateFilter='all';activeTaskType='all';activeSource='all';activeAccounts=new Set();searchQuery='';tableSearch='';sortCol='date';sortAsc=false;expandedUuid=null;activeToolFilters=new Set();activeSessionFilter='';activeQueueStatus='';customDateFrom=null;customDateTo=null;_filterBarKey=null;
   document.getElementById('search').value='';
   const tsi=document.getElementById('tableSearchInp');if(tsi)tsi.value='';
-  syncUrl();render();
+  syncUrl();render();renderDirPills();
 }
 
 // ─── Filters ──────────────────────────────────────────────────────────────────
@@ -846,6 +860,7 @@ function applyFilters(){
     if(activeQueueStatus==='moved'&&!s.queueItems.some(i=>i.cancelled&&i.reason&&/moved/i.test(i.reason)))return false;
     if(activeQueueStatus==='cancelled'&&!s.queueItems.some(i=>i.cancelled&&(!i.reason||!/moved/i.test(i.reason))))return false;
     if(activeSource!=='all'&&s.source!==activeSource)return false;
+    if(activeAccounts.size&&!activeAccounts.has(s.source+'|'+(s.account||'')))return false;
     if(activeToolFilters.size&&![...activeToolFilters].some(f=>s.tools.includes(f)||s.skills.includes(f)))return false;
     if(!q)return true;
     return(s.title||'').toLowerCase().includes(q)||(s.projectNorm||'').toLowerCase().includes(q)||(s.projectLabel||'').toLowerCase().includes(q)||(s.projectWorktree||'').toLowerCase().includes(q)||(s.name||'').toLowerCase().includes(q)||s.uuid.toLowerCase().includes(q)||(s.lastAssistantText||'').toLowerCase().includes(q)||s.userTurns.some(t=>t.text.toLowerCase().includes(q))||s.commands.some(c=>c.name.toLowerCase().includes(q))||s.queueItems.some(i=>i.text.toLowerCase().includes(q))||s.claudeTasks.some(t=>t.subject.toLowerCase().includes(q));
@@ -1238,7 +1253,7 @@ function sessionRow(s){
       ${lastReply?`<div class="t-sub" data-tip="${esc(s.lastAssistantText||'')}">${esc(lastReply)}${(s.lastAssistantText||'').length>100?'…':''}</div>`:''}
       <div class="t-sub" style="opacity:.6" data-tip="${esc(s.uuid)}">${s.uuid.slice(0,8)}…</div>
     </td>
-    <td class="model">${esc(s.model||'—')}<div style="font-size:10px;color:${s.source==='pi'?'var(--pi-accent)':'var(--dim)'}">${s.source==='pi'?'Pi':'Claude'}</div></td>
+    <td class="model">${esc(s.model||'—')}<div style="font-size:10px;color:${s.source==='pi'?'var(--pi-accent)':'var(--dim)'}">${s.source==='pi'?'Pi':'Claude'}${s.account?' · '+esc(s.account):''}</div></td>
     <td class="cost" style="color:${costColor}">${costStr}</td>
     <td class="turns">${s.userTurns.length+s.commands.length}</td>
     <td class="ctasks">${s.claudeTasks.length>0?`<span class="qc ct" data-tip="${esc(ctTip)}">${s.claudeTasks.length}</span>`:'<span style="color:var(--dim)">—</span>'}</td>
@@ -1328,6 +1343,7 @@ function deserializeCache(data){
     claudeTasks:(s.claudeTasks||[]).map(t=>({...t,ts:t.ts?new Date(t.ts):null})),
     agents:s.agents||[],
     source:s.source||'claude',
+    account:s.account||null,
   }));
 }
 async function hasNewerFiles(claudeHandles,piHandles,cacheTs){
