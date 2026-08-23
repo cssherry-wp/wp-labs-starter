@@ -211,7 +211,7 @@ tr.detail-row td{padding:0;border-bottom:1px solid var(--border)}
   <button type="button" class="hbtn" id="clearCacheBtn" style="display:none" title="Force full re-scan (merges into persistent cache)">↺ Rescan</button>
   <button type="button" class="hbtn" id="analyticsBtn" style="display:none" title="Set ~/ClaudeAnalytics folder for persistent file cache">⊕ Analytics</button>
   <button type="button" class="hbtn" id="addDirBtn" style="display:none">+ Add folder</button>
-  <button type="button" class="hbtn" id="piDirBtn" style="display:none">⊕ Pi folder</button>
+  <button type="button" class="hbtn" id="piDirBtn">⊕ Pi folder</button>
   <span id="dirPills" style="display:inline-flex;gap:4px;flex-wrap:wrap"></span>
   <div id="prog-wrap"><div id="prog-bar"></div></div>
   <span id="status">Loading…</span>
@@ -391,11 +391,11 @@ async function tryAutoLoad(){
     const nd=p.get('nd')?+p.get('nd'):null;
     if(wantedDirs&&wantedDirs.length){
       toLoad=wantedDirs.map(name=>handles.find(h=>h.name===name)).filter(Boolean);
-      if(!toLoad.length)toLoad=handles.slice(0,1);
+      if(!toLoad.length)toLoad=handles;
     } else if(nd){
       toLoad=handles.slice(0,nd);
     } else {
-      toLoad=handles.slice(0,1);
+      toLoad=handles;
     }
     const permed=[];
     for(const h of toLoad){
@@ -420,13 +420,15 @@ async function tryAutoLoad(){
       try{if(await h.queryPermission({mode:'read'})==='granted')piHandles.push(h);}catch{}
     }
     const cached=await loadCache();
-    if(cached){
-      allSessions=deserializeCache(cached.data);
+    const loadedKeys=loadedAccountKeys();
+    const neverScanned=cached&&loadedKeys.some(k=>!(k in cached.accountTs));
+    if(cached&&!neverScanned){
+      const watermark=Math.min(...loadedKeys.map(k=>cached.accountTs[k]));
+      allSessions=deserializeCache(cached.data.filter(s=>!s.account||loadedKeys.includes((s.source||'claude')+'|'+s.account)));
       document.getElementById('addDirBtn').style.display='';
-      document.getElementById('piDirBtn').style.display='';
       renderDirPills();
       showLanding(false);render();setStatus(`${allSessions.length} sessions (checking…)`);
-      const stale=await hasNewerFiles(claudeHandles,piHandles,cached.ts);
+      const stale=await hasNewerFiles(claudeHandles,piHandles,watermark);
       if(stale){setStatus('New data found, reloading…');await load();}
       else{setStatus(`${allSessions.length} sessions`);}
     } else {
@@ -580,7 +582,6 @@ async function load(){
   allSessions=[...sessions.values()].sort((a,b)=>(b.lastActivityAt?.getTime()||b.startedAt?.getTime()||0)-(a.lastActivityAt?.getTime()||a.startedAt?.getTime()||0));
   showProgress(false);
   document.getElementById('addDirBtn').style.display='';
-  document.getElementById('piDirBtn').style.display='';
   renderDirPills();
   render();
   saveCache(allSessions);
@@ -1324,7 +1325,14 @@ function getPricing(model){if(!model)return null;let p=PRICING[model];if(!p){con
 function calcCost(model,usage,source){if(source==='pi')return null;const p=getPricing(model);if(!p)return null;return(usage.in*p.in+usage.cw*p.cw+usage.cr*p.cr+usage.out*p.out)/1e6;}
 
 // ─── Session cache ────────────────────────────────────────────────────────────────
-function cacheKey(){return'claude-sess-v4-'+claudeHandles.map(h=>h.name).join('|')+'|pi:'+piHandles.map(h=>h.name).join('|');}
+function cacheKey(){return'claude-sess-v5';}
+// Cache is keyed by uuid and merged across every folder ever scanned (not just the
+// currently loaded combo), so adding/removing a folder doesn't invalidate the rest.
+// accountTs tracks per-folder last-scan time so staleness/relevance can be judged
+// per folder instead of by one shared timestamp for the whole blob.
+function loadedAccountKeys(){
+  return[...claudeHandles.map(h=>'claude|'+h.name),...piHandles.map(h=>'pi|'+h.name)];
+}
 function serializeCache(sessions){
   return sessions.map(s=>({...s,
     startedAt:s.startedAt?.toISOString()||null,
@@ -1389,38 +1397,53 @@ async function hasNewerFiles(claudeHandles,piHandles,cacheTs){
 }
 async function saveCache(sessions){
   const h=await getAnalyticsHandle();
+  const now=Date.now();
   if(!h){
-    try{localStorage.setItem(cacheKey(),JSON.stringify({ts:Date.now(),data:serializeCache(sessions)}));}catch{}
+    try{
+      let existing={},accountTs={};
+      try{const raw=localStorage.getItem(cacheKey());if(raw){const c=JSON.parse(raw);existing=c.sessions||{};accountTs=c.accountTs||{};}}catch{}
+      const serialized=serializeCache(sessions);
+      for(const s of serialized)existing[s.uuid]=s;
+      for(const k of loadedAccountKeys())accountTs[k]=now;
+      localStorage.setItem(cacheKey(),JSON.stringify({ts:now,sessions:existing,accountTs}));
+    }catch{}
     return;
   }
   try{
-    let existing={};
+    let existing={},accountTs={};
     try{
       const fh=await h.getFileHandle('session-cache.json');
       const raw=await(await fh.getFile()).text();
       const c=JSON.parse(raw);
       existing=c.sessions||{};
+      accountTs=c.accountTs||{};
     }catch{}
     // Merge: current data wins per UUID; old UUIDs are preserved (additive only)
     const serialized=serializeCache(sessions);
     for(const s of serialized)existing[s.uuid]=s;
+    for(const k of loadedAccountKeys())accountTs[k]=now;
     const fh=await h.getFileHandle('session-cache.json',{create:true});
     const w=await fh.createWritable();
-    await w.write(JSON.stringify({ts:Date.now(),sessions:existing}));
+    await w.write(JSON.stringify({ts:now,sessions:existing,accountTs}));
     await w.close();
   }catch(e){console.warn('saveCache',e);}
 }
 async function loadCache(){
   const h=await getAnalyticsHandle();
   if(!h){
-    try{const raw=localStorage.getItem(cacheKey());if(!raw)return null;const c=JSON.parse(raw);return c?.ts&&c?.data?c:null;}catch{return null;}
+    try{
+      const raw=localStorage.getItem(cacheKey());if(!raw)return null;
+      const c=JSON.parse(raw);
+      if(!c?.ts||!c?.sessions||!c?.accountTs)return null; // pre-migration shape: treat as a miss
+      return{ts:c.ts,data:Object.values(c.sessions),accountTs:c.accountTs};
+    }catch{return null;}
   }
   try{
     const fh=await h.getFileHandle('session-cache.json');
     const raw=await(await fh.getFile()).text();
     const c=JSON.parse(raw);
-    if(!c?.ts||!c?.sessions)return null;
-    return{ts:c.ts,data:Object.values(c.sessions)};
+    if(!c?.ts||!c?.sessions||!c?.accountTs)return null;
+    return{ts:c.ts,data:Object.values(c.sessions),accountTs:c.accountTs};
   }catch{return null;}
 }
 
