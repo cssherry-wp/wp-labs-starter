@@ -23,6 +23,8 @@ def _make_session(
     tools: list[str] | None = None,
     skills: list[str] | None = None,
     ts: int | None = None,
+    source: str = "claude",
+    account: str | None = None,
 ) -> dict:
     """Build a minimal session dict for injection into the dashboard.
 
@@ -33,6 +35,9 @@ def _make_session(
         tools: Tool names used. Defaults to ["Bash", "Read"].
         skills: Skill names used. Defaults to empty list.
         ts: Start timestamp in milliseconds. Defaults to one hour ago.
+        source: 'claude' or 'pi'. Defaults to 'claude'.
+        account: Loaded folder name the session is attributed to, matching
+            the name used in _set_dirs. Defaults to None (untagged).
 
     Returns:
         Session dict matching the shape of allSessions elements.
@@ -60,6 +65,8 @@ def _make_session(
         "tools": tools or ["Bash", "Read"],
         "skills": skills or [],
         "agents": [],
+        "source": source,
+        "account": account,
     }
 
 
@@ -88,6 +95,30 @@ def _inject(page: Page, sessions: list[dict]) -> None:
             document.getElementById('search').style.display = 'inline-block';
         }""",
         sessions,
+    )
+
+
+def _set_dirs(
+    page: Page, claude_names: list[str], pi_names: list[str] | None = None
+) -> None:
+    """Simulate loaded Claude/Pi folders and render the #dirPills filter.
+
+    Sets fake handle objects (only `.name` is used by renderDirPills) rather
+    than real FileSystemDirectoryHandle instances, which aren't available in
+    a test page.
+
+    Args:
+        page: Playwright page with the dashboard loaded.
+        claude_names: Folder names to simulate as loaded Claude handles.
+        pi_names: Folder names to simulate as loaded Pi handles.
+    """
+    page.evaluate(
+        """([claudeNames, piNames]) => {
+            claudeHandles = claudeNames.map(name => ({name}));
+            piHandles = piNames.map(name => ({name}));
+            renderDirPills();
+        }""",
+        [claude_names, pi_names or []],
     )
 
 
@@ -262,6 +293,82 @@ def test_reload_button_hidden_before_data(dash: Page) -> None:
 def test_reload_button_shown_after_inject(dash: Page) -> None:
     _inject(dash, [_make_session("aaa-111")])
     expect(dash.locator("#reloadBtn")).to_be_visible()
+
+
+# ── Account filter (dirPills) ─────────────────────────────────────────────────
+
+def test_dir_pills_render_one_per_loaded_folder(dash: Page) -> None:
+    _set_dirs(dash, ["work-home", "personal-home"])
+    expect(dash.locator("#dirPills .pill")).to_have_count(2)
+
+
+def test_dir_pill_click_filters_table(dash: Page) -> None:
+    _inject(dash, [
+        _make_session("aaa-111", title="Work session", account="work-home"),
+        _make_session("bbb-222", title="Personal session", account="personal-home"),
+    ])
+    _set_dirs(dash, ["work-home", "personal-home"])
+    expect(dash.locator("tr.srow")).to_have_count(2)
+    dash.locator('[data-account="claude|work-home"]').click()
+    expect(dash.locator("tr.srow")).to_have_count(1)
+    expect(dash.locator("tr.srow")).to_contain_text("Work session")
+
+
+def test_dir_pill_click_marks_pill_active(dash: Page) -> None:
+    _inject(dash, [_make_session("aaa-111", account="work-home")])
+    _set_dirs(dash, ["work-home"])
+    expect(dash.locator('[data-account="claude|work-home"].on')).to_have_count(0)
+    dash.locator('[data-account="claude|work-home"]').click()
+    expect(dash.locator('[data-account="claude|work-home"].on')).to_have_count(1)
+
+
+def test_dir_pill_click_twice_clears_filter(dash: Page) -> None:
+    _inject(dash, [
+        _make_session("aaa-111", account="work-home"),
+        _make_session("bbb-222", account="personal-home"),
+    ])
+    _set_dirs(dash, ["work-home", "personal-home"])
+    pill = dash.locator('[data-account="claude|work-home"]')
+    pill.click()
+    expect(dash.locator("tr.srow")).to_have_count(1)
+    pill.click()
+    expect(dash.locator("tr.srow")).to_have_count(2)
+
+
+def test_dir_pill_filter_shows_in_filter_icon(dash: Page) -> None:
+    _inject(dash, [_make_session("aaa-111", account="work-home")])
+    _set_dirs(dash, ["work-home"])
+    dash.locator('[data-account="claude|work-home"]').click()
+    expect(dash.locator("#filterInfo")).to_contain_text("1 filter")
+
+
+def test_clear_all_resets_dir_pill(dash: Page) -> None:
+    _inject(dash, [
+        _make_session("aaa-111", account="work-home"),
+        _make_session("bbb-222", account="personal-home"),
+    ])
+    _set_dirs(dash, ["work-home", "personal-home"])
+    dash.locator('[data-account="claude|work-home"]').click()
+    expect(dash.locator("tr.srow")).to_have_count(1)
+    dash.locator("#clearAll").click()
+    expect(dash.locator("tr.srow")).to_have_count(2)
+    expect(dash.locator('[data-account="claude|work-home"].on')).to_have_count(0)
+
+
+def test_row_shows_account_label(dash: Page) -> None:
+    _inject(dash, [_make_session("aaa-111", account="work-home")])
+    expect(dash.locator("tr.srow")).to_contain_text("work-home")
+
+
+def test_pi_dir_pill_filters_independently_of_claude(dash: Page) -> None:
+    _inject(dash, [
+        _make_session("aaa-111", title="Claude session", account="work-home", source="claude"),
+        _make_session("bbb-222", title="Pi session", account="agent-box", source="pi"),
+    ])
+    _set_dirs(dash, ["work-home"], ["agent-box"])
+    dash.locator('[data-account="pi|agent-box"]').click()
+    expect(dash.locator("tr.srow")).to_have_count(1)
+    expect(dash.locator("tr.srow")).to_contain_text("Pi session")
 
 
 # ── Date filter ───────────────────────────────────────────────────────────────
