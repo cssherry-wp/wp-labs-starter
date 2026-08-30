@@ -4,7 +4,7 @@
 # Line 2: "first user msg" → "last user msg"  (if transcript available)
 # SDLC_SOURCE_VERSION must match plugins/wp-labs-sdlc/.claude-plugin/plugin.json's
 # "version" at the time this file was last generated/copied from that template.
-SDLC_SOURCE_VERSION="0.19.1"
+SDLC_SOURCE_VERSION="0.19.2"
 set -uo pipefail
 
 R=$'\033[0m'   CY=$'\033[36m'  GR=$'\033[32m'
@@ -99,7 +99,11 @@ sync=''
 if [[ -n "$branch" ]]; then
   ah=$(git rev-list --count "@{upstream}..HEAD" 2>/dev/null || echo 0)
   bh=$(git rev-list --count "HEAD..@{upstream}" 2>/dev/null || echo 0)
-  [[ "${ah:-0}" -gt 0 || "${bh:-0}" -gt 0 ]] && sync="+${ah:-0}-${bh:-0}"
+  if [[ "${ah:-0}" -gt 0 || "${bh:-0}" -gt 0 ]]; then
+    sync="+${ah:-0}-${bh:-0}"
+    read -r _files _ins _del <<<"$(git diff --numstat "@{upstream}...HEAD" 2>/dev/null | awk '{f++; i+=$1; d+=$2} END{print f+0, i+0, d+0}')"
+    [[ "${_ins:-0}" -gt 0 || "${_del:-0}" -gt 0 ]] && sync+=" (~${_files:-0}f +${_ins:-0}/-${_del:-0}L)"
+  fi
 fi
 
 # Ponytail mode
