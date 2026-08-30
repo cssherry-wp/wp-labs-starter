@@ -1,6 +1,7 @@
 """Python Playwright e2e tests for session-dashboard.html."""
 import time
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 from playwright.sync_api import Page, expect
@@ -369,6 +370,162 @@ def test_pi_dir_pill_filters_independently_of_claude(dash: Page) -> None:
     dash.locator('[data-account="pi|agent-box"]').click()
     expect(dash.locator("tr.srow")).to_have_count(1)
     expect(dash.locator("tr.srow")).to_contain_text("Pi session")
+
+
+def test_file_input_account_gets_its_own_pill(dash: Page) -> None:
+    """Sessions with no directory handle behind them are still filterable.
+
+    The file-input fallback populates extraAccounts instead of claudeHandles,
+    so renderDirPills must fold those in or the sessions become unreachable
+    by any pill.
+    """
+    _inject(dash, [
+        _make_session("aaa-111", title="Dropped session", account="dropped-home"),
+        _make_session("bbb-222", title="Handle session", account="work-home"),
+    ])
+    dash.evaluate(
+        "() => { extraAccounts = ['claude|dropped-home']; renderDirPills(); }"
+    )
+    _set_dirs(dash, ["work-home"])
+    dash.evaluate(
+        "() => { extraAccounts = ['claude|dropped-home']; renderDirPills(); }"
+    )
+    dash.locator('[data-account="claude|dropped-home"]').click()
+    expect(dash.locator("tr.srow")).to_have_count(1)
+    expect(dash.locator("tr.srow")).to_contain_text("Dropped session")
+
+
+# ── Session cache (localStorage branch) ───────────────────────────────────────
+#
+# With no analytics folder handle in IndexedDB, getAnalyticsHandle() returns
+# null and saveCache/loadCache fall through to localStorage, so the merge and
+# accountTs watermark logic is exercisable without mocking the File System
+# Access API.
+
+
+def _save_cache(page: Page, claude_names: list[str], sessions: list[dict]) -> None:
+    """Load sessions, mark folders as loaded, and persist via saveCache.
+
+    Args:
+        page: Playwright page with the dashboard loaded.
+        claude_names: Folder names to treat as the currently loaded handles.
+        sessions: Session dicts from _make_session.
+    """
+    _inject(page, sessions)
+    _set_dirs(page, claude_names)
+    page.evaluate("async () => { await saveCache(allSessions); }")
+
+
+def _load_cache(page: Page) -> dict[str, Any] | None:
+    """Return loadCache()'s result, or None on a cache miss.
+
+    Args:
+        page: Playwright page with the dashboard loaded.
+
+    Returns:
+        Dict with `ts`, `data`, and `accountTs` keys, or None.
+    """
+    return cast(
+        "dict[str, Any] | None", page.evaluate("async () => await loadCache()")
+    )
+
+
+def test_cache_round_trips_sessions_and_account_ts(dash: Page) -> None:
+    _save_cache(dash, ["work-home"], [_make_session("aaa-111", account="work-home")])
+    cached = _load_cache(dash)
+    assert cached is not None
+    assert [s["uuid"] for s in cached["data"]] == ["aaa-111"]
+    assert list(cached["accountTs"]) == ["claude|work-home"]
+
+
+def test_cache_merges_across_folders_instead_of_replacing(dash: Page) -> None:
+    """Saving folder B must not evict folder A's cached sessions.
+
+    This is the regression the v5 uuid-keyed cache exists to prevent: the v4
+    per-combo key meant adding a folder orphaned everything scanned before it.
+    """
+    _save_cache(dash, ["work-home"], [_make_session("aaa-111", account="work-home")])
+    _save_cache(
+        dash, ["personal-home"], [_make_session("bbb-222", account="personal-home")]
+    )
+    cached = _load_cache(dash)
+    assert cached is not None
+    assert sorted(s["uuid"] for s in cached["data"]) == ["aaa-111", "bbb-222"]
+    assert sorted(cached["accountTs"]) == ["claude|personal-home", "claude|work-home"]
+
+
+def test_cache_save_refreshes_only_loaded_account_timestamps(dash: Page) -> None:
+    _save_cache(dash, ["work-home"], [_make_session("aaa-111", account="work-home")])
+    first = _load_cache(dash)
+    assert first is not None
+    _save_cache(
+        dash, ["personal-home"], [_make_session("bbb-222", account="personal-home")]
+    )
+    second = _load_cache(dash)
+    assert second is not None
+    assert second["accountTs"]["claude|work-home"] == first["accountTs"]["claude|work-home"]
+
+
+def test_pre_v5_cache_shape_is_treated_as_a_miss(dash: Page) -> None:
+    """A v4-shaped blob under the v5 key must not be half-read.
+
+    loadCache requires accountTs; without it the watermark would be NaN and
+    hasNewerFiles would never fire a rescan.
+    """
+    dash.evaluate(
+        """() => localStorage.setItem(
+            'claude-sess-v5',
+            JSON.stringify({ts: Date.now(), data: [{uuid: 'aaa-111'}]})
+        )"""
+    )
+    assert _load_cache(dash) is None
+
+
+def test_quota_exceeded_is_surfaced_in_status(dash: Page) -> None:
+    """A full localStorage must not fail silently.
+
+    The cache merges additively with no eviction, so the quota is reachable.
+    Swallowing the error leaves a permanently stale cache and a full rescan on
+    every load with nothing on screen to explain it.
+    """
+    _inject(dash, [_make_session("aaa-111", account="work-home")])
+    _set_dirs(dash, ["work-home"])
+    dash.evaluate(
+        """async () => {
+            localStorage.setItem = () => {
+                throw new DOMException('full', 'QuotaExceededError');
+            };
+            await saveCache(allSessions);
+        }"""
+    )
+    expect(dash.locator("#status")).to_contain_text("browser cache full")
+    expect(dash.locator("#status")).to_contain_text("1 sessions")
+
+
+def test_quota_exceeded_leaves_previous_cache_readable(dash: Page) -> None:
+    """setItem is atomic, so a rejected write must not corrupt the old blob."""
+    _save_cache(dash, ["work-home"], [_make_session("aaa-111", account="work-home")])
+    _inject(dash, [_make_session("bbb-222", account="work-home")])
+    _set_dirs(dash, ["work-home"])
+    dash.evaluate(
+        """async () => {
+            localStorage.setItem = () => {
+                throw new DOMException('full', 'QuotaExceededError');
+            };
+            await saveCache(allSessions);
+        }"""
+    )
+    cached = _load_cache(dash)
+    assert cached is not None
+    assert [s["uuid"] for s in cached["data"]] == ["aaa-111"]
+
+
+def test_deserialize_cache_defaults_account_to_null(dash: Page) -> None:
+    """Sessions cached before the account field existed must not be dropped."""
+    account = dash.evaluate(
+        "() => deserializeCache([{uuid: 'aaa-111', usage: {}}])[0].account"
+    )
+    assert account is None
 
 
 # ── Date filter ───────────────────────────────────────────────────────────────
