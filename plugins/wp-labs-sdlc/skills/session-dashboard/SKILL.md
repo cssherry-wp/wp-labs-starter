@@ -30,5 +30,8 @@ fi
 
 After running, tell the user the dashboard is open. On first use they need to
 click the "Open ~/.claude" button (or the large "Open ~/.claude folder" button
-on the landing page) to grant folder access — not reload. Once granted, the
-permission is stored in IndexedDB and persists across page loads automatically.
+on the landing page) to grant folder access — not reload. The folder handle
+itself is remembered in IndexedDB, but the browser's read permission on it can
+still expire (e.g. after a browser restart) — if that happens, the dashboard
+shows an "Allow access" button to re-grant it with one click, no need to
+re-pick the folder.
