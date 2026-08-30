@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # ~/.claude/statusline.sh
-# Line 1: /full/path [branch] | ±N | N% bar (+subagent tok, best-effort) | ponytail | model | sid8 | cfg | sdlc vX.Y.Z [(installed vN)]
+# Line 1: /full/path [branch] | ±N | N% bar (+$subagent, best-effort) | ponytail | model | sid8 | cfg | sdlc vX.Y.Z [(installed vN)]
 # Line 2: "first user msg" → "last user msg"  (if transcript available)
 # SDLC_SOURCE_VERSION must match plugins/wp-labs-sdlc/.claude-plugin/plugin.json's
 # "version" at the time this file was last generated/copied from that template.
-SDLC_SOURCE_VERSION="0.19.4"
+SDLC_SOURCE_VERSION="0.19.5"
 set -uo pipefail
 
 R=$'\033[0m'   CY=$'\033[36m'  GR=$'\033[32m'
@@ -43,6 +43,9 @@ cost_str=$(echo "$_parsed"        | awk 'NR==5')
 dur_str=$(echo "$_parsed"         | awk 'NR==6')
 token_pct=${token_pct:-0}
 
+# Config dir (needed below to locate the installed PRICING table)
+cfg="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+
 # Read first/last user messages from transcript
 first_msg=''; last_msg=''
 if [[ -f "${transcript_path:-}" ]]; then
@@ -56,35 +59,60 @@ def txt(content):
         return ' '.join(b.get('text','') for b in content if b.get('type')=='text').strip()
     return ''
 
-import re
+import re, glob
 
-first_msg = ''; last_msg = ''; subagent_tok = 0
+# (input, output, cache_write, cache_read) $/MTok — pulled from the repo's
+# own summarize_ai_usage.py PRICING table (installed plugin cache) so this
+# stays in sync with it; falls back to its "_default" row if not found.
+PRICING = {'_default': (3.0, 15.0, 3.75, 0.3)}
+try:
+    src = glob.glob(sys.argv[2] + '/plugins/cache/*/wp-labs-sdlc/*/skills/summarize-ai-usage/scripts/summarize_ai_usage.py')
+    if src:
+        text = open(sorted(src)[-1]).read()
+        block = re.search(r'PRICING:.*?=\s*\{(.*?)\n\}', text, re.S).group(1)
+        for k, a, b, c, d_ in re.findall(r'"([^"]+)":\s*\(([\d.]+),\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)\)', block):
+            PRICING[k] = (float(a), float(b), float(c), float(d_))
+except Exception:
+    pass
+
+def blended_rate(model):
+    key = next((k for k in PRICING if k != '_default' and k in (model or '')), '_default')
+    inp, out, _, _ = PRICING[key]
+    return (inp + out) / 2  # no input/output split available per subagent, so approximate
+
+first_msg = ''; last_msg = ''; subagent_cost = 0.0
+agent_model = {}
 try:
     with open(sys.argv[1]) as f:
         for line in f:
-            for m in re.finditer(r'<subagent_tokens>(\d+)</subagent_tokens>', line):
-                subagent_tok += int(m.group(1))
             try:
                 d = json.loads(line)
+            except Exception:
+                d = None
+            if isinstance(d, dict):
+                tur = d.get('toolUseResult')
+                if isinstance(tur, dict) and tur.get('agentId') and tur.get('resolvedModel'):
+                    agent_model[tur['agentId']] = tur['resolvedModel']
                 msg = d.get('message') or d
-                if msg.get('role') == 'user':
+                if isinstance(msg, dict) and msg.get('role') == 'user':
                     s = txt(msg.get('content', '')).split('\n')[0][:120]
                     if s and not s.startswith('<'):
                         if not first_msg: first_msg = s
                         last_msg = s
-            except Exception: pass
+            for tid, tok in re.findall(r'<task-id>([\w-]+)</task-id>.*?<subagent_tokens>(\d+)</subagent_tokens>', line, re.S):
+                subagent_cost += int(tok) / 1_000_000 * blended_rate(agent_model.get(tid))
 except Exception: pass
 print(first_msg)
 print(last_msg)
-print(subagent_tok)
+print(f'{subagent_cost:.4f}')
 PY
-  _td=$(python3 "$_py" "$transcript_path" 2>/dev/null) || true
+  _td=$(python3 "$_py" "$transcript_path" "$cfg" 2>/dev/null) || true
   rm -f "$_py"
   first_msg=$(echo "${_td:-}" | awk 'NR==1')
   last_msg=$(echo "${_td:-}"  | awk 'NR==2')
-  subagent_tok=$(echo "${_td:-}" | awk 'NR==3')
+  subagent_cost=$(echo "${_td:-}" | awk 'NR==3')
 fi
-subagent_tok=${subagent_tok:-0}
+subagent_cost=${subagent_cost:-0}
 
 # Render 10-char token bar
 bar_filled=$(( token_pct / 10 ))
@@ -98,16 +126,11 @@ if   (( token_pct >= 90 )); then bar_c=$RD
 elif (( token_pct >= 70 )); then bar_c=$YL
 else bar_c=$GR; fi
 
-# Best-effort subagent token count, parsed from <subagent_tokens> tags in
-# task-notification text embedded in the transcript (not an official API;
-# no per-subagent-model pricing is available, so this stays a token count).
+# Best-effort subagent $ cost, converted from tokens using this repo's own
+# summarize_ai_usage.py PRICING table (not an official Claude Code API —
+# derived from <subagent_tokens> tags in transcript task-notification text).
 subagent_str=''
-if [[ "${subagent_tok:-0}" -gt 0 ]]; then
-  if   (( subagent_tok >= 1000000 )); then subagent_str="+$(( subagent_tok / 1000000 )).$(( (subagent_tok / 100000) % 10 ))Mtok"
-  elif (( subagent_tok >= 1000 ));    then subagent_str="+$(( subagent_tok / 1000 )).$(( (subagent_tok / 100) % 10 ))ktok"
-  else                                     subagent_str="+${subagent_tok}tok"
-  fi
-fi
+awk "BEGIN{exit !($subagent_cost > 0)}" && subagent_str="+\$$(printf '%.2f' "$subagent_cost")"
 
 # Git context
 git_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
@@ -122,9 +145,6 @@ if [[ -n "$branch" ]]; then
 fi
 
 # Ponytail mode
-# Config dir
-cfg="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-
 _pt=$(ls -d "$cfg"/plugins/cache/ponytail/ponytail/*/hooks/ponytail-statusline.sh 2>/dev/null | sort -V | tail -1 || true)
 pt=$([[ -f "${_pt:-}" ]] && bash "$_pt" 2>/dev/null || true)
 
