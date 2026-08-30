@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # ~/.claude/statusline.sh
-# Line 1: folder [branch] | ±N | N% bar | ponytail | model | sid8 | cfg | sdlc vX.Y.Z [(installed vN)]
+# Line 1: /full/path [branch] | ±N | N% bar (+subagent tok, best-effort) | ponytail | model | sid8 | cfg | sdlc vX.Y.Z [(installed vN)]
 # Line 2: "first user msg" → "last user msg"  (if transcript available)
 # SDLC_SOURCE_VERSION must match plugins/wp-labs-sdlc/.claude-plugin/plugin.json's
 # "version" at the time this file was last generated/copied from that template.
-SDLC_SOURCE_VERSION="0.19.3"
+SDLC_SOURCE_VERSION="0.19.4"
 set -uo pipefail
 
 R=$'\033[0m'   CY=$'\033[36m'  GR=$'\033[32m'
@@ -56,10 +56,14 @@ def txt(content):
         return ' '.join(b.get('text','') for b in content if b.get('type')=='text').strip()
     return ''
 
-first_msg = ''; last_msg = ''
+import re
+
+first_msg = ''; last_msg = ''; subagent_tok = 0
 try:
     with open(sys.argv[1]) as f:
         for line in f:
+            for m in re.finditer(r'<subagent_tokens>(\d+)</subagent_tokens>', line):
+                subagent_tok += int(m.group(1))
             try:
                 d = json.loads(line)
                 msg = d.get('message') or d
@@ -72,12 +76,15 @@ try:
 except Exception: pass
 print(first_msg)
 print(last_msg)
+print(subagent_tok)
 PY
   _td=$(python3 "$_py" "$transcript_path" 2>/dev/null) || true
   rm -f "$_py"
   first_msg=$(echo "${_td:-}" | awk 'NR==1')
   last_msg=$(echo "${_td:-}"  | awk 'NR==2')
+  subagent_tok=$(echo "${_td:-}" | awk 'NR==3')
 fi
+subagent_tok=${subagent_tok:-0}
 
 # Render 10-char token bar
 bar_filled=$(( token_pct / 10 ))
@@ -91,9 +98,19 @@ if   (( token_pct >= 90 )); then bar_c=$RD
 elif (( token_pct >= 70 )); then bar_c=$YL
 else bar_c=$GR; fi
 
+# Best-effort subagent token count, parsed from <subagent_tokens> tags in
+# task-notification text embedded in the transcript (not an official API;
+# no per-subagent-model pricing is available, so this stays a token count).
+subagent_str=''
+if [[ "${subagent_tok:-0}" -gt 0 ]]; then
+  if   (( subagent_tok >= 1000000 )); then subagent_str="+$(( subagent_tok / 1000000 )).$(( (subagent_tok / 100000) % 10 ))Mtok"
+  elif (( subagent_tok >= 1000 ));    then subagent_str="+$(( subagent_tok / 1000 )).$(( (subagent_tok / 100) % 10 ))ktok"
+  else                                     subagent_str="+${subagent_tok}tok"
+  fi
+fi
+
 # Git context
 git_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
-folder=$(basename "${git_root:-$PWD}")
 branch=$(git branch --show-current 2>/dev/null || true)
 sync=''
 if [[ -n "$branch" ]]; then
@@ -116,9 +133,9 @@ _sdlc_dir=$(ls -d "$cfg"/plugins/cache/*/wp-labs-sdlc/*/ 2>/dev/null | sort -V |
 sdlc_ver=$(basename "${_sdlc_dir%/}" 2>/dev/null || true)
 
 # --- Line 1 ---
-out="${CY}${folder}${branch:+ [$branch]}${R}${git_root:+ ${DM}${git_root/#$HOME/~}${R}}"
+out="${CY}${git_root:+${git_root/#$HOME/~}}${branch:+ [$branch]}${R}"
 [[ -n "$sync" ]] && out+=" | ${YL}${sync}${R}"
-out+=" | ${bar_c}${token_pct}% ${bar}${R}${cost_str:+ ${DM}${cost_str}${R}}${dur_str:+ ${DM}${dur_str}${R}}"
+out+=" | ${bar_c}${token_pct}% ${bar}${R}${cost_str:+ ${DM}${cost_str}${subagent_str:+ ${subagent_str}}${R}}${dur_str:+ ${DM}${dur_str}${R}}"
 [[ -n "$pt" ]] && out+=" | ${YL}${pt}${R}"
 out+=" | ${model:-${DM}(new)${R}}"
 [[ -n "$session_id" ]] && out+=" | ${DM}${session_id}${R}"
