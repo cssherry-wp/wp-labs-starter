@@ -4,7 +4,7 @@
 # Line 2: "first user msg" → "last user msg"  (if transcript available)
 # SDLC_SOURCE_VERSION must match plugins/wp-labs-sdlc/.claude-plugin/plugin.json's
 # "version" at the time this file was last generated/copied from that template.
-SDLC_SOURCE_VERSION="0.19.5"
+SDLC_SOURCE_VERSION="0.19.6"
 set -uo pipefail
 
 R=$'\033[0m'   CY=$'\033[36m'  GR=$'\033[32m'
@@ -75,12 +75,11 @@ try:
 except Exception:
     pass
 
-def blended_rate(model):
-    key = next((k for k in PRICING if k != '_default' and k in (model or '')), '_default')
+def blended_rate(key):
     inp, out, _, _ = PRICING[key]
     return (inp + out) / 2  # no input/output split available per subagent, so approximate
 
-first_msg = ''; last_msg = ''; subagent_cost = 0.0
+first_msg = ''; last_msg = ''; subagent_cost = 0.0; subagent_unknown_tok = 0
 agent_model = {}
 try:
     with open(sys.argv[1]) as f:
@@ -100,19 +99,27 @@ try:
                         if not first_msg: first_msg = s
                         last_msg = s
             for tid, tok in re.findall(r'<task-id>([\w-]+)</task-id>.*?<subagent_tokens>(\d+)</subagent_tokens>', line, re.S):
-                subagent_cost += int(tok) / 1_000_000 * blended_rate(agent_model.get(tid))
+                model = agent_model.get(tid)
+                key = next((k for k in PRICING if k != '_default' and k in (model or '')), None)
+                if key:
+                    subagent_cost += int(tok) / 1_000_000 * blended_rate(key)
+                else:
+                    subagent_unknown_tok += int(tok)  # unrecognized model — show as tokens, not $
 except Exception: pass
 print(first_msg)
 print(last_msg)
 print(f'{subagent_cost:.4f}')
+print(subagent_unknown_tok)
 PY
   _td=$(python3 "$_py" "$transcript_path" "$cfg" 2>/dev/null) || true
   rm -f "$_py"
   first_msg=$(echo "${_td:-}" | awk 'NR==1')
   last_msg=$(echo "${_td:-}"  | awk 'NR==2')
   subagent_cost=$(echo "${_td:-}" | awk 'NR==3')
+  subagent_unknown_tok=$(echo "${_td:-}" | awk 'NR==4')
 fi
 subagent_cost=${subagent_cost:-0}
+subagent_unknown_tok=${subagent_unknown_tok:-0}
 
 # Render 10-char token bar
 bar_filled=$(( token_pct / 10 ))
@@ -129,8 +136,17 @@ else bar_c=$GR; fi
 # Best-effort subagent $ cost, converted from tokens using this repo's own
 # summarize_ai_usage.py PRICING table (not an official Claude Code API —
 # derived from <subagent_tokens> tags in transcript task-notification text).
+# Tokens from a model PRICING doesn't recognize (e.g. a free model) are
+# shown as a raw token count instead of guessing a paid rate for them.
 subagent_str=''
 awk "BEGIN{exit !($subagent_cost > 0)}" && subagent_str="+\$$(printf '%.2f' "$subagent_cost")"
+if [[ "${subagent_unknown_tok:-0}" -gt 0 ]]; then
+  if   (( subagent_unknown_tok >= 1000000 )); then unk_str="+$(( subagent_unknown_tok / 1000000 )).$(( (subagent_unknown_tok / 100000) % 10 ))Mtok"
+  elif (( subagent_unknown_tok >= 1000 ));    then unk_str="+$(( subagent_unknown_tok / 1000 )).$(( (subagent_unknown_tok / 100) % 10 ))ktok"
+  else                                             unk_str="+${subagent_unknown_tok}tok"
+  fi
+  subagent_str="${subagent_str}${subagent_str:+ }${unk_str}"
+fi
 
 # Git context
 git_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
