@@ -4,7 +4,7 @@
 # Line 2: "first user msg" → "last user msg"  (if transcript available)
 # SDLC_SOURCE_VERSION must match plugins/wp-labs-sdlc/.claude-plugin/plugin.json's
 # "version" at the time this file was last generated/copied from that template.
-SDLC_SOURCE_VERSION="0.19.0"
+SDLC_SOURCE_VERSION="0.19.1"
 set -uo pipefail
 
 R=$'\033[0m'   CY=$'\033[36m'  GR=$'\033[32m'
@@ -114,7 +114,7 @@ _sdlc_dir=$(ls -d "$cfg"/plugins/cache/*/wp-labs-sdlc/*/ 2>/dev/null | sort -V |
 sdlc_ver=$(basename "${_sdlc_dir%/}" 2>/dev/null || true)
 
 # --- Line 1 ---
-out="${CY}${folder}${branch:+ [$branch]}${R}"
+out="${CY}${folder}${branch:+ [$branch]}${R}${git_root:+ ${DM}${git_root/#$HOME/~}${R}}"
 [[ -n "$sync" ]] && out+=" | ${YL}${sync}${R}"
 out+=" | ${bar_c}${token_pct}% ${bar}${R}${cost_str:+ ${DM}${cost_str}${R}}${dur_str:+ ${DM}${dur_str}${R}}"
 [[ -n "$pt" ]] && out+=" | ${YL}${pt}${R}"
