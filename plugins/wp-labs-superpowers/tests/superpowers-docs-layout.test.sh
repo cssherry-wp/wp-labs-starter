@@ -92,6 +92,21 @@ for d in 01-specs 02-plans 03-review; do
        awk '{print ($1 > 0) ? "yes" : "no"}')" "yes"
 done
 
+# --- 2b. the spec is git-ignored, not committed --------------------------------
+# Upstream brainstorming tells the user to commit the design document; the team
+# convention is that .superpowers/ is git-ignored and the tracker issue is the
+# spec's durable record. build_fork_tree rewrites those sentences in place, so
+# the contradiction reappearing here means a rewrite stopped matching upstream's
+# wording and silently did nothing.
+BRAINSTORM="$PLUGIN/skills/brainstorming/SKILL.md"
+check "brainstorming says the spec is a git-ignored working copy" \
+  "$(grep -c 'git-ignored working copy' "$BRAINSTORM")" "2"
+check "brainstorming says not to commit the spec" \
+  "$(grep -c 'Do NOT commit the spec' "$BRAINSTORM")" "1"
+check "brainstorming no longer tells anyone to commit the spec" \
+  "$(grep -cE 'and commit$|^- Commit the design document to git$|Spec written and committed' \
+     "$BRAINSTORM")" "0"
+
 # --- 3. every overlay fragment is actually applied to its skill ---------------
 # The refresh script only appends overlays when it rebuilds from a new upstream
 # release, so a fragment added or edited on its own sits inert until then — the

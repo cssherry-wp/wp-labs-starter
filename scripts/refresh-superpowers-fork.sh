@@ -104,6 +104,26 @@ build_fork_tree() {
   sed -i.bak 's#.superpowers/02-plans/YYYY-MM-DD-<feature-name>\.md#.superpowers/02-plans/YYYY-MM-DD-HHmm-<name-of-plan>.md#g' \
     "$dest/skills/writing-plans/SKILL.md" 2>/dev/null && rm -f "$dest/skills/writing-plans/SKILL.md.bak" || true
 
+  # --- "commit the spec" -> the team's git-ignored-spec convention ------------
+  # Upstream tells the user to commit the design document. Under the team
+  # convention .superpowers/ is git-ignored working space and the tracker issue
+  # is the spec's durable record, so these three sentences have to be replaced
+  # in place. Appending an overlay cannot contradict prose that already says
+  # the opposite, and pinning the whole file as a team-overlays/files/ entry
+  # would discard every upstream improvement to this skill — a rewrite here is
+  # the same mechanism the docs-path substitutions above use.
+  # Each is exact-match, idempotent, and best-effort: if upstream rewords the
+  # sentence the substitution simply does not fire, and the drift check is what
+  # tells us to come back and update the pattern.
+  bs="$dest/skills/brainstorming/SKILL.md"
+  if [ -f "$bs" ]; then
+    sed -i.bak \
+      -e 's#<name-of-spec>\.md` and commit#<name-of-spec>.md` (git-ignored working copy; not committed)#' \
+      -e 's#^- Commit the design document to git$#- Do NOT commit the spec — `.superpowers/` is git-ignored working space; the GitHub tracking issue (see the "Team workflow" section at the end of this skill) is its durable record#' \
+      -e 's#^> "Spec written and committed to `<path>`\.#> "Spec written to `<path>` (git-ignored working copy).#' \
+      "$bs" 2>/dev/null && rm -f "$bs.bak" || true
+  fi
+
   # --- Re-apply team workflow overlays (survive the upstream rebuild) --------
   # Overlays live only in the real fork, not in reconstructions of it.
   local overlay_dir="$FORK_DIR/team-overlays"
