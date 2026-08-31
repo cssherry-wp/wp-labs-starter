@@ -1449,7 +1449,7 @@ function sessionRow(s){
       ${lastReply?`<div class="t-sub" data-tip="${esc(s.lastAssistantText||'')}">${esc(lastReply)}${(s.lastAssistantText||'').length>100?'…':''}</div>`:''}
       <div class="t-sub" style="opacity:.6" data-tip="${esc(s.uuid)}">${s.uuid.slice(0,8)}…</div>
     </td>
-    <td class="model">${esc(s.model||'—')}<div style="font-size:10px;color:${s.source==='pi'?'var(--pi-accent)':'var(--dim)'}">${s.source==='pi'?'Pi':'Claude'}${s.account?' · '+esc(s.account):''}</div></td>
+    <td class="model">${esc(s.model||'—')}<div style="font-size:10px;color:${s.source==='pi'?'var(--pi-accent)':'var(--dim)'}">${{pi:'Pi',session_summaries:'session_summaries'}[s.source]||'Claude'}${s.account?' · '+esc(s.account):''}</div></td>
     <td class="cost" style="color:${costColor}">${costStr}</td>
     <td class="turns">${s.userTurns.length+s.commands.length}</td>
     <td class="ctasks">${s.claudeTasks.length>0?`<span class="qc ct" data-tip="${esc(ctTip)}">${s.claudeTasks.length}</span>`:'<span style="color:var(--dim)">—</span>'}</td>
