@@ -280,14 +280,26 @@ Coverage: <overall line %> (or: not available)
 Keep it tight. End with the verdict, blockers first.
 
 **Persist the report:** after printing (or writing `--ci` JSON), save the prose report to
-`<repo-root>/.superpowers/03-review/<YYYY-MM-DD>-<slug>.md` where `slug` is `uncommitted`,
-`pr-<N>`, or derived from the branch name. Create the directory if absent and ensure it
-self-ignores (add the `.gitignore` if it is missing, even when the folder already exists):
+`<repo-root>/.superpowers/03-review/<YYYY-MM-DD-HHmm>-<slug>.md` where `slug` is `uncommitted`,
+`pr-<N>`, or derived from the branch name. The `HHmm` is a 24-hour timestamp — without it a
+second review of the same branch on the same day silently overwrites the first. Create the
+directory if absent:
 
 ```bash
 repo_top=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
 mkdir -p "$repo_top/.superpowers/03-review"
-[ -f "$repo_top/.superpowers/03-review/.gitignore" ] || printf '*\n' > "$repo_top/.superpowers/03-review/.gitignore"
+```
+
+Do **not** add a self-ignoring `.gitignore` to this folder. In a project adopted into the
+superpowers sidecar, `.superpowers` is a symlink and the project's own `.gitignore` already hides
+it by name; inside the sidecar the reviews are meant to be tracked. In a project that has not
+been adopted, the folder is untracked working scratch either way.
+
+After writing the file, sync it to the sidecar (best-effort — report and continue on failure):
+
+```bash
+bash "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh" push \
+  "<org>/<repo>: change-review — <YYYY-MM-DD-HHmm>-<slug>.md ($(date '+%Y-%m-%d %H:%M'))"
 ```
 
 Derive the repo root with `git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel`
@@ -331,6 +343,42 @@ Act on each selection:
 - **Ignore**: record it as acknowledged.
 
 Report a one-line summary: what was fixed, queued, logged, and ignored.
+
+**Then record it in the persisted review file.** The spoken summary disappears with the
+conversation; the file is what someone reads later — including on another machine, since the
+sidecar syncs it. Append (or update, if it already exists) a `## Disposition` section at the end
+of the review document saved above:
+
+```markdown
+## Disposition
+
+_Updated 2026-08-31 14:22_
+
+- CR-001: fixed
+- CR-003: queued — revisit after the perf work lands
+- CR-005: ignored — intentional, mirrors the upstream behaviour
+- CR-007: logged — #142
+```
+
+Rules:
+
+- One line per finding, using the `CR-NNN` IDs from the report. Every finding gets a line —
+  including the ones auto-fixed during the review under `--fix`, which are `fixed`.
+- Carry across any free-text note the user attached to a disposition.
+- **Update this section again after every later fix round.** When the user comes back and says
+  "fix CR-003 now", change that row in place from `queued` to `fixed` and refresh the
+  `_Updated ..._` line. This is a current-state list, not a change log — do not append a second
+  Disposition section, and do not keep the superseded row.
+- Sync after every write of this section, the same way the report itself was synced:
+
+  ```bash
+  bash "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh" push \
+    "<org>/<repo>: change-review — disposition for <slug> ($(date '+%Y-%m-%d %H:%M'))"
+  ```
+
+If the review file for the findings under discussion cannot be located (e.g. the findings came
+from a session whose file was never persisted), say so and skip — do not invent a new review file
+just to hold a Disposition section.
 
 ## Notes
 

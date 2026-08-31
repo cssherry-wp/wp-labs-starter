@@ -128,15 +128,26 @@ Report-only. Do not edit, fix, or commit — the `file:line` anchors are the sea
 pass.
 
 **Persist the report:** after printing, save the prose report to
-`<repo-root>/.superpowers/03-review/<YYYY-MM-DD>-audit-<slug>.md` where `slug` is the audited path
-with slashes replaced by dashes (or `repo` for a full-repo audit). Create the directory if absent
-and ensure it self-ignores (add the `.gitignore` if it is missing, even when the folder already
-exists):
+`<repo-root>/.superpowers/03-review/<YYYY-MM-DD-HHmm>-audit-<slug>.md` where `slug` is the audited
+path with slashes replaced by dashes (or `repo` for a full-repo audit). The `HHmm` is a 24-hour
+timestamp — without it a second audit of the same path on the same day silently overwrites the
+first. Create the directory if absent:
 
 ```bash
 repo_top=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
 mkdir -p "$repo_top/.superpowers/03-review"
-[ -f "$repo_top/.superpowers/03-review/.gitignore" ] || printf '*\n' > "$repo_top/.superpowers/03-review/.gitignore"
+```
+
+Do **not** add a self-ignoring `.gitignore` to this folder. In a project adopted into the
+superpowers sidecar, `.superpowers` is a symlink and the project's own `.gitignore` already hides
+it by name; inside the sidecar the reviews are meant to be tracked. In a project that has not
+been adopted, the folder is untracked working scratch either way.
+
+After writing the file, sync it to the sidecar (best-effort — report and continue on failure):
+
+```bash
+bash "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh" push \
+  "<org>/<repo>: codebase-audit — <YYYY-MM-DD-HHmm>-audit-<slug>.md ($(date '+%Y-%m-%d %H:%M'))"
 ```
 
 Derive the repo root with `git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel`
