@@ -735,6 +735,20 @@ async function load(months,force=false){
       }
     }catch(e){console.warn('pi sessions',e);}
   }
+  // Surface cache-only sessions that have no live file at all (migrated legacy
+  // entries, session_summaries.db backfill) — handleFile() only ever adds to
+  // passSessions when it actually finds a matching .jsonl during the directory
+  // scan above, so a session with no live file would otherwise be written to the
+  // shard correctly but never actually shown.
+  {
+    const monthsToSurface=months==='ALL'
+      ?[...new Set(Object.keys(index).filter(k=>!k.startsWith('__')).map(k=>index[k].month))]
+      :months;
+    for(const m of monthsToSurface){
+      const shard=await getShard(m);
+      for(const[uuid,s]of shard)if(!passSessions.has(uuid))passSessions.set(uuid,s);
+    }
+  }
   // Load task statuses from ~/.claude/tasks/ — live data wins over the
   // carried-forward cached status applied above.
   const taskMap=new Map();
@@ -975,7 +989,7 @@ function readUrl(){
 function syncUrl(){
   const p=new URLSearchParams();
   if(activeProject!=='all')p.set('project',activeProject);
-  if(activeDateFilter!=='all')p.set('period',activeDateFilter);
+  if(activeDateFilter!=='month')p.set('period',activeDateFilter);
   if(activeDateFilter==='custom'){if(customDateFrom)p.set('from',customDateFrom);if(customDateTo)p.set('to',customDateTo);}
   if(activeTaskType!=='all')p.set('type',activeTaskType);
   if(activeSource!=='all')p.set('source',activeSource);
