@@ -3,14 +3,16 @@
 ## Team workflow: post the plan to the tracking issue
 
 Write the plan to the **repository ROOT's** `.superpowers/02-plans/` — the main working tree, not
-the current directory or a worktree. Resolve the root explicitly and ensure the folder self-ignores
-(add the `.gitignore` if it is missing, even when the folder already exists):
+the current directory or a worktree. Resolve the root explicitly:
 
 ```bash
 repo_top=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
 mkdir -p "$repo_top/.superpowers/02-plans"
-[ -f "$repo_top/.superpowers/02-plans/.gitignore" ] || printf '*\n' > "$repo_top/.superpowers/02-plans/.gitignore"
 ```
+
+Do not add a self-ignoring `.gitignore` to this folder — the project's own `.gitignore` already
+hides `.superpowers` by name in an adopted project, and inside the sidecar this content is meant
+to be tracked.
 
 The plan is a git-ignored working copy — do NOT commit it; the tracker issue is its durable record.
 
@@ -35,6 +37,27 @@ After the plan file is saved and self-reviewed, log it to the tracker:
      (capture the key from `--json` output via `| jq -r .key`).
    - **neither** → skip with a one-line note.
    Record the new `Tracking issue: <url-or-key>` in the plan file.
+
+## Team workflow: note the promotion in the spec
+
+The plan is a new document; the spec it came from should say so. After the plan file is saved,
+append one line to the **spec** file this plan is based on:
+
+```
+Promoted to plan: .superpowers/02-plans/<plan-filename>.md (<YYYY-MM-DD HH:mm>)
+```
+
+Then sync both documents to the sidecar (best-effort — if the script is missing or fails, report
+it and continue; never block on it):
+
+```bash
+bash "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh" push \
+  "<org>/<repo>: writing-plans — <plan-filename>.md ($(date '+%Y-%m-%d %H:%M'))"
+```
+
+This is a note in the documents themselves, separate from the tracker steps above. If the plan was
+written without a spec (a plan for an ad-hoc request), there is nothing to annotate — skip the note
+and still run the sync.
 
 **Keep it in sync.** If you later revise the plan (e.g. during plan self-review or fixes), edit the
 same comment in place — do NOT post a duplicate:

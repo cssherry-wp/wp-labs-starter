@@ -66,9 +66,10 @@ emit "changed=true"
 emit "version=$upstream_version"
 emit "sha=$upstream_sha"
 
-if [ "$MODE" = "--check" ]; then
-  exit 0
-fi
+# NOTE: --check does not exit here. It falls through the drift check below and
+# exits after it, so `--check` actually reports hand-edits that the rebuild
+# would discard — reporting drift is the main thing a dry run is asked for.
+# Only the rebuild itself is skipped.
 
 # Rebuild $2 (skills/ + hooks/ + LICENSE/README) from upstream checkout $1,
 # apply the docs-path convention, then re-append team-overlays/ fragments.
@@ -103,6 +104,26 @@ build_fork_tree() {
   sed -i.bak 's#.superpowers/02-plans/YYYY-MM-DD-<feature-name>\.md#.superpowers/02-plans/YYYY-MM-DD-HHmm-<name-of-plan>.md#g' \
     "$dest/skills/writing-plans/SKILL.md" 2>/dev/null && rm -f "$dest/skills/writing-plans/SKILL.md.bak" || true
 
+  # --- "commit the spec" -> the team's git-ignored-spec convention ------------
+  # Upstream tells the user to commit the design document. Under the team
+  # convention .superpowers/ is git-ignored working space and the tracker issue
+  # is the spec's durable record, so these three sentences have to be replaced
+  # in place. Appending an overlay cannot contradict prose that already says
+  # the opposite, and pinning the whole file as a team-overlays/files/ entry
+  # would discard every upstream improvement to this skill — a rewrite here is
+  # the same mechanism the docs-path substitutions above use.
+  # Each is exact-match, idempotent, and best-effort: if upstream rewords the
+  # sentence the substitution simply does not fire, and the drift check is what
+  # tells us to come back and update the pattern.
+  bs="$dest/skills/brainstorming/SKILL.md"
+  if [ -f "$bs" ]; then
+    sed -i.bak \
+      -e 's#<name-of-spec>\.md` and commit#<name-of-spec>.md` (git-ignored working copy; not committed)#' \
+      -e 's#^- Commit the design document to git$#- Do NOT commit the spec — `.superpowers/` is git-ignored working space; the GitHub tracking issue (see the "Team workflow" section at the end of this skill) is its durable record#' \
+      -e 's#^> "Spec written and committed to `<path>`\.#> "Spec written to `<path>` (git-ignored working copy).#' \
+      "$bs" 2>/dev/null && rm -f "$bs.bak" || true
+  fi
+
   # --- Re-apply team workflow overlays (survive the upstream rebuild) --------
   # Overlays live only in the real fork, not in reconstructions of it.
   local overlay_dir="$FORK_DIR/team-overlays"
@@ -117,6 +138,16 @@ build_fork_tree() {
         cat "$frag" >>"$target"
       fi
     done
+
+    # Whole-file overlays: everything that is not SKILL.md prose — scripts,
+    # hook payloads — where the team version replaces upstream's outright
+    # rather than being appended to it. team-overlays/files/ mirrors the fork
+    # layout, so team-overlays/files/skills/foo/scripts/bar overwrites
+    # skills/foo/scripts/bar. Copied last so it wins over the upstream copy.
+    # -p keeps the executable bit, which scripts here depend on.
+    if [ -d "$overlay_dir/files" ]; then
+      cp -Rp "$overlay_dir/files"/. "$dest"/
+    fi
   fi
 }
 
@@ -146,13 +177,19 @@ if [ -n "$base_sha" ]; then
     if [ -n "$drift" ]; then
       echo "ERROR: fork files were hand-edited outside team-overlays/ — the rebuild would discard them:" >&2
       echo "$drift" >&2
-      echo "Fix: move each change into a team-overlays/<skill>.md fragment (see FORK_MODIFICATIONS.md)," >&2
-      echo "then re-run. To rebuild anyway and accept the loss, set FORCE=1." >&2
+      echo "Fix: move SKILL.md prose into a team-overlays/<skill>.md fragment, and any other file" >&2
+      echo "into team-overlays/files/<same-path> (see FORK_MODIFICATIONS.md), then re-run." >&2
+      echo "To rebuild anyway and accept the loss, set FORCE=1." >&2
       [ "${FORCE:-}" = "1" ] || exit 1
     fi
+    [ "$MODE" = "--check" ] && echo "No hand-edit drift: the rebuild would preserve every fork file."
   else
     echo "WARNING: could not fetch base commit $base_sha from $src_url — skipping the drift check; hand-edits outside team-overlays/ will not be detected." >&2
   fi
+fi
+
+if [ "$MODE" = "--check" ]; then
+  exit 0
 fi
 
 # --- Rebuild the fork from upstream, keeping only plugin essentials -----------

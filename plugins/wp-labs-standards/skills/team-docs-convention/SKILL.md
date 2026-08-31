@@ -12,6 +12,7 @@ and `docs/superpowers/plans/`):
 
 - **Specs:** `<repo-top-level>/.superpowers/01-specs/YYYY-MM-DD-HHmm-<name-of-spec>.md`
 - **Plans:** `<repo-top-level>/.superpowers/02-plans/YYYY-MM-DD-HHmm-<name-of-plan>.md`
+- **Reviews:** `<repo-top-level>/.superpowers/03-review/YYYY-MM-DD-HHmm-<slug>.md`
 
 Rules:
 - Use a 24-hour `HHmm` timestamp in the filename so multiple docs created the same day sort correctly.
@@ -25,18 +26,20 @@ Rules:
   From a normal checkout this is the repo root; from a git worktree it is the **main** working
   tree's root (not the worktree). Every worktree therefore shares one durable location, and the
   docs survive a worktree being removed.
-- **Ensure each folder has a self-ignoring `.gitignore` — add it if it is missing**, whether the
-  folder is brand new or already exists from a previous run. Same pattern superpowers uses for its
-  `sdd/` scratch:
+- **Do not create a `.gitignore` inside `.superpowers/` or any of its subfolders.** Creating the
+  folder is enough:
+
   ```bash
-  for d in 01-specs 02-plans; do
+  for d in 01-specs 02-plans 03-review; do
     mkdir -p "$repo_top/.superpowers/$d"
-    [ -f "$repo_top/.superpowers/$d/.gitignore" ] || printf '*\n' > "$repo_top/.superpowers/$d/.gitignore"
   done
   ```
-  The `*` ignores everything in the folder, including the `.gitignore` itself, so nothing is
-  tracked and the host repo's root `.gitignore` is left untouched. Run this check every time you
-  write a spec or plan — it is a no-op once the `.gitignore` exists.
+
+  The old per-folder `.gitignore` containing `*` existed to hide these documents from the host
+  repo. That job now belongs to a single `.superpowers` line in the project's own `.gitignore`,
+  added when the project is adopted into the superpowers sidecar (`/superpowers-sidecar-init`).
+  Inside the sidecar this content is *meant* to be tracked, so a self-ignoring marker there would
+  silently defeat the sync. If you find a leftover `.gitignore` in one of these folders, delete it.
 - **Specs and plans are git-ignored working copies — do NOT commit them.** The GitHub tracking
   issue (see the lifecycle below) is their durable record. This overrides any "commit the design
   document / plan to git" step in the brainstorming or writing-plans skills.
@@ -44,7 +47,7 @@ Rules:
 If you are following the superpowers brainstorming or writing-plans skills, substitute these
 paths wherever they reference `docs/superpowers/specs/` or `docs/superpowers/plans/`.
 
-## Lifecycle: spec → issue → plan-comment → feature docs
+## Lifecycle: spec → issue → plan-comment → feature docs → progress notes
 
 These steps apply whether you use stock superpowers or the team fork:
 
@@ -70,3 +73,18 @@ These steps apply whether you use stock superpowers or the team fork:
    dated changelog.
 
 If `gh` is missing or unauthenticated, report and continue; never block on it.
+
+5. **Progress notes — each document records its own lifecycle.** These are notes *in the file*,
+   independent of the tracker sync in steps 1–3:
+   - When a spec becomes a plan, the **spec** gets `Promoted to plan: <plan-path> (<YYYY-MM-DD HH:mm>)`.
+   - When a plan's implementation completes, the **plan** gets `Implemented: <YYYY-MM-DD HH:mm>`.
+   - When review findings are triaged or later fixed, the **review** gets a `## Disposition`
+     section listing each `CR-NNN` and its current outcome.
+
+   After writing any of these, sync the document to the sidecar (best-effort; report and continue
+   if it fails):
+
+   ```bash
+   bash "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh" push \
+     "<org>/<repo>: <skill-name> — <file> ($(date '+%Y-%m-%d %H:%M'))"
+   ```

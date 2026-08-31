@@ -13,6 +13,26 @@ Overlays are appended to a skill's `SKILL.md` after each upstream refresh. To ad
    <!-- wp-labs team overlay: END -->
    ```
 2. The refresh script (`scripts/refresh-superpowers-fork.sh`) appends it automatically. It checks for the `BEGIN` marker so it won't double-append.
+3. Append the same fragment to the committed `skills/<skill-name>/SKILL.md` now. The refresh script only applies overlays when it rebuilds, so a fragment added on its own sits inert until the next upstream release — the skill Claude actually loads would not carry your change.
+
+## Add or edit a whole-file overlay (scripts, hooks, anything not `SKILL.md`)
+
+Appending prose does not work for a script. For those, `team-overlays/files/` mirrors the fork's own
+layout, and every file in it is copied over the rebuilt tree at the end of the refresh:
+
+```
+team-overlays/files/skills/subagent-driven-development/scripts/sdd-workspace
+  -> overwrites  skills/subagent-driven-development/scripts/sdd-workspace
+```
+
+The copy runs last, so the team version always wins over upstream's. Keep the two copies identical
+(`plugins/wp-labs-superpowers/tests/superpowers-docs-layout.test.sh` asserts this): edit the
+`team-overlays/files/` copy, then copy it into `skills/`, or the next refresh reverts your committed
+change to whatever the overlay holds.
+
+Use this only for a file the team genuinely owns end to end. A whole-file overlay pins that file at
+the version you wrote, so upstream improvements to it are silently discarded on every refresh —
+prefer a `team-overlays/<skill>.md` fragment whenever the change can be expressed as appended prose.
 
 ## Change how the fork is built
 
@@ -23,20 +43,22 @@ Structural changes — path rewrites, file pruning, version logic — live in [`
 Any edit made straight to a file under `skills/` or `hooks/` — a tweak to a `SKILL.md`, a fix to a
 script like `skills/brainstorming/scripts/helper.js` — is invisible to the refresh script and gets
 silently wiped the next time it rebuilds from upstream, because the rebuild replaces those
-directories wholesale. Only `team-overlays/*.md` fragments and the rewrites baked into the script
-survive a refresh.
+directories wholesale. Only `team-overlays/` content and the rewrites baked into the script survive
+a refresh.
 
 The refresh script now guards against this: before rebuilding, it reconstructs what the fork should
 look like from its recorded base commit and diffs that against what's actually committed. A mismatch
 means something was hand-edited outside the overlay system, and the script aborts with the list of
 affected files instead of quietly discarding them. Move the change into a `team-overlays/<skill>.md`
-fragment (for `SKILL.md` content) — non-`SKILL.md` files (scripts, etc.) currently have no overlay
-mechanism, so re-apply those by hand after each refresh, or extend the script if they recur.
+fragment for `SKILL.md` prose, or into `team-overlays/files/<same-path>` for any other file (see the
+two sections above).
 
 **To verify the guard actually fires** (worth a quick check after touching the guard itself, since a
-silent no-op here is worse than no guard at all): the drift check only runs on the rebuild path,
-which the script skips with "Up to date" whenever `plugin.json`'s version already matches upstream
-— true right after every refresh. To force it, work from a throwaway copy of the repo:
+silent no-op here is worse than no guard at all): the drift check is skipped only when the script
+exits "Up to date", i.e. whenever `plugin.json`'s version already matches upstream — true right
+after every refresh. When upstream *is* ahead, `--check` runs the drift check and reports it without
+rebuilding, so that is the cheap way to ask "would a refresh discard anything?". To force the check
+while up to date, work from a throwaway copy of the repo:
 
 ```bash
 cp -R . /tmp/fork-drift-test && cd /tmp/fork-drift-test
