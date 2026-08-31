@@ -76,6 +76,17 @@ MAIN_ROOT=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-tople
 
 This works correctly from both the main working tree and any worktree.
 
+## Superpowers sidecar
+
+In an adopted project, `.superpowers/` is a symlink into `~/.superpowers-sidecar`, and the
+project's `.gitignore` carries a single `.superpowers` line to hide it. Because the whole
+directory is already ignored by name and its content is tracked in the sidecar repo instead,
+no subfolder inside `.superpowers/` should get its own self-ignoring `.gitignore` — that
+pattern is obsolete once a project is adopted.
+
+See [`docs/superpowers-sidecar.md`](docs/superpowers-sidecar.md) for setup, adoption, and
+recovery steps.
+
 ## Global config note
 
 `~/.claude/CLAUDE.md` (the user-level config) is outside this repository. Changes to it cannot be committed here. Edit it directly and track it separately (e.g. in a dotfiles repo). Do not attempt to stage or commit it from within claude-starter.
