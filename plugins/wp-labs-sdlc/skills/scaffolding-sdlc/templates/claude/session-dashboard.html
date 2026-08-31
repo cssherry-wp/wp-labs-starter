@@ -577,10 +577,12 @@ async function load(months){
   const passSessions=new Map(); // this pass's in-scope uuids, merged into sessionStore at the end
   let sinceFlush=0;
   async function flushIfDue(){
-    // A scoped (1-2 month) load is fast enough that losing progress on an
-    // interruption just means redoing a quick scan — only the rare, explicit
-    // full-history scan needs mid-scan persistence to avoid losing everything.
-    if(months!=='ALL')return;
+    // Flush periodically regardless of scope — a "scoped" load can still be a full
+    // cold scan in practice (a user whose whole history fits in the default 1-2
+    // month window gets no benefit from month-scoping on the first load). Reads are
+    // always full/accurate now (no truncation), so persisting often makes forward
+    // progress durable: an interrupted scan doesn't lose or corrupt anything already
+    // parsed, and a retry only has to redo what wasn't flushed yet.
     if(++sinceFlush<50)return;
     sinceFlush=0;
     for(const m of touchedMonths)await saveCacheShard(m,[...(await getShard(m)).values()]);
@@ -613,7 +615,10 @@ async function load(months){
       const month=s.startedAt?monthKey(s.startedAt.getTime()):(entry?.month||monthKey(Date.now()));
       if(entry&&entry.month!==month)await deleteFromShardIfPresent(entry.month,uuid);
       (await getShard(month)).set(uuid,s);
-      index[uuid]={month,fileTs:freshTs,trustedLarge:file.size>PRIOR_CAP};
+      // Always a full read now, so this reparse itself verifies any large file —
+      // trustedLarge:true regardless of prior state (self-heals migrated entries
+      // that predate this and may have been capped under now-removed code).
+      index[uuid]={month,fileTs:freshTs,trustedLarge:true};
       touchedMonths.add(month);
       if(inScope(month))passSessions.set(uuid,s);
     }catch{}
