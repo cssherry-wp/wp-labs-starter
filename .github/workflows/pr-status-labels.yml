@@ -13,6 +13,13 @@ jobs:
   label:
     if: github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
+    # This job never checks out the repo — it only labels a PR. `gh pr` infers
+    # the repo from the local git remote, so without a checkout it dies with
+    # "failed to run git: fatal: not a git repository". GH_REPO supplies that
+    # context directly, which is cheaper than cloning the repo just to add a
+    # label. (`gh api` with an explicit path needs no such context.)
+    env:
+      GH_REPO: ${{ github.repository }}
     steps:
       - name: Resolve PR number
         id: pr
