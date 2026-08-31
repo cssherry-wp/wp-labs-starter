@@ -101,4 +101,44 @@ check "identical local copy cleaned up" \
   "$([ -f "$TMP/project/.superpowers/01-specs/same.md" ] && echo yes || echo no)" "no"
 teardown
 
+# --- finalize replaces the directory with a symlink and ignores it ---
+setup
+(cd "$TMP/project" && bash "$SCRIPT" migrate) >/dev/null 2>&1
+(cd "$TMP/project" && bash "$SCRIPT" finalize) >/dev/null 2>&1
+check "finalize made .superpowers a symlink" \
+  "$([ -L "$TMP/project/.superpowers" ] && echo yes || echo no)" "yes"
+check "symlink points at the project's sidecar folder" \
+  "$(cd "$TMP/project/.superpowers" && pwd -P)" "$(cd "$TMP/sidecar/myorg/myrepo" && pwd -P)"
+check "gitignore line added" \
+  "$(grep -c '^\.superpowers$' "$TMP/project/.gitignore")" "1"
+check "project git ignores the symlink" \
+  "$(cd "$TMP/project" && git status --porcelain | grep -c superpowers)" "0"
+teardown
+
+# --- finalize is idempotent (safe to re-run) ---
+setup
+(cd "$TMP/project" && bash "$SCRIPT" migrate) >/dev/null 2>&1
+(cd "$TMP/project" && bash "$SCRIPT" finalize) >/dev/null 2>&1
+(cd "$TMP/project" && bash "$SCRIPT" finalize) >/dev/null 2>&1
+check "second finalize kept the symlink" \
+  "$([ -L "$TMP/project/.superpowers" ] && echo yes || echo no)" "yes"
+check "gitignore line not duplicated" \
+  "$(grep -c '^\.superpowers$' "$TMP/project/.gitignore")" "1"
+teardown
+
+# --- finalize refuses while a conflict is unresolved ---
+setup
+(cd "$TMP/project" && bash "$SCRIPT" migrate) >/dev/null 2>&1
+echo sidecar-side > "$TMP/sidecar/myorg/myrepo/01-specs/dup.md"
+mkdir -p "$TMP/project/.superpowers/01-specs"
+echo local-side > "$TMP/project/.superpowers/01-specs/dup.md"
+(cd "$TMP/project" && bash "$SCRIPT" migrate) >/dev/null 2>&1
+(cd "$TMP/project" && bash "$SCRIPT" finalize >/dev/null 2>&1)
+check "finalize exits 5 with leftovers" "$?" "5"
+check "finalize left the directory alone" \
+  "$([ -L "$TMP/project/.superpowers" ] && echo symlink || echo dir)" "dir"
+check "unresolved local file survived" \
+  "$(cat "$TMP/project/.superpowers/01-specs/dup.md")" "local-side"
+teardown
+
 exit "$fail"

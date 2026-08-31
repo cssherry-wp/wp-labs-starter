@@ -84,6 +84,37 @@ case "${1:-}" in
     exit 0
     ;;
 
+  finalize)
+    key="$(project_key)" || exit $?
+    ensure_clone
+    dest="$SIDECAR_DIR/$key"
+    src="$PWD/.superpowers"
+
+    if [ -d "$src" ] && [ ! -L "$src" ]; then
+      leftovers="$(find "$src" -type f | wc -l | tr -d ' ')"
+      [ "$leftovers" = "0" ] || die "$leftovers unresolved file(s) still in $src — resolve the reported conflicts before finalizing" 5
+      rm -rf "$src"
+    fi
+
+    [ -L "$src" ] || ln -s "$dest" "$src"
+
+    # One line in the project's own .gitignore hides the symlink from this repo,
+    # which is why no subfolder inside the sidecar needs its own .gitignore.
+    ignore="$PWD/.gitignore"
+    if ! { [ -f "$ignore" ] && grep -qx '\.superpowers' "$ignore"; }; then
+      [ -f "$ignore" ] && [ -n "$(tail -c1 "$ignore")" ] && printf '\n' >> "$ignore"
+      printf '.superpowers\n' >> "$ignore"
+    fi
+
+    sync_script="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh"
+    if [ -x "$sync_script" ] || [ -f "$sync_script" ]; then
+      bash "$sync_script" push "$key: superpowers-sidecar-init — adopted project ($(date '+%Y-%m-%d %H:%M'))"
+    else
+      echo "note: $sync_script not installed yet — run /setup-claude --sync to enable automatic syncing" >&2
+    fi
+    exit 0
+    ;;
+
   *)
     die "usage: sidecar-init.sh {key|migrate|finalize}" 2
     ;;
