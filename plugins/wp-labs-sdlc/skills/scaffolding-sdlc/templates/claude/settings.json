@@ -6,6 +6,17 @@
   "defaultMode": "plan",
   "alwaysThinkingEnabled": true,
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh\" pull 2>/dev/null || true",
+            "statusMessage": "Syncing superpowers sidecar..."
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
@@ -13,6 +24,11 @@
             "type": "command",
             "command": "git status --porcelain 2>/dev/null | grep -v '^??' | grep -q . && echo '{\"systemMessage\": \"Warning: uncommitted tracked changes detected. Did Claude forget to commit?\"}' || true",
             "statusMessage": "Checking for uncommitted changes..."
+          },
+          {
+            "type": "command",
+            "command": "k=$(cd -P .superpowers 2>/dev/null && b=$(pwd -P) && echo \"$(basename \"$(dirname \"$b\")\")/$(basename \"$b\")\"); bash \"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh\" push \"${k:-unknown}: session-end sweep ($(date '+%Y-%m-%d %H:%M'))\" 2>/dev/null || true",
+            "statusMessage": "Sweeping superpowers sidecar..."
           }
         ]
       }

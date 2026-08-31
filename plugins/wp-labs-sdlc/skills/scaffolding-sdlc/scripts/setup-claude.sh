@@ -36,8 +36,12 @@ ask() {
 
 # --- settings.json ---
 if [ -f "$CLAUDE_DIR/settings.json" ]; then
-  # Merge objects recursively; concatenate hooks.Stop arrays so existing hooks are preserved.
-  merged=$(jq -s '.[0] as $a | .[1] as $b | ($a * $b) | .hooks.Stop = (($a.hooks.Stop // []) + ($b.hooks.Stop // []))' "$CLAUDE_DIR/settings.json" "$TMPL/settings.json")
+  # `*` deep-merges objects but REPLACES arrays, so every hook array we ship has
+  # to be concatenated explicitly or we silently drop the user's own hooks.
+  merged=$(jq -s '.[0] as $a | .[1] as $b | ($a * $b)
+    | .hooks.Stop         = (($a.hooks.Stop         // []) + ($b.hooks.Stop         // []))
+    | .hooks.SessionStart = (($a.hooks.SessionStart // []) + ($b.hooks.SessionStart // []))' \
+    "$CLAUDE_DIR/settings.json" "$TMPL/settings.json")
   if diff <(cat "$CLAUDE_DIR/settings.json") <(echo "$merged") > /dev/null 2>&1; then
     echo "settings.json: already up to date"
   else
@@ -88,6 +92,21 @@ if [ -f "$src" ]; then
     cp "$src" "$dst"
     chmod +x "$dst"
     echo "statusline.sh: installed"
+  fi
+fi
+
+# --- sidecar-sync.sh ---
+# The superpowers-sidecar hooks in settings.json call this by absolute path, so
+# it has to live in the config dir rather than the plugin cache.
+src="$TMPL/sidecar-sync.sh"
+dst="$CLAUDE_DIR/sidecar-sync.sh"
+if [ -f "$src" ]; then
+  if [ -f "$dst" ] && diff -q "$src" "$dst" > /dev/null 2>&1; then
+    echo "sidecar-sync.sh: already up to date"
+  else
+    cp "$src" "$dst"
+    chmod +x "$dst"
+    echo "sidecar-sync.sh: installed"
   fi
 fi
 
