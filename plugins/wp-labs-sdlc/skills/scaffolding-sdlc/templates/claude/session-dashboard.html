@@ -618,7 +618,7 @@ async function load(months,force=false){
     const freshTs=source==='claude'?Math.max(file.lastModified,dirH?await subagentsMaxMtime(dirH):0):file.lastModified;
     if(!force&&entry&&entry.fileTs&&freshTs<=entry.fileTs&&cacheEntryTrusted(entry.trustedLarge,file.size)){
       const cached=(await getShard(entry.month)).get(uuid);
-      if(cached){passSessions.set(uuid,cached);done++;return;}
+      if(cached){cached.orphaned=false;passSessions.set(uuid,cached);done++;return;}
     }
     // Reparse. Seed queueItems/task-status from whatever was previously cached (if
     // any) — a session's queue/task tracking files are far more likely to have been
@@ -696,12 +696,13 @@ async function load(months,force=false){
           } else if(index[uuid]){
             const entry=index[uuid];
             const existing=(await getShard(entry.month)).get(uuid);
-            if(existing){existing.queueItems=items;touchedMonths.add(entry.month);if(inScope(entry.month))passSessions.set(uuid,existing);}
+            if(existing){existing.queueItems=items;existing.orphaned=true;touchedMonths.add(entry.month);if(inScope(entry.month))passSessions.set(uuid,existing);}
           } else {
             // Queue-only: no matching .jsonl anywhere, ever — bucket by the queue
             // file's own mtime, the only date signal available for it.
             const s=mkSession(uuid,'queue-only','claude',rootHandle.name);
             s.queueItems=items;
+            s.orphaned=true;
             const qf=await fh.getFile();
             const qmonth=monthKey(qf.lastModified);
             (await getShard(qmonth)).set(uuid,s);
@@ -746,7 +747,15 @@ async function load(months,force=false){
       :months;
     for(const m of monthsToSurface){
       const shard=await getShard(m);
-      for(const[uuid,s]of shard)if(!passSessions.has(uuid))passSessions.set(uuid,s);
+      for(const[uuid,s]of shard){
+        if(passSessions.has(uuid))continue;
+        // Reached only here because no live .jsonl was found for it this pass —
+        // marks it as orphaned for display. Self-corrects: if the file reappears,
+        // handleFile()'s reparse branch creates a fresh mkSession() with no
+        // orphaned field, so this only ever reflects the current scan's findings.
+        s.orphaned=true;
+        passSessions.set(uuid,s);
+      }
     }
   }
   // Load task statuses from ~/.claude/tasks/ — live data wins over the
@@ -1463,7 +1472,7 @@ function sessionRow(s){
       ${lastReply?`<div class="t-sub" data-tip="${esc(s.lastAssistantText||'')}">${esc(lastReply)}${(s.lastAssistantText||'').length>100?'…':''}</div>`:''}
       <div class="t-sub" style="opacity:.6" data-tip="${esc(s.uuid)}">${s.uuid.slice(0,8)}…</div>
     </td>
-    <td class="model">${esc(s.model||'—')}<div style="font-size:10px;color:${s.source==='pi'?'var(--pi-accent)':'var(--dim)'}">${{pi:'Pi',session_summaries:'session_summaries'}[s.source]||'Claude'}${s.account?' · '+esc(s.account):''}</div></td>
+    <td class="model">${esc(s.model||'—')}<div style="font-size:10px;color:${s.source==='pi'?'var(--pi-accent)':'var(--dim)'}">${{pi:'Pi',session_summaries:'session_summaries'}[s.source]||'Claude'}${s.account?' · '+esc(s.account):''}${s.orphaned?` <span style="color:var(--open)" data-tip="No live .jsonl file found on disk for this session — showing cached/archived data">· archived</span>`:''}</div></td>
     <td class="cost" style="color:${costColor}">${costStr}</td>
     <td class="turns">${s.userTurns.length+s.commands.length}</td>
     <td class="ctasks">${s.claudeTasks.length>0?`<span class="qc ct" data-tip="${esc(ctTip)}">${s.claudeTasks.length}</span>`:'<span style="color:var(--dim)">—</span>'}</td>
