@@ -208,8 +208,8 @@ tr.detail-row td{padding:0;border-bottom:1px solid var(--border)}
   <h1>Claude Sessions</h1>
   <button type="button" class="hbtn" id="openBtn">Open ~/.claude</button>
   <button type="button" class="hbtn" id="reloadBtn" style="display:none">↻ Reload</button>
-  <button type="button" class="hbtn" id="clearCacheBtn" style="display:none" title="Force full re-scan (merges into persistent cache)">↺ Rescan</button>
-  <button type="button" class="hbtn" id="analyticsBtn" style="display:none" title="Set ~/ClaudeAnalytics folder for persistent file cache">⊕ Analytics</button>
+  <button type="button" class="hbtn" id="clearCacheBtn" style="display:none" title="Force a full historical re-verify of every session, ignoring what's cached">↺ Rescan all</button>
+  <button type="button" class="hbtn" id="analyticsBtn" title="Set ~/ClaudeAnalytics folder for persistent file cache">⊕ Analytics</button>
   <button type="button" class="hbtn" id="addDirBtn" style="display:none">+ Add folder</button>
   <button type="button" class="hbtn" id="piDirBtn">⊕ Pi folder</button>
   <span id="dirPills" style="display:inline-flex;gap:4px;flex-wrap:wrap"></span>
@@ -322,25 +322,49 @@ async function idbGet(key){const db=await idbOpen();return new Promise((ok,err)=
 async function idbSet(key,val){const db=await idbOpen();return new Promise((ok,err)=>{const tx=db.transaction('kv','readwrite');tx.objectStore('kv').put(val,key);tx.oncomplete=ok;tx.onerror=err;});}
 
 // ─── Analytics dir ──────────────────────────────────────────────────────────
+// Query-only — never calls requestPermission(). This is called from load()'s
+// background paths (autoload, ensureMonthsLoaded, periodic flushes) which have no
+// user gesture; requestPermission() without one either rejects or, in some browser
+// builds, leaves an unanswerable native prompt hanging, wedging whatever awaited it.
 async function getAnalyticsHandle(){
   if(analyticsHandle)return analyticsHandle;
   try{
     const h=await idbGet('analytics-dir-handle');
     if(!h)return null;
-    const perm=await h.queryPermission({mode:'readwrite'});
-    if(perm==='granted'){analyticsHandle=h;return h;}
-    const perm2=await h.requestPermission({mode:'readwrite'});
-    if(perm2==='granted'){analyticsHandle=h;return h;}
+    if(await h.queryPermission({mode:'readwrite'})==='granted'){analyticsHandle=h;return h;}
   }catch{}
   return null;
 }
+// The button is always visible (never hidden) — its label is the only signal for
+// whether persistent disk caching is actually active, since "hidden" was previously
+// indistinguishable from "granted" vs. "stuck/broken" from the outside.
+function updateAnalyticsBtn(h){
+  const b=document.getElementById('analyticsBtn');
+  b.textContent=h?'✓ Analytics':'⊕ Analytics';
+  b.title=h?'Persistent disk cache active in '+(h.name||'~/ClaudeAnalytics')+' — click to change folder':'Set ~/ClaudeAnalytics folder for persistent file cache (currently using browser storage, ~5-10MB limit)';
+}
+// Re-grant on the previously-picked folder without making the user re-pick it —
+// but only callable from a real click, since requestPermission() needs that gesture
+// to actually resolve instead of hanging.
+async function grantAnalyticsAccess(){
+  try{
+    const stored=await idbGet('analytics-dir-handle');
+    if(stored&&await stored.requestPermission({mode:'readwrite'})==='granted'){
+      analyticsHandle=stored;
+      updateAnalyticsBtn(stored);
+      return stored;
+    }
+  }catch{}
+  return setupAnalyticsDir();
+}
 async function setupAnalyticsDir(){
   try{
-    const h=await window.showDirectoryPicker({id:'claude-analytics',mode:'readwrite',startIn:'documents'});
+    // Start the picker at the current folder (if any) rather than always Documents —
+    // makes it easy to navigate to a sibling folder when correcting a wrong pick.
+    const h=await window.showDirectoryPicker({id:'claude-analytics',mode:'readwrite',startIn:analyticsHandle||'documents'});
     await idbSet('analytics-dir-handle',h);
     analyticsHandle=h;
-    document.getElementById('analyticsBtn').style.display='none';
-    document.getElementById('clearCacheBtn').style.display='';
+    updateAnalyticsBtn(h);
     return h;
   }catch(e){if(e.name!=='AbortError')setStatus('Analytics dir setup failed: '+e.message,true);return null;}
 }
@@ -556,7 +580,7 @@ async function processAgentDir(parentUuid,fh,sessions){
 // monthKey()), tracked in the always-loaded `index` (uuid -> {month,fileTs,
 // trustedLarge}) so we know which shard a uuid lives in and whether its source
 // file has changed without opening it or guessing from mtime.
-async function load(months){
+async function load(months,force=false){
   if(months===undefined)months=neededMonthsForFilter();
   showLanding(false);
   showReloadAs('↻ Reload',()=>(claudeHandles.length||piHandles.length)&&load(neededMonthsForFilter()));
@@ -592,7 +616,7 @@ async function load(months){
     const entry=index[uuid];
     if(entry&&!inScope(entry.month))return; // deferred until that month is actually viewed
     const freshTs=source==='claude'?Math.max(file.lastModified,dirH?await subagentsMaxMtime(dirH):0):file.lastModified;
-    if(entry&&entry.fileTs&&freshTs<=entry.fileTs&&cacheEntryTrusted(entry.trustedLarge,file.size)){
+    if(!force&&entry&&entry.fileTs&&freshTs<=entry.fileTs&&cacheEntryTrusted(entry.trustedLarge,file.size)){
       const cached=(await getShard(entry.month)).get(uuid);
       if(cached){passSessions.set(uuid,cached);done++;return;}
     }
@@ -1611,10 +1635,14 @@ async function deleteFromShardIfPresent(month,uuid){
 }
 // One-time migration: the legacy single-blob cache (pre-sharding) holds real data
 // worth keeping rather than forcing a full cold re-scan of all history. Runs once —
-// only fires while the index is still empty, and populating it is what stops it
-// from running again.
+// gated on a dedicated `__migratedLegacy` marker, NOT on "index is empty": a live
+// scan can populate real entries before migration ever gets a chance to run (e.g.
+// the analytics handle pointed at the wrong folder for a while), and an
+// empty-index check would then skip migration forever even once pointed at the
+// right folder. Only fills in uuids not already indexed — never overwrites
+// something a live scan already found.
 async function migrateLegacyCacheIfNeeded(index){
-  if(Object.keys(index).length)return index;
+  if(index.__migratedLegacy)return index;
   const h=await getAnalyticsHandle();
   let legacy=null;
   try{
@@ -1626,10 +1654,11 @@ async function migrateLegacyCacheIfNeeded(index){
       if(raw)legacy=JSON.parse(raw);
     }
   }catch{}
-  if(!legacy?.sessions)return index;
+  if(!legacy?.sessions){index.__migratedLegacy=true;await saveIndex(index);return index;}
   const byMonth=new Map();
   const legacyFileTs=legacy.fileTs||{},legacyTrustedLarge=legacy.trustedLarge||{};
   for(const s of deserializeCache(Object.values(legacy.sessions))){
+    if(index[s.uuid])continue; // already indexed from a live scan — don't overwrite
     if(!s.startedAt)continue; // no reliable bucket — let it get rediscovered by a live scan
     const month=monthKey(s.startedAt.getTime());
     if(!byMonth.has(month))byMonth.set(month,[]);
@@ -1637,13 +1666,20 @@ async function migrateLegacyCacheIfNeeded(index){
     index[s.uuid]={month,fileTs:legacyFileTs[s.uuid]||0,trustedLarge:!!legacyTrustedLarge[s.uuid]};
   }
   for(const[month,list]of byMonth)await saveCacheShard(month,list);
+  index.__migratedLegacy=true;
   await saveIndex(index);
   return index;
 }
 
 // ─── Event wiring ─────────────────────────────────────────────────────────────
-document.getElementById('clearCacheBtn').addEventListener('click',()=>load(neededMonthsForFilter()));
-document.getElementById('analyticsBtn').addEventListener('click',async()=>{await setupAnalyticsDir();if(analyticsHandle)load(neededMonthsForFilter());});
+document.getElementById('clearCacheBtn').addEventListener('click',()=>load('ALL',true));
+document.getElementById('analyticsBtn').addEventListener('click',async()=>{
+  // Already active: the button's own tooltip says "click to change folder", so go
+  // straight to a fresh pick rather than silently re-confirming the same (possibly
+  // wrong) folder — grantAnalyticsAccess() would otherwise just re-grant it as-is.
+  await(analyticsHandle?setupAnalyticsDir():grantAnalyticsAccess());
+  if(analyticsHandle)load(neededMonthsForFilter());
+});
 let _searchDebounce=null,_tSearchDebounce=null;
 document.getElementById('search').addEventListener('input',e=>{
   searchQuery=e.target.value.trim();
@@ -1679,7 +1715,7 @@ document.addEventListener('mouseup',async e=>{
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 readUrl();
-getAnalyticsHandle().then(h=>{if(!h)document.getElementById('analyticsBtn').style.display='';});
+getAnalyticsHandle().then(updateAnalyticsBtn);
 tryAutoLoad();
 </script>
 </body>
