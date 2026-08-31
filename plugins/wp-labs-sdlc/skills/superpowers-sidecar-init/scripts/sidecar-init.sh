@@ -26,7 +26,18 @@ project_key() {
   url="${url##*:}"          # strip scheme/host for ssh form
   url="${url#//}"
   # For https URLs the host is still attached; keep only the last two segments.
-  echo "$url" | awk -F/ '{ if (NF>=2) print $(NF-1)"/"$NF; else print $NF }'
+  local key org repo
+  key="$(echo "$url" | awk -F/ '{ if (NF>=2) print $(NF-1)"/"$NF; else print $NF }')"
+  [[ "$key" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] \
+    || die "origin remote URL yields an invalid project key: $key" 3
+  org="${key%%/*}"; repo="${key#*/}"
+  # The character-class regex above allows dots, so a literal "." or ".."
+  # segment (e.g. from a URL like .../org/../../evil) still passes it —
+  # reject those explicitly since they'd resolve outside $SIDECAR_DIR/$key.
+  case "$org/$repo" in
+    ./*|../*|*/.|*/..) die "origin remote URL yields an invalid project key: $key" 3 ;;
+  esac
+  echo "$key"
 }
 
 ensure_clone() {

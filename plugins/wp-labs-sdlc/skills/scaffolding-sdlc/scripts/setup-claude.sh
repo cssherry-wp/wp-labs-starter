@@ -39,8 +39,8 @@ if [ -f "$CLAUDE_DIR/settings.json" ]; then
   # `*` deep-merges objects but REPLACES arrays, so every hook array we ship has
   # to be concatenated explicitly or we silently drop the user's own hooks.
   merged=$(jq -s '.[0] as $a | .[1] as $b | ($a * $b)
-    | .hooks.Stop         = (($a.hooks.Stop         // []) + ($b.hooks.Stop         // []))
-    | .hooks.SessionStart = (($a.hooks.SessionStart // []) + ($b.hooks.SessionStart // []))' \
+    | .hooks.Stop         = ((($a.hooks.Stop         // []) - ($b.hooks.Stop         // [])) + ($b.hooks.Stop         // []))
+    | .hooks.SessionStart = ((($a.hooks.SessionStart // []) - ($b.hooks.SessionStart // [])) + ($b.hooks.SessionStart // []))' \
     "$CLAUDE_DIR/settings.json" "$TMPL/settings.json")
   if diff <(cat "$CLAUDE_DIR/settings.json") <(echo "$merged") > /dev/null 2>&1; then
     echo "settings.json: already up to date"

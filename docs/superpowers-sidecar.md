@@ -58,6 +58,8 @@ for example `cssherry-wp/my-app: session-end sweep (2026-08-31 14:32)`.
 
 Both hooks and the skill call the same `sidecar-sync.sh pull` / `sidecar-sync.sh push "<message>"` script, so the commit/push/retry logic exists in one place. In a project that isn't adopted (no `.superpowers` symlink), the script exits silently — the hooks are safe to run everywhere.
 
+**Known limitation:** `sdd/` state does not currently sync. The pre-existing `sdd-workspace` script (part of `wp-labs-superpowers`, not this feature) writes a self-ignoring `.gitignore` into `.superpowers/sdd/<plan>/` on every run. Once that file lands inside the sidecar clone, git ignores the whole `sdd/` tree for that project, so nothing under it gets committed or pushed even though it was moved there during adoption. This is a known gap tracked for a future fix, not a bug in the sidecar feature itself.
+
 ## 5. When something goes wrong
 
 If a push fails and an automatic `pull --rebase` retry can't resolve it, you'll see:

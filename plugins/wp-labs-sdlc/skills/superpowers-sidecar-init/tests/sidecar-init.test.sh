@@ -29,8 +29,12 @@ setup() {
   export SIDECAR_URL="$TMP/sidecar-remote.git"
   export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t.t
   export GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t.t
+  export CLAUDE_CONFIG_DIR="$TMP/cfg"
+  mkdir -p "$CLAUDE_CONFIG_DIR"
+  cp "$HERE/../../scaffolding-sdlc/templates/claude/sidecar-sync.sh" "$CLAUDE_CONFIG_DIR/sidecar-sync.sh"
+  chmod +x "$CLAUDE_CONFIG_DIR/sidecar-sync.sh"
 }
-teardown() { rm -rf "$TMP"; unset SIDECAR_DIR SIDECAR_URL; }
+teardown() { rm -rf "$TMP"; unset SIDECAR_DIR SIDECAR_URL CLAUDE_CONFIG_DIR; }
 
 # --- key derivation from various remote URL shapes ---
 setup
@@ -40,6 +44,9 @@ check "key from ssh remote" "$(cd "$TMP/project" && bash "$SCRIPT" key)" "Other-
 git -C "$TMP/project" remote remove origin
 (cd "$TMP/project" && bash "$SCRIPT" key >/dev/null 2>&1)
 check "key exits 3 with no origin" "$?" "3"
+git -C "$TMP/project" remote add origin "https://github.com/org/../../evil.git"
+(cd "$TMP/project" && bash "$SCRIPT" key >/dev/null 2>&1)
+check "key exits 3 with path-traversal remote" "$?" "3"
 teardown
 
 # --- migrate bootstraps the clone and creates the layout ---
@@ -103,6 +110,8 @@ teardown
 
 # --- finalize replaces the directory with a symlink and ignores it ---
 setup
+mkdir -p "$TMP/project/.superpowers/01-specs"
+echo spec > "$TMP/project/.superpowers/01-specs/a.md"
 (cd "$TMP/project" && bash "$SCRIPT" migrate) >/dev/null 2>&1
 (cd "$TMP/project" && bash "$SCRIPT" finalize) >/dev/null 2>&1
 check "finalize made .superpowers a symlink" \
@@ -113,6 +122,8 @@ check "gitignore line added" \
   "$(grep -c '^\.superpowers$' "$TMP/project/.gitignore")" "1"
 check "project git ignores the symlink" \
   "$(cd "$TMP/project" && git status --porcelain | grep -c superpowers)" "0"
+check "sidecar commit message has adoption prefix" \
+  "$(git -C "$TMP/sidecar" log -1 --pretty=%s | grep -c '^myorg/myrepo: superpowers-sidecar-init')" "1"
 teardown
 
 # --- finalize is idempotent (safe to re-run) ---
