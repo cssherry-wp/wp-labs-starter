@@ -10,6 +10,16 @@ When a request could reasonably be interpreted in more than one way, surface the
 
 - **ScheduleWakeup**: pass `prompt`, `reason`, and `noop` together whenever `stop` is not `true` — omitting `prompt` throws an error. Don't call it just to wait on a harness-tracked background task (e.g. a backgrounded `Bash` command or `Monitor`) — those notify automatically on completion; reserve it for `/loop` dynamic-mode pacing.
 
+## Plans
+
+Save all implementation plans in the project's root `.superpowers/02-plans` folder — never
+the current working directory or a worktree subdirectory. From a git worktree, resolve the
+main working tree's root explicitly rather than assuming the cwd:
+
+```bash
+repo_top=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
+```
+
 ## Git Commit Policy
 
 After making any code changes in a git repository, always create a git commit before finishing. The commit message must include:
