@@ -258,7 +258,7 @@ const FUNNEL='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke
 
 // ─── State ──────────────────────────────────────────────────────────────────
 let claudeHandles=[], piHandles=[], analyticsHandle=null, uuidToName={}, allSessions=[], filteredSessions=[], tableFilteredSessions=[];
-let activeProject='all', activeDateFilter='all', activeTaskType='all', activeSource='all';
+let activeProject='all', activeDateFilter='month', activeTaskType='all', activeSource='all';
 let activeToolFilters=new Set(), activeSessionFilter='', activeQueueStatus='', activeAccounts=new Set();
 // "source|name" keys that have no directory handle behind them — the file-input
 // fallback path. Rendered as pills alongside the handle-backed ones so every
@@ -268,6 +268,39 @@ let chartHighlightProj=null;
 let customDateFrom=null, customDateTo=null;
 let searchQuery='', tableSearch='', sortCol='date', sortAsc=false, expandedUuid=null;
 let tlDragState=null;
+
+// ─── Month sharding ─────────────────────────────────────────────────────────
+// The cache is additive and never evicted (by design — history stays reviewable
+// forever), so it must be sharded by month and only the months actually in view get
+// loaded, or it grows into the same "everything, always, all at once" problem the
+// raw-file read was. `sessionStore`/`loadedMonths` accumulate across load() calls so
+// switching the date filter composes new months in rather than reloading everything.
+let loadedMonths=new Set();
+let sessionStore=new Map();
+function monthKey(ms){const d=new Date(ms);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
+function defaultMonths(){const n=Date.now();return[...new Set([monthKey(n),monthKey(n-31*86400e3)])];}
+function monthsInRange(fromMs,toMs){
+  const out=[];const d=new Date(fromMs);d.setDate(1);
+  const end=new Date(toMs);end.setDate(1);
+  while(d<=end){out.push(monthKey(d.getTime()));d.setMonth(d.getMonth()+1);}
+  return out;
+}
+// 'hour'/'today'/'week'/'month' all fit within the current+previous calendar month;
+// 'custom' needs whatever months its range spans; 'all' is the explicit, rare
+// full-history scan (sentinel 'ALL' — not an array, so it's never confused with an
+// actual month list).
+function neededMonthsForFilter(){
+  if(activeDateFilter==='all')return'ALL';
+  if(activeDateFilter==='custom'){const now=Date.now();return monthsInRange(customDateFrom||now-30*86400e3,customDateTo||now);}
+  return defaultMonths();
+}
+async function ensureMonthsLoaded(months){
+  if(loadedMonths.has('ALL'))return;
+  if(months==='ALL'){await load('ALL');return;}
+  const missing=months.filter(m=>!loadedMonths.has(m));
+  if(!missing.length)return;
+  await load(missing);
+}
 
 // ─── Theme ──────────────────────────────────────────────────────────────────
 document.getElementById('themeBtn').addEventListener('click',()=>{
@@ -323,7 +356,7 @@ async function openDir(addMode=false){
       claudeHandles.push(h);
       await idbSet('dir-handle-'+(claudeHandles.length-1),h);
       syncDirsUrl();
-      await load();return;
+      await load(neededMonthsForFilter());return;
     }catch(e){if(e.name==='AbortError')return;if(e.name!=='SecurityError'){setStatus('Error: '+e.message,true);return;}}
   }
   fileInput.click();
@@ -336,7 +369,7 @@ async function openPiDir(){
     piHandles.push(h);
     await idbSet('pi-dir-handle-'+(piHandles.length-1),h);
     syncDirsUrl();
-    await load();
+    await load(neededMonthsForFilter());
   }catch(e){if(e.name!=='AbortError')setStatus('Error: '+e.message,true);}
 }
 function syncDirsUrl(){
@@ -420,26 +453,15 @@ async function tryAutoLoad(){
         const permed2=[];
         for(const h of toLoad){const p2=await h.requestPermission({mode:'read'});if(p2==='granted')permed2.push(h);}
         if(!permed2.length){setStatus('Permission denied.',true);return;}
-        claudeHandles=permed2;await load();
+        claudeHandles=permed2;await load(neededMonthsForFilter());
       });
       setStatus('Click "Allow access" to reload.');showLanding(true);return;
     }
     claudeHandles=permed;
-    const cached=await loadCache();
-    const loadedKeys=loadedAccountKeys();
-    const neverScanned=cached&&loadedKeys.some(k=>!(k in cached.accountTs));
-    if(cached&&!neverScanned){
-      const watermark=Math.min(...loadedKeys.map(k=>cached.accountTs[k]));
-      allSessions=deserializeCache(cached.data.filter(s=>!s.account||loadedKeys.includes((s.source||'claude')+'|'+s.account)));
-      document.getElementById('addDirBtn').style.display='';
-      renderDirPills();
-      showLanding(false);render();setStatus(`${allSessions.length} sessions (checking…)`);
-      const stale=await hasNewerFiles(claudeHandles,piHandles,watermark);
-      if(stale){setStatus('New data found, reloading…');await load();}
-      else{setStatus(`${allSessions.length} sessions`);}
-    } else {
-      await load();
-    }
+    // No coarse whole-cache staleness check needed — load() itself is now scoped to
+    // 1-2 months by default, cheap enough to just always run its own per-file
+    // freshness check directly instead of gating behind one shared cache timestamp.
+    await load(neededMonthsForFilter());
   }catch{setStatus('Open your ~/.claude folder.');showLanding(true);}
 }
 function showReloadAs(label,fn){const b=document.getElementById('reloadBtn');b.style.display='';b.textContent=label;b.onclick=fn;if(claudeHandles.length||piHandles.length)document.getElementById('clearCacheBtn').style.display='';}
@@ -501,7 +523,7 @@ function mergeJSONL(s,p){
 // rather than one blanket flag — a partial scan (one folder, not all) must not vouch
 // for uuids it never actually re-read.
 const PRIOR_CAP=5*1024*1024;
-function cacheEntryTrusted(trustedLarge,uuid,fileSize){return fileSize<=PRIOR_CAP||!!trustedLarge[uuid];}
+function cacheEntryTrusted(trustedLarge,fileSize){return fileSize<=PRIOR_CAP||!!trustedLarge;}
 // A session's true freshness needs the max mtime across its .jsonl AND its subagents
 // dir, since subagent files don't touch the parent .jsonl's mtime.
 async function subagentsMaxMtime(agentDirHandle){
@@ -529,33 +551,91 @@ async function processAgentDir(parentUuid,fh,sessions){
     }
   }catch{}
 }
-async function load(){
+// `months`: array of 'YYYY-MM' shard keys, or the sentinel 'ALL' for a full
+// historical scan. A session's shard is keyed by its `startedAt` month (see
+// monthKey()), tracked in the always-loaded `index` (uuid -> {month,fileTs,
+// trustedLarge}) so we know which shard a uuid lives in and whether its source
+// file has changed without opening it or guessing from mtime.
+async function load(months){
+  if(months===undefined)months=neededMonthsForFilter();
   showLanding(false);
-  showReloadAs('↻ Reload',()=>(claudeHandles.length||piHandles.length)&&load());
+  showReloadAs('↻ Reload',()=>(claudeHandles.length||piHandles.length)&&load(neededMonthsForFilter()));
   setStatus('Scanning…');showProgress(true,0);
-  uuidToName={};const sessions=new Map();let done=0,total=0;
-  // Reuse cached sessions for files unchanged since they were last cached, so a
-  // reload only reads and re-parses what's actually new — the cache is the source
-  // of truth for everything else, not a fallback.
-  const prevCache=await loadCache();
-  const cachedByUuid=new Map((prevCache?deserializeCache(prevCache.data):[]).map(s=>[s.uuid,s]));
-  const cachedFileTs=prevCache?.fileTs||{};
-  const cachedTrustedLarge=prevCache?.trustedLarge||{};
-  const newFileTs={};
-  const newTrustedLarge={...cachedTrustedLarge};
+  uuidToName={};let done=0,total=0;
+  let index=await loadIndex();
+  index=await migrateLegacyCacheIfNeeded(index);
+  const inScope=m=>months==='ALL'||months.includes(m);
+  const shardSessions=new Map(); // month -> Map(uuid->session), lazily loaded on first touch this pass
+  async function getShard(month){
+    if(!shardSessions.has(month)){
+      const raw=await loadCacheShard(month);
+      shardSessions.set(month,new Map(deserializeCache(Object.values(raw)).map(s=>[s.uuid,s])));
+    }
+    return shardSessions.get(month);
+  }
+  const touchedMonths=new Set();
+  const passSessions=new Map(); // this pass's in-scope uuids, merged into sessionStore at the end
   let sinceFlush=0;
   async function flushIfDue(){
-    // Persist progress periodically during a long cold scan instead of only once at
-    // the end, so a crash or interrupted scan doesn't lose everything already parsed,
-    // and so freshly re-read large files are written back (and trusted) as soon as
-    // possible rather than staying untrusted for the rest of this scan.
+    // A scoped (1-2 month) load is fast enough that losing progress on an
+    // interruption just means redoing a quick scan — only the rare, explicit
+    // full-history scan needs mid-scan persistence to avoid losing everything.
+    if(months!=='ALL')return;
     if(++sinceFlush<50)return;
     sinceFlush=0;
-    await saveCache([...sessions.values()],newFileTs,newTrustedLarge);
+    for(const m of touchedMonths)await saveCacheShard(m,[...(await getShard(m)).values()]);
+    await saveIndex(index);
+  }
+  async function handleFile(uuid,file,proj,source,accountName,dirH){
+    const entry=index[uuid];
+    if(entry&&!inScope(entry.month))return; // deferred until that month is actually viewed
+    const freshTs=source==='claude'?Math.max(file.lastModified,dirH?await subagentsMaxMtime(dirH):0):file.lastModified;
+    if(entry&&entry.fileTs&&freshTs<=entry.fileTs&&cacheEntryTrusted(entry.trustedLarge,file.size)){
+      const cached=(await getShard(entry.month)).get(uuid);
+      if(cached){passSessions.set(uuid,cached);done++;return;}
+    }
+    // Reparse. Seed queueItems/task-status from whatever was previously cached (if
+    // any) — a session's queue/task tracking files are far more likely to have been
+    // cleaned up than its .jsonl, and a fresh mkSession() must not silently drop
+    // history a live file no longer supplies.
+    const cachedSession=entry?(await getShard(entry.month)).get(uuid):null;
+    try{
+      const p=parseJSONL(await file.text(),source);
+      const s=mkSession(uuid,proj,source,accountName);
+      if(cachedSession)s.queueItems=cachedSession.queueItems||[];
+      if(source==='claude')s.name=uuidToName[uuid]||null;
+      mergeJSONL(s,p);
+      if(cachedSession){
+        const oldStatus=new Map((cachedSession.claudeTasks||[]).filter(t=>t.status).map(t=>[t.subject.toLowerCase(),t.status]));
+        for(const t of s.claudeTasks)if(!t.status&&oldStatus.has(t.subject.toLowerCase()))t.status=oldStatus.get(t.subject.toLowerCase());
+      }
+      if(dirH)await processAgentDir(uuid,dirH,new Map([[uuid,s]]));
+      const month=s.startedAt?monthKey(s.startedAt.getTime()):(entry?.month||monthKey(Date.now()));
+      if(entry&&entry.month!==month)await deleteFromShardIfPresent(entry.month,uuid);
+      (await getShard(month)).set(uuid,s);
+      index[uuid]={month,fileTs:freshTs,trustedLarge:file.size>PRIOR_CAP};
+      touchedMonths.add(month);
+      if(inScope(month))passSessions.set(uuid,s);
+    }catch{}
+    done++;
+    await flushIfDue();
   }
   for(const rootHandle of claudeHandles){
     try{const sH=await rootHandle.getDirectoryHandle('sessions');for await(const[fn,fh]of sH){if(!fn.endsWith('.json')||fh.kind!=='file')continue;try{const d=JSON.parse(await(await fh.getFile()).text());if(d.sessionId&&d.name)uuidToName[d.sessionId]=d.name;}catch{}}}catch{}
-    try{const pH=await rootHandle.getDirectoryHandle('projects');const _pns=[];for await(const[pn,pd]of pH){if(pd.kind!=='directory')continue;_pns.push(pn);for await(const[fn]of pd){if(fn.endsWith('.jsonl'))total++;}}inferSkipWords(_pns);}catch{}
+    try{
+      const pH=await rootHandle.getDirectoryHandle('projects');
+      const _pns=[];
+      for await(const[pn,pd]of pH){
+        if(pd.kind!=='directory')continue;
+        _pns.push(pn);
+        for await(const[fn]of pd){
+          if(!fn.endsWith('.jsonl'))continue;
+          const entry=index[fn.slice(0,-6)];
+          if(!entry||inScope(entry.month))total++;
+        }
+      }
+      inferSkipWords(_pns);
+    }catch{}
     try{
       const pH=await rootHandle.getDirectoryHandle('projects');
       for await(const[proj,pd]of pH){
@@ -570,27 +650,42 @@ async function load(){
         for(const[fn,fh]of jsonlFiles){
           const uuid=fn.slice(0,-6);
           const file=await fh.getFile();
-          const dirH=dirByUuid.get(uuid);
-          const freshTs=Math.max(file.lastModified,dirH?await subagentsMaxMtime(dirH):0);
-          const cachedSession=cachedByUuid.get(uuid);
-          if(cachedSession&&cachedFileTs[uuid]&&freshTs<=cachedFileTs[uuid]&&cacheEntryTrusted(cachedTrustedLarge,uuid,file.size)){
-            sessions.set(uuid,cachedSession);
-            newFileTs[uuid]=cachedFileTs[uuid];
-          } else {
-            try{const p=parseJSONL(await file.text());if(!sessions.has(uuid))sessions.set(uuid,mkSession(uuid,proj,'claude',rootHandle.name));const s=sessions.get(uuid);if(!s.name)s.name=uuidToName[uuid]||null;mergeJSONL(s,p);}catch{}
-            if(dirH)await processAgentDir(uuid,dirH,sessions);
-            newFileTs[uuid]=freshTs;
-            if(file.size>PRIOR_CAP)newTrustedLarge[uuid]=true;
-            await flushIfDue();
-          }
-          done++;if(done%20===0){setStatus(`Loading… ${done}/${total}`);showProgress(true,total?done/total:0);await tick();}
+          await handleFile(uuid,file,proj,'claude',rootHandle.name,dirByUuid.get(uuid));
+          if(done%20===0){setStatus(`Loading… ${done}/${total}`);showProgress(true,total?done/total:0);await tick();}
         }
       }
     }catch(e){console.warn('projects',e);}
-    try{const qH=await rootHandle.getDirectoryHandle('queue');for await(const[fn,fh]of qH){if(!fn.endsWith('.md')||fh.kind!=='file')continue;const uuid=fn.slice(0,-3);try{const items=parseQueueMD(await(await fh.getFile()).text());if(!sessions.has(uuid))sessions.set(uuid,mkSession(uuid,'queue-only','claude',rootHandle.name));sessions.get(uuid).queueItems=items;}catch{}}}catch{}
+    try{
+      const qH=await rootHandle.getDirectoryHandle('queue');
+      for await(const[fn,fh]of qH){
+        if(!fn.endsWith('.md')||fh.kind!=='file')continue;
+        const uuid=fn.slice(0,-3);
+        try{
+          const items=parseQueueMD(await(await fh.getFile()).text());
+          if(passSessions.has(uuid)){
+            passSessions.get(uuid).queueItems=items;
+          } else if(index[uuid]){
+            const entry=index[uuid];
+            const existing=(await getShard(entry.month)).get(uuid);
+            if(existing){existing.queueItems=items;touchedMonths.add(entry.month);if(inScope(entry.month))passSessions.set(uuid,existing);}
+          } else {
+            // Queue-only: no matching .jsonl anywhere, ever — bucket by the queue
+            // file's own mtime, the only date signal available for it.
+            const s=mkSession(uuid,'queue-only','claude',rootHandle.name);
+            s.queueItems=items;
+            const qf=await fh.getFile();
+            const qmonth=monthKey(qf.lastModified);
+            (await getShard(qmonth)).set(uuid,s);
+            index[uuid]={month:qmonth,fileTs:qf.lastModified,trustedLarge:false};
+            touchedMonths.add(qmonth);
+            if(inScope(qmonth))passSessions.set(uuid,s);
+          }
+        }catch{}
+      }
+    }catch{}
   }
   for(const piHandle of piHandles){
-    try{const sH=await resolvePiSessionsDir(piHandle);for await(const[,pd]of sH){if(pd.kind!=='directory')continue;for await(const[fn]of pd){if(fn.endsWith('.jsonl'))total++;}}}catch{}
+    try{const sH=await resolvePiSessionsDir(piHandle);for await(const[,pd]of sH){if(pd.kind!=='directory')continue;for await(const[fn]of pd){if(!fn.endsWith('.jsonl'))continue;const entry=index[fn.slice(0,-6)];if(!entry||inScope(entry.month))total++;}}}catch{}
   }
   // Pi handles — sessions/<proj>/*.jsonl
   for(const piHandle of piHandles){
@@ -602,31 +697,17 @@ async function load(){
       for await(const[proj,pd]of sH){
         if(pd.kind!=='directory')continue;
         for await(const[fn,fh]of pd){
-          if(fh.kind==='file'&&fn.endsWith('.jsonl')){
-            const uuid=fn.slice(0,-6);
-            const file=await fh.getFile();
-            const cachedSession=cachedByUuid.get(uuid);
-            if(cachedSession&&cachedFileTs[uuid]&&file.lastModified<=cachedFileTs[uuid]&&cacheEntryTrusted(cachedTrustedLarge,uuid,file.size)){
-              sessions.set(uuid,cachedSession);
-              newFileTs[uuid]=cachedFileTs[uuid];
-            } else {
-              try{
-                const p=parseJSONL(await file.text(),'pi');
-                if(!sessions.has(uuid))sessions.set(uuid,mkSession(uuid,proj,'pi',piHandle.name));
-                const s=sessions.get(uuid);
-                mergeJSONL(s,p);
-              }catch{}
-              newFileTs[uuid]=file.lastModified;
-              if(file.size>PRIOR_CAP)newTrustedLarge[uuid]=true;
-              await flushIfDue();
-            }
-            done++;if(done%20===0){setStatus(`Loading… ${done}/${total}`);showProgress(true,total?done/total:0);await tick();}
-          }
+          if(fh.kind!=='file'||!fn.endsWith('.jsonl'))continue;
+          const uuid=fn.slice(0,-6);
+          const file=await fh.getFile();
+          await handleFile(uuid,file,proj,'pi',piHandle.name,null);
+          if(done%20===0){setStatus(`Loading… ${done}/${total}`);showProgress(true,total?done/total:0);await tick();}
         }
       }
     }catch(e){console.warn('pi sessions',e);}
   }
-  // Load task statuses from ~/.claude/tasks/
+  // Load task statuses from ~/.claude/tasks/ — live data wins over the
+  // carried-forward cached status applied above.
   const taskMap=new Map();
   for(const rootHandle of claudeHandles){
     try{
@@ -643,18 +724,22 @@ async function load(){
       }
     }catch{}
   }
-  for(const s of sessions.values()){
+  for(const s of passSessions.values()){
     for(const t of s.claudeTasks){
       const st=taskMap.get(t.subject.toLowerCase());
       if(st)t.status=st;
     }
   }
-  allSessions=[...sessions.values()].sort((a,b)=>(b.lastActivityAt?.getTime()||b.startedAt?.getTime()||0)-(a.lastActivityAt?.getTime()||a.startedAt?.getTime()||0));
+  for(const[uuid,s]of passSessions)sessionStore.set(uuid,s);
+  allSessions=[...sessionStore.values()].sort((a,b)=>(b.lastActivityAt?.getTime()||b.startedAt?.getTime()||0)-(a.lastActivityAt?.getTime()||a.startedAt?.getTime()||0));
   showProgress(false);
   document.getElementById('addDirBtn').style.display='';
   renderDirPills();
   render();
-  saveCache(allSessions,newFileTs,newTrustedLarge);
+  for(const m of touchedMonths)await saveCacheShard(m,[...(await getShard(m)).values()]);
+  await saveIndex(index);
+  if(months==='ALL')loadedMonths.add('ALL');
+  else for(const m of months)loadedMonths.add(m);
 }
 async function loadFromFileList(fileList){
   showLanding(false);showReloadAs('↻ Reload',()=>fileInput.click());
@@ -906,11 +991,11 @@ function renderFilterInfo(){
   fi.addEventListener('mouseleave',hideTip);
   document.getElementById('clearAll').onclick=e=>{e.preventDefault();clearAllFilters();};
 }
-function clearAllFilters(){
+async function clearAllFilters(){
   activeProject='all';activeDateFilter='all';activeTaskType='all';activeSource='all';activeAccounts=new Set();searchQuery='';tableSearch='';sortCol='date';sortAsc=false;expandedUuid=null;activeToolFilters=new Set();activeSessionFilter='';activeQueueStatus='';customDateFrom=null;customDateTo=null;_filterBarKey=null;
   document.getElementById('search').value='';
   const tsi=document.getElementById('tableSearchInp');if(tsi)tsi.value='';
-  syncUrl();render();renderDirPills();
+  syncUrl();await ensureMonthsLoaded(neededMonthsForFilter());render();renderDirPills();
 }
 
 // ─── Filters ──────────────────────────────────────────────────────────────────
@@ -999,11 +1084,11 @@ function renderFilters(){
     <span class="fl" style="margin-left:4px">Source</span>
     ${['all','claude','pi'].map(k=>`<button class="pill${activeSource===k?' on':''}" data-source="${k}">${k==='all'?'All':k==='claude'?'Claude':'Pi'}</button>`).join('')}
   `;
-  bar.querySelectorAll('[data-period]').forEach(b=>b.addEventListener('click',()=>{activeDateFilter=b.dataset.period;syncUrl();render();}));
+  bar.querySelectorAll('[data-period]').forEach(b=>b.addEventListener('click',async()=>{activeDateFilter=b.dataset.period;syncUrl();await ensureMonthsLoaded(neededMonthsForFilter());render();}));
   if(activeDateFilter==='custom'){
     const f=document.getElementById('customFrom'),t=document.getElementById('customTo');
-    if(f)f.onchange=e=>{customDateFrom=e.target.value?new Date(e.target.value).getTime():null;syncUrl();render();};
-    if(t)t.onchange=e=>{customDateTo=e.target.value?new Date(e.target.value+'T23:59:59').getTime():null;syncUrl();render();};
+    if(f)f.onchange=async e=>{customDateFrom=e.target.value?new Date(e.target.value).getTime():null;syncUrl();await ensureMonthsLoaded(neededMonthsForFilter());render();};
+    if(t)t.onchange=async e=>{customDateTo=e.target.value?new Date(e.target.value+'T23:59:59').getTime():null;syncUrl();await ensureMonthsLoaded(neededMonthsForFilter());render();};
   }
   bar.querySelectorAll('[data-type]').forEach(b=>b.addEventListener('click',()=>{activeTaskType=activeTaskType===b.dataset.type&&b.dataset.type!=='all'?'all':b.dataset.type;syncUrl();render();}));
   bar.querySelectorAll('[data-source]').forEach(b=>b.addEventListener('click',()=>{activeSource=b.dataset.source;syncUrl();render();}));
@@ -1249,20 +1334,20 @@ function renderCostBarChart(){
   // Tooltips
   wrap.querySelectorAll('.cbar[data-tip]').forEach(el=>tipOn(el,el.dataset.tip));
   // Click bar segment → filter by date + project (preserve scroll)
-  wrap.querySelectorAll('.cbar-seg').forEach(el=>el.addEventListener('click',()=>{
+  wrap.querySelectorAll('.cbar-seg').forEach(el=>el.addEventListener('click',async()=>{
     const[yr,mo,da]=el.dataset.day.split('-').map(Number);
     customDateFrom=new Date(yr,mo-1,da,0,0,0,0).getTime();
     customDateTo=new Date(yr,mo-1,da,23,59,59,999).getTime();
     activeDateFilter='custom';activeProject=el.dataset.proj;
-    const sy=window.scrollY;syncUrl();render();requestAnimationFrame(()=>window.scrollTo(0,sy));
+    const sy=window.scrollY;syncUrl();await ensureMonthsLoaded(neededMonthsForFilter());render();requestAnimationFrame(()=>window.scrollTo(0,sy));
   }));
   // Click date label → filter by that date only (all projects, preserve scroll)
-  wrap.querySelectorAll('.cbar-date').forEach(el=>el.addEventListener('click',()=>{
+  wrap.querySelectorAll('.cbar-date').forEach(el=>el.addEventListener('click',async()=>{
     const[yr,mo,da]=el.dataset.day.split('-').map(Number);
     customDateFrom=new Date(yr,mo-1,da,0,0,0,0).getTime();
     customDateTo=new Date(yr,mo-1,da,23,59,59,999).getTime();
     activeDateFilter='custom';
-    const sy=window.scrollY;syncUrl();render();requestAnimationFrame(()=>window.scrollTo(0,sy));
+    const sy=window.scrollY;syncUrl();await ensureMonthsLoaded(neededMonthsForFilter());render();requestAnimationFrame(()=>window.scrollTo(0,sy));
   }));
   // Click legend → toggle highlight (visual only, no data filter)
   wrap.querySelectorAll('.cbar-legend').forEach(el=>el.addEventListener('click',()=>{
@@ -1406,14 +1491,11 @@ function getPricing(model){if(!model)return null;let p=PRICING[model];if(!p){con
 function calcCost(model,usage,source){if(source==='pi')return null;const p=getPricing(model);if(!p)return null;return(usage.in*p.in+usage.cw*p.cw+usage.cr*p.cr+usage.out*p.out)/1e6;}
 
 // ─── Session cache ────────────────────────────────────────────────────────────────
-function cacheKey(){return'claude-sess-v5';}
 // Cache is keyed by uuid and merged across every folder ever scanned (not just the
 // currently loaded combo), so adding/removing a folder doesn't invalidate the rest.
-// accountTs tracks per-folder last-scan time so staleness/relevance can be judged
-// per folder instead of by one shared timestamp for the whole blob.
-function loadedAccountKeys(){
-  return[...claudeHandles.map(h=>'claude|'+h.name),...piHandles.map(h=>'pi|'+h.name)];
-}
+// Sharded by month (see monthKey()) so a normal load only touches 1-2 small shard
+// files instead of one ever-growing blob; `session-index.json` is the single small
+// always-loaded file that says which shard each uuid lives in and whether it's fresh.
 function serializeCache(sessions){
   return sessions.map(s=>({...s,
     startedAt:s.startedAt?.toISOString()||null,
@@ -1435,117 +1517,128 @@ function deserializeCache(data){
     account:s.account||null,
   }));
 }
-async function hasNewerFiles(claudeHandles,piHandles,cacheTs){
-  for(const h of claudeHandles){
-    try{
-      const pH=await h.getDirectoryHandle('projects');
-      for await(const[,pd]of pH){
-        if(pd.kind!=='directory')continue;
-        for await(const[fn,fh]of pd){
-          if(fh.kind==='file'&&fn.endsWith('.jsonl')){
-            const f=await fh.getFile();
-            if(f.lastModified>cacheTs)return true;
-          } else if(fh.kind==='directory'){
-            // Subagent JSONL files are not reflected in parent JSONL mtime
-            try{
-              const subH=await fh.getDirectoryHandle('subagents');
-              for await(const[sfn,sfh]of subH){
-                if(!sfn.endsWith('.jsonl')||sfh.kind!=='file')continue;
-                const sf=await sfh.getFile();
-                if(sf.lastModified>cacheTs)return true;
-              }
-            }catch{}
-          }
-        }
-      }
-    }catch{}
-  }
-  for(const h of piHandles){
-    try{
-      const sH=await resolvePiSessionsDir(h);
-      for await(const[,pd]of sH){
-        if(pd.kind!=='directory')continue;
-        for await(const[fn,fh]of pd){
-          if(fh.kind==='file'&&fn.endsWith('.jsonl')){
-            const f=await fh.getFile();
-            if(f.lastModified>cacheTs)return true;
-          }
-        }
-      }
-    }catch{}
-  }
-  return false;
-}
-async function saveCache(sessions,fileTs,trustedLarge){
+function indexKey(){return'claude-sess-idx-v1';}
+function shardKey(month){return'claude-sess-v6-'+month;}
+function shardFileName(month){return'session-cache-'+month+'.json';}
+async function loadIndex(){
   const h=await getAnalyticsHandle();
-  const now=Date.now();
+  if(!h){
+    try{const raw=localStorage.getItem(indexKey());return raw?JSON.parse(raw):{};}catch{return{};}
+  }
+  try{
+    const fh=await h.getFileHandle('session-index.json');
+    return JSON.parse(await(await fh.getFile()).text())||{};
+  }catch{return{};}
+}
+async function saveIndex(index){
+  const h=await getAnalyticsHandle();
+  if(!h){
+    try{localStorage.setItem(indexKey(),JSON.stringify(index));}catch(e){console.warn('saveIndex',e);}
+    return;
+  }
+  try{
+    const fh=await h.getFileHandle('session-index.json',{create:true});
+    const w=await fh.createWritable();
+    await w.write(JSON.stringify(index));
+    await w.close();
+  }catch(e){console.warn('saveIndex',e);}
+}
+async function loadCacheShard(month){
+  const h=await getAnalyticsHandle();
+  if(!h){
+    try{const raw=localStorage.getItem(shardKey(month));return raw?(JSON.parse(raw).sessions||{}):{};}catch{return{};}
+  }
+  try{
+    const fh=await h.getFileHandle(shardFileName(month));
+    return(JSON.parse(await(await fh.getFile()).text())).sessions||{};
+  }catch{return{};}
+}
+async function saveCacheShard(month,sessionsForMonth){
+  const h=await getAnalyticsHandle();
+  const serialized=serializeCache(sessionsForMonth);
   if(!h){
     try{
-      let existing={},accountTs={},existingFileTs={},existingTrustedLarge={};
-      try{const raw=localStorage.getItem(cacheKey());if(raw){const c=JSON.parse(raw);existing=c.sessions||{};accountTs=c.accountTs||{};existingFileTs=c.fileTs||{};existingTrustedLarge=c.trustedLarge||{};}}catch{}
-      const serialized=serializeCache(sessions);
+      let existing={};
+      try{const raw=localStorage.getItem(shardKey(month));if(raw)existing=JSON.parse(raw).sessions||{};}catch{}
       for(const s of serialized)existing[s.uuid]=s;
-      for(const k of loadedAccountKeys())accountTs[k]=now;
-      Object.assign(existingFileTs,fileTs);
-      Object.assign(existingTrustedLarge,trustedLarge);
-      localStorage.setItem(cacheKey(),JSON.stringify({ts:now,sessions:existing,accountTs,fileTs:existingFileTs,trustedLarge:existingTrustedLarge}));
+      localStorage.setItem(shardKey(month),JSON.stringify({ts:Date.now(),sessions:existing}));
     }catch(e){
-      // The localStorage branch merges additively with no eviction, so a large
-      // history eventually exceeds the ~5MB quota. Swallowing that silently
-      // leaves the user with a permanently stale cache and a full rescan every
-      // load, with nothing on screen to explain it — so say so. The previous
-      // blob survives (setItem is atomic), it just stops being updated.
-      console.warn('saveCache',e);
+      console.warn('saveCacheShard',e);
       const quota=e&&(e.name==='QuotaExceededError'||e.name==='NS_ERROR_DOM_QUOTA_REACHED');
-      setStatus(`${sessions.length} sessions — ${quota?'browser cache full, sessions won’t be remembered next load':'cache write failed'}. Set an ⊕ Analytics folder to store the cache on disk instead.`,true);
+      setStatus(quota?`browser cache full for ${month} — set an ⊕ Analytics folder to store the cache on disk instead.`:`cache write failed for ${month}`,true);
     }
     return;
   }
   try{
-    let existing={},accountTs={},existingFileTs={},existingTrustedLarge={};
-    try{
-      const fh=await h.getFileHandle('session-cache.json');
-      const raw=await(await fh.getFile()).text();
-      const c=JSON.parse(raw);
-      existing=c.sessions||{};
-      accountTs=c.accountTs||{};
-      existingFileTs=c.fileTs||{};
-      existingTrustedLarge=c.trustedLarge||{};
-    }catch{}
-    // Merge: current data wins per UUID; old UUIDs are preserved (additive only)
-    const serialized=serializeCache(sessions);
+    let existing={};
+    try{const fh=await h.getFileHandle(shardFileName(month));existing=(JSON.parse(await(await fh.getFile()).text())).sessions||{};}catch{}
     for(const s of serialized)existing[s.uuid]=s;
-    for(const k of loadedAccountKeys())accountTs[k]=now;
-    Object.assign(existingFileTs,fileTs);
-    Object.assign(existingTrustedLarge,trustedLarge);
-    const fh=await h.getFileHandle('session-cache.json',{create:true});
+    const fh=await h.getFileHandle(shardFileName(month),{create:true});
     const w=await fh.createWritable();
-    await w.write(JSON.stringify({ts:now,sessions:existing,accountTs,fileTs:existingFileTs,trustedLarge:existingTrustedLarge}));
+    await w.write(JSON.stringify({ts:Date.now(),sessions:existing}));
     await w.close();
-  }catch(e){console.warn('saveCache',e);}
+  }catch(e){console.warn('saveCacheShard',e);}
 }
-async function loadCache(){
+// Only needed for the rare case a session's startedAt-derived bucket changes on
+// reparse (should basically never happen — startedAt is a session's first message
+// timestamp, immutable in practice).
+async function deleteFromShardIfPresent(month,uuid){
   const h=await getAnalyticsHandle();
   if(!h){
     try{
-      const raw=localStorage.getItem(cacheKey());if(!raw)return null;
+      const raw=localStorage.getItem(shardKey(month));if(!raw)return;
       const c=JSON.parse(raw);
-      if(!c?.ts||!c?.sessions||!c?.accountTs)return null; // pre-migration shape: treat as a miss
-      return{ts:c.ts,data:Object.values(c.sessions),accountTs:c.accountTs,fileTs:c.fileTs||{},trustedLarge:c.trustedLarge||{}};
-    }catch{return null;}
+      if(c.sessions?.[uuid]){delete c.sessions[uuid];localStorage.setItem(shardKey(month),JSON.stringify(c));}
+    }catch{}
+    return;
   }
   try{
-    const fh=await h.getFileHandle('session-cache.json');
-    const raw=await(await fh.getFile()).text();
-    const c=JSON.parse(raw);
-    if(!c?.ts||!c?.sessions||!c?.accountTs)return null;
-    return{ts:c.ts,data:Object.values(c.sessions),accountTs:c.accountTs,fileTs:c.fileTs||{},trustedLarge:c.trustedLarge||{}};
-  }catch{return null;}
+    const fh=await h.getFileHandle(shardFileName(month));
+    const c=JSON.parse(await(await fh.getFile()).text());
+    if(c.sessions?.[uuid]){
+      delete c.sessions[uuid];
+      const wfh=await h.getFileHandle(shardFileName(month),{create:true});
+      const w=await wfh.createWritable();
+      await w.write(JSON.stringify(c));
+      await w.close();
+    }
+  }catch{}
+}
+// One-time migration: the legacy single-blob cache (pre-sharding) holds real data
+// worth keeping rather than forcing a full cold re-scan of all history. Runs once —
+// only fires while the index is still empty, and populating it is what stops it
+// from running again.
+async function migrateLegacyCacheIfNeeded(index){
+  if(Object.keys(index).length)return index;
+  const h=await getAnalyticsHandle();
+  let legacy=null;
+  try{
+    if(h){
+      const fh=await h.getFileHandle('session-cache.json');
+      legacy=JSON.parse(await(await fh.getFile()).text());
+    } else {
+      const raw=localStorage.getItem('claude-sess-v5');
+      if(raw)legacy=JSON.parse(raw);
+    }
+  }catch{}
+  if(!legacy?.sessions)return index;
+  const byMonth=new Map();
+  const legacyFileTs=legacy.fileTs||{},legacyTrustedLarge=legacy.trustedLarge||{};
+  for(const s of deserializeCache(Object.values(legacy.sessions))){
+    if(!s.startedAt)continue; // no reliable bucket — let it get rediscovered by a live scan
+    const month=monthKey(s.startedAt.getTime());
+    if(!byMonth.has(month))byMonth.set(month,[]);
+    byMonth.get(month).push(s);
+    index[s.uuid]={month,fileTs:legacyFileTs[s.uuid]||0,trustedLarge:!!legacyTrustedLarge[s.uuid]};
+  }
+  for(const[month,list]of byMonth)await saveCacheShard(month,list);
+  await saveIndex(index);
+  return index;
 }
 
 // ─── Event wiring ─────────────────────────────────────────────────────────────
-document.getElementById('clearCacheBtn').addEventListener('click',()=>load());
-document.getElementById('analyticsBtn').addEventListener('click',async()=>{await setupAnalyticsDir();if(analyticsHandle)load();});
+document.getElementById('clearCacheBtn').addEventListener('click',()=>load(neededMonthsForFilter()));
+document.getElementById('analyticsBtn').addEventListener('click',async()=>{await setupAnalyticsDir();if(analyticsHandle)load(neededMonthsForFilter());});
 let _searchDebounce=null,_tSearchDebounce=null;
 document.getElementById('search').addEventListener('input',e=>{
   searchQuery=e.target.value.trim();
@@ -1567,7 +1660,7 @@ document.addEventListener('mousemove',e=>{
   const lo=Math.min(startFrac,cur),hi=Math.max(startFrac,cur);
   drag.style.left=(lo*100)+'%';drag.style.width=((hi-lo)*100)+'%';
 });
-document.addEventListener('mouseup',e=>{
+document.addEventListener('mouseup',async e=>{
   if(!tlDragState)return;
   const{canvas,drag,startFrac,tMin,tSpan}=tlDragState;
   const b=canvas.getBoundingClientRect();
@@ -1576,7 +1669,7 @@ document.addEventListener('mouseup',e=>{
   tlDragState=null;drag.remove();
   if(hi-lo<0.005)return;
   customDateFrom=Math.round(tMin+lo*tSpan);customDateTo=Math.round(tMin+hi*tSpan);
-  activeDateFilter='custom';syncUrl();render();
+  activeDateFilter='custom';syncUrl();await ensureMonthsLoaded(neededMonthsForFilter());render();
 });
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
