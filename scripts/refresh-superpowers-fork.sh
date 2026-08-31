@@ -66,9 +66,10 @@ emit "changed=true"
 emit "version=$upstream_version"
 emit "sha=$upstream_sha"
 
-if [ "$MODE" = "--check" ]; then
-  exit 0
-fi
+# NOTE: --check does not exit here. It falls through the drift check below and
+# exits after it, so `--check` actually reports hand-edits that the rebuild
+# would discard — reporting drift is the main thing a dry run is asked for.
+# Only the rebuild itself is skipped.
 
 # Rebuild $2 (skills/ + hooks/ + LICENSE/README) from upstream checkout $1,
 # apply the docs-path convention, then re-append team-overlays/ fragments.
@@ -117,6 +118,16 @@ build_fork_tree() {
         cat "$frag" >>"$target"
       fi
     done
+
+    # Whole-file overlays: everything that is not SKILL.md prose — scripts,
+    # hook payloads — where the team version replaces upstream's outright
+    # rather than being appended to it. team-overlays/files/ mirrors the fork
+    # layout, so team-overlays/files/skills/foo/scripts/bar overwrites
+    # skills/foo/scripts/bar. Copied last so it wins over the upstream copy.
+    # -p keeps the executable bit, which scripts here depend on.
+    if [ -d "$overlay_dir/files" ]; then
+      cp -Rp "$overlay_dir/files"/. "$dest"/
+    fi
   fi
 }
 
@@ -146,13 +157,19 @@ if [ -n "$base_sha" ]; then
     if [ -n "$drift" ]; then
       echo "ERROR: fork files were hand-edited outside team-overlays/ — the rebuild would discard them:" >&2
       echo "$drift" >&2
-      echo "Fix: move each change into a team-overlays/<skill>.md fragment (see FORK_MODIFICATIONS.md)," >&2
-      echo "then re-run. To rebuild anyway and accept the loss, set FORCE=1." >&2
+      echo "Fix: move SKILL.md prose into a team-overlays/<skill>.md fragment, and any other file" >&2
+      echo "into team-overlays/files/<same-path> (see FORK_MODIFICATIONS.md), then re-run." >&2
+      echo "To rebuild anyway and accept the loss, set FORCE=1." >&2
       [ "${FORCE:-}" = "1" ] || exit 1
     fi
+    [ "$MODE" = "--check" ] && echo "No hand-edit drift: the rebuild would preserve every fork file."
   else
     echo "WARNING: could not fetch base commit $base_sha from $src_url — skipping the drift check; hand-edits outside team-overlays/ will not be detected." >&2
   fi
+fi
+
+if [ "$MODE" = "--check" ]; then
+  exit 0
 fi
 
 # --- Rebuild the fork from upstream, keeping only plugin essentials -----------

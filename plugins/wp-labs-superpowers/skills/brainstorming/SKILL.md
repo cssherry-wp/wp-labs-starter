@@ -155,14 +155,16 @@ If they agree to the companion, read the detailed guide before proceeding:
 ## Team workflow: sync the approved spec to an issue tracker
 
 Write the spec to the **repository ROOT's** `.superpowers/01-specs/` — the main working tree, not
-the current directory or a worktree. Resolve the root explicitly and ensure the folder self-ignores
-(add the `.gitignore` if it is missing, even when the folder already exists):
+the current directory or a worktree. Resolve the root explicitly:
 
 ```bash
 repo_top=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
 mkdir -p "$repo_top/.superpowers/01-specs"
-[ -f "$repo_top/.superpowers/01-specs/.gitignore" ] || printf '*\n' > "$repo_top/.superpowers/01-specs/.gitignore"
 ```
+
+Do not add a self-ignoring `.gitignore` to this folder — the project's own `.gitignore` already
+hides `.superpowers` by name in an adopted project, and inside the sidecar this content is meant
+to be tracked.
 
 After the user approves the written spec (the User Review Gate passes) and BEFORE invoking
 writing-plans, log the spec to an issue tracker.
