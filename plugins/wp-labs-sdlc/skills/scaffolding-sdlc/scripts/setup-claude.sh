@@ -38,9 +38,17 @@ ask() {
 if [ -f "$CLAUDE_DIR/settings.json" ]; then
   # `*` deep-merges objects but REPLACES arrays, so every hook array we ship has
   # to be concatenated explicitly or we silently drop the user's own hooks.
-  merged=$(jq -s '.[0] as $a | .[1] as $b | ($a * $b)
-    | .hooks.Stop         = ((($a.hooks.Stop         // []) - ($b.hooks.Stop         // [])) + ($b.hooks.Stop         // []))
-    | .hooks.SessionStart = ((($a.hooks.SessionStart // []) - ($b.hooks.SessionStart // [])) + ($b.hooks.SessionStart // []))' \
+  # Dedup has to compare individual hook *commands*, not whole group objects: a
+  # group we shipped previously is not equal to the group we ship now once we add
+  # a hook to it, so group-level subtraction would leave the old copy behind and
+  # run its hooks twice.
+  merged=$(jq -s '
+    def drop($shipped):
+      map(.hooks |= map(select(.command as $c | ($shipped | index($c)) | not)))
+      | map(select((.hooks | length) > 0));
+    .[0] as $a | .[1] as $b | ($a * $b)
+    | .hooks.Stop         = (($a.hooks.Stop         // []) | drop([$b.hooks.Stop[]?.hooks[]?.command]))         + ($b.hooks.Stop         // [])
+    | .hooks.SessionStart = (($a.hooks.SessionStart // []) | drop([$b.hooks.SessionStart[]?.hooks[]?.command])) + ($b.hooks.SessionStart // [])' \
     "$CLAUDE_DIR/settings.json" "$TMPL/settings.json")
   if diff <(cat "$CLAUDE_DIR/settings.json") <(echo "$merged") > /dev/null 2>&1; then
     echo "settings.json: already up to date"

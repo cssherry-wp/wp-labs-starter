@@ -46,7 +46,7 @@ Three triggers keep the sidecar in sync without manual `git` commands:
 
 - **`SessionStart`** — pulls (`git pull --rebase`) the sidecar clone at the start of every Claude Code session, so you start with the latest state from any machine.
 - **Per-document pushes** — skills that write into `.superpowers/` (e.g. `superpowers-sidecar-init` on finalize) push immediately after writing, so changes land in the sidecar remote right away rather than waiting for session end.
-- **`Stop`** — sweeps as insurance at the end of every session, pushing anything that wasn't already pushed by a per-document push.
+- **`Stop`** — `sidecar-sync.sh sweep` runs as insurance at the end of every session, pushing anything that wasn't already pushed by a per-document push. `sweep` builds its own commit message, so the `<org>/<repo>` key is derived in one place rather than inline in the hook.
 
 Every push commits with the message format:
 
@@ -56,11 +56,31 @@ Every push commits with the message format:
 
 for example `cssherry-wp/my-app: session-end sweep (2026-08-31 14:32)`.
 
-Both hooks and the skill call the same `sidecar-sync.sh pull` / `sidecar-sync.sh push "<message>"` script, so the commit/push/retry logic exists in one place. In a project that isn't adopted (no `.superpowers` symlink), the script exits silently — the hooks are safe to run everywhere.
+Both hooks and the skill call the same `sidecar-sync.sh pull` / `sidecar-sync.sh push "<message>"` / `sidecar-sync.sh sweep` script, so the commit/push/retry logic exists in one place. In a project that isn't adopted (no `.superpowers` symlink), the script exits silently — the hooks are safe to run everywhere.
 
-**Known limitation:** `sdd/` state does not currently sync. The pre-existing `sdd-workspace` script (part of `wp-labs-superpowers`, not this feature) writes a self-ignoring `.gitignore` into `.superpowers/sdd/<plan>/` on every run. Once that file lands inside the sidecar clone, git ignores the whole `sdd/` tree for that project, so nothing under it gets committed or pushed even though it was moved there during adoption. This is a known gap tracked for a future fix, not a bug in the sidecar feature itself.
+The symlink lives in the **main** working tree, so the script resolves that root (via `git rev-parse --git-common-dir`) rather than `$PWD`. A session run from a `git worktree` therefore syncs normally.
 
-## 5. When something goes wrong
+## 5. Secrets are never pushed
+
+`git add -A` would otherwise publish whatever is sitting in `.superpowers/`, and specs and plans routinely quote real tokens and connection strings while being drafted. Before committing, the script scans the newly staged lines for credential shapes — AWS access keys, private-key blocks, GitHub/Slack/OpenAI tokens, and `api_key`/`secret`/`password`/`token` assignments with a long value. On a hit it commits nothing, pushes nothing, and prints the offending `file: line`:
+
+```
+WARNING: superpowers-sidecar push BLOCKED — the staged changes look like they contain secrets:
+         org/repo/01-specs/design.md: aws_secret_access_key = AKIA...
+         Nothing was committed or pushed. Redact the values in ~/.superpowers-sidecar, then re-run.
+```
+
+Redact the value and the next sync goes through. For a false positive, override it for one command:
+
+```bash
+SIDECAR_ALLOW_SECRETS=1 bash ~/.claude/sidecar-sync.sh sweep
+```
+
+Only newly staged lines are scanned, deliberately: scanning all tracked content would let one already-committed false positive wedge every future push. This is a safety net against the obvious mistake, not a secrets scanner — keep the sidecar remote **private** regardless.
+
+**Known limitation:** syncing only happens from the **main** working tree. `.superpowers` is a symlink there, so in a `git worktree` checkout the path does not exist and `sidecar-sync.sh` exits silently — the `SessionStart` pull and `Stop` sweep are both no-ops for a session run from a worktree. Specs, plans, and reviews are unaffected, because the docs convention resolves them to the main working tree's root; only the automatic sync of a worktree session is skipped. Run `/setup-claude --sync`'s push manually, or start a session from the main checkout, to sweep.
+
+## 6. When something goes wrong
 
 If a push fails and an automatic `pull --rebase` retry can't resolve it, you'll see:
 

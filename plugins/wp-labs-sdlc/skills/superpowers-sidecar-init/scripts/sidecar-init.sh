@@ -118,7 +118,7 @@ case "${1:-}" in
     fi
 
     sync_script="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh"
-    if [ -x "$sync_script" ] || [ -f "$sync_script" ]; then
+    if [ -f "$sync_script" ]; then
       bash "$sync_script" push "$key: superpowers-sidecar-init — adopted project ($(date '+%Y-%m-%d %H:%M'))"
     else
       echo "note: $sync_script not installed yet — run /setup-claude --sync to enable automatic syncing" >&2

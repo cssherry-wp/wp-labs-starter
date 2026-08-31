@@ -91,4 +91,73 @@ check "pull fetched the remote commit" \
   "$([ -f "$TMP/sidecar/org/repo/01-specs/remote.md" ] && echo yes || echo no)" "yes"
 teardown
 
+# --- sweep derives the <org>/<repo> key itself ---
+setup
+echo hello > "$TMP/project/.superpowers/01-specs/swept.md"
+(cd "$TMP/project" && SIDECAR_DIR="$TMP/sidecar" bash "$SCRIPT" sweep) >/dev/null 2>&1
+check "sweep commits with the project key as prefix" \
+  "$(git -C "$TMP/sidecar" log -1 --pretty=%s | sed 's/ (.*//')" \
+  "org/repo: session-end sweep"
+teardown
+
+# --- a git worktree still syncs: the symlink lives in the MAIN working tree ---
+# Regression guard. Resolving $PWD alone made every worktree session a silent
+# no-op, which is where much of the work actually happens.
+setup
+git init -q "$TMP/project"
+git -C "$TMP/project" config user.email p@p.p
+git -C "$TMP/project" config user.name p
+echo x > "$TMP/project/README.md"
+git -C "$TMP/project" add README.md && git -C "$TMP/project" commit -qm init
+git -C "$TMP/project" worktree add -q "$TMP/wt" -b feature
+check "worktree has no .superpowers of its own" \
+  "$([ -e "$TMP/wt/.superpowers" ] && echo yes || echo no)" "no"
+echo from-worktree > "$TMP/project/.superpowers/01-specs/wt.md"
+(cd "$TMP/wt" && SIDECAR_DIR="$TMP/sidecar" bash "$SCRIPT" push "org/repo: from a worktree") >/dev/null 2>&1
+check "push from a worktree reached the remote" \
+  "$(git -C "$TMP/remote.git" log -1 --pretty=%s)" "org/repo: from a worktree"
+teardown
+
+# --- secrets block the push entirely ---
+setup
+printf 'aws_secret_access_key = AKIAIOSFODNN7EXAMPLE\n' \
+  > "$TMP/project/.superpowers/01-specs/leak.md"
+before="$(git -C "$TMP/sidecar" rev-parse HEAD)"
+out="$(cd "$TMP/project" && SIDECAR_DIR="$TMP/sidecar" bash "$SCRIPT" push "leaky" 2>&1)"
+rc=$?
+check "secret scan blocks the push" "$rc" "1"
+check "secret scan made no commit" "$(git -C "$TMP/sidecar" rev-parse HEAD)" "$before"
+check "secret scan warns on stderr" \
+  "$(echo "$out" | grep -c 'push BLOCKED')" "1"
+check "secret scan names the offending file" \
+  "$(echo "$out" | grep -c '01-specs/leak.md')" "1"
+check "secret scan leaves the file in place" \
+  "$([ -f "$TMP/project/.superpowers/01-specs/leak.md" ] && echo yes || echo no)" "yes"
+check "secret scan left nothing staged" \
+  "$(git -C "$TMP/sidecar" diff --cached --name-only | wc -l | tr -d ' ')" "0"
+teardown
+
+# --- the override lets a false positive through ---
+setup
+printf 'token = %s\n' "notARealSecretButLooksLikeOne123" \
+  > "$TMP/project/.superpowers/01-specs/maybe.md"
+(cd "$TMP/project" && SIDECAR_DIR="$TMP/sidecar" SIDECAR_ALLOW_SECRETS=1 \
+  bash "$SCRIPT" push "org/repo: override") >/dev/null 2>&1
+check "SIDECAR_ALLOW_SECRETS=1 pushes anyway" \
+  "$(git -C "$TMP/remote.git" log -1 --pretty=%s)" "org/repo: override"
+teardown
+
+# --- ordinary prose is not mistaken for a secret ---
+setup
+cat > "$TMP/project/.superpowers/01-specs/prose.md" <<'PROSE'
+# Design notes
+
+The service reads its API key from the environment, never from this document.
+Rotate the password quarterly. See the token exchange section below.
+PROSE
+(cd "$TMP/project" && SIDECAR_DIR="$TMP/sidecar" bash "$SCRIPT" push "org/repo: prose") >/dev/null 2>&1
+check "prose mentioning secrets is not blocked" \
+  "$(git -C "$TMP/remote.git" log -1 --pretty=%s)" "org/repo: prose"
+teardown
+
 exit "$fail"

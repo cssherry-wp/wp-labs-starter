@@ -11,7 +11,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh\" pull 2>/dev/null || true",
+            "command": "bash \"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh\" pull || true",
             "statusMessage": "Syncing superpowers sidecar..."
           }
         ]
@@ -27,7 +27,7 @@
           },
           {
             "type": "command",
-            "command": "k=$(cd -P .superpowers 2>/dev/null && b=$(pwd -P) && echo \"$(basename \"$(dirname \"$b\")\")/$(basename \"$b\")\"); bash \"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh\" push \"${k:-unknown}: session-end sweep ($(date '+%Y-%m-%d %H:%M'))\" 2>/dev/null || true",
+            "command": "bash \"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh\" sweep || true",
             "statusMessage": "Sweeping superpowers sidecar..."
           }
         ]
