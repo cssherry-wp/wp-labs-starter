@@ -119,7 +119,7 @@ build_fork_tree() {
   if [ -f "$bs" ]; then
     sed -i.bak \
       -e 's#<name-of-spec>\.md` and commit#<name-of-spec>.md` (git-ignored working copy; not committed)#' \
-      -e 's#^- Commit the design document to git$#- Do NOT commit the spec — `.superpowers/` is git-ignored working space; the GitHub tracking issue (see the "Team workflow" section at the end of this skill) is its durable record#' \
+      -e 's#^- Commit the design document to git$#- Do NOT commit the spec — `.superpowers/` is git-ignored working space in the host repo; the GitHub tracking issue (see the "Team workflow" section at the end of this skill) is its durable record there. Instead, push it to the sidecar (same section), passing the same summary you give the user as the commit message.#' \
       -e 's#^> "Spec written and committed to `<path>`\.#> "Spec written to `<path>` (git-ignored working copy).#' \
       "$bs" 2>/dev/null && rm -f "$bs.bak" || true
   fi

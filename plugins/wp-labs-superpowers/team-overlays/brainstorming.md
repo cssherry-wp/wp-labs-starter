@@ -54,6 +54,14 @@ tracker counterpart in place — do NOT post a duplicate:
 **Specs are git-ignored working copies — do NOT commit the spec file.** The tracker issue is its
 durable record. This overrides any "commit the design document to git" step earlier in this skill.
 
+That's about the host repo, not the sidecar: push the spec to the sidecar instead (best-effort —
+if the script is missing or fails, report it and continue; never block on it), using the same
+one-or-two-sentence summary you're about to give the user as the commit message:
+
+```bash
+bash "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh" push "<the summary you gave the user>"
+```
+
 If the chosen CLI (`gh` or `acli`) is missing or unauthenticated, report it and continue — never
 block the workflow on it.
 
