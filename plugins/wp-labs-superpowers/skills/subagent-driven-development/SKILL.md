@@ -123,8 +123,9 @@ digraph process {
 
 ## Setup
 
-Ensure the work happens in an isolated workspace: use
-superpowers:using-git-worktrees to create one or verify the existing one.
+Ask whether to execute in an isolated git worktree or in the current directory — do not assume
+isolation is wanted. If they want isolation, use superpowers:using-git-worktrees to create one or
+verify the existing one.
 Never start implementation on a main/master branch without your human
 partner's explicit consent.
 

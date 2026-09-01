@@ -4,7 +4,7 @@
 # Line 2: "first user msg" → "last user msg"  (if transcript available)
 # SDLC_SOURCE_VERSION must match plugins/wp-labs-sdlc/.claude-plugin/plugin.json's
 # "version" at the time this file was last generated/copied from that template.
-SDLC_SOURCE_VERSION="0.25.2"
+SDLC_SOURCE_VERSION="0.25.3"
 set -uo pipefail
 
 R=$'\033[0m'   CY=$'\033[36m'  GR=$'\033[32m'
