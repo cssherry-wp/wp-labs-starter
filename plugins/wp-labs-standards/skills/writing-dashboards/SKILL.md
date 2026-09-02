@@ -78,6 +78,24 @@ do not invent a new categorical palette here.
 - Reuse the existing component classes (`.pill`, `.badge`, `.hbtn`, `.sv`/`.sdot`)
   before adding new ones.
 
+## Performance
+
+- Attach click handlers to elements that have an `id`, or reach the element via a
+  selector query on an id'ed ancestor (`#tableBody tr`, `document.getElementById(...)`)
+  rather than a class or tag query over the whole document — an id lookup is O(1); a
+  broad class/tag query re-scans the DOM every time.
+- Inside a handler, read `event.currentTarget` (the element the listener is actually
+  bound to) rather than `event.target` (whichever nested element the click landed on)
+  or re-querying the DOM to figure out what was clicked. `currentTarget` is exactly the
+  element you attached the listener to, with no extra lookup.
+- Delegate one listener per repeating group instead of one per row. The drill-down
+  table's rows are re-rendered on every filter/sort/search, so binding a fresh handler
+  per row on every render is the usual cost driver — bind once on `#tableBody` and
+  branch on `event.target.closest('tr')` inside it.
+- Debounce the search box (150-250ms) instead of calling `render()` on every keystroke.
+- Batch DOM writes: build the table body as one HTML string (or `DocumentFragment`) and
+  set it once per render, instead of one `appendChild` per row.
+
 ## Where it goes
 
 A dashboard built from this template is a working tool, not a document, so it does
