@@ -123,8 +123,9 @@ digraph process {
 
 ## Setup
 
-Ensure the work happens in an isolated workspace: use
-superpowers:using-git-worktrees to create one or verify the existing one.
+Ask whether to execute in an isolated git worktree or in the current directory — do not assume
+isolation is wanted. If they want isolation, use superpowers:using-git-worktrees to create one or
+verify the existing one.
 Never start implementation on a main/master branch without your human
 partner's explicit consent.
 
@@ -579,11 +580,11 @@ Implemented: <YYYY-MM-DD HH:mm>
 ```
 
 Do this **before** deleting the plan's `sdd/` workspace, and sync it to the sidecar (best-effort —
-report and continue if the script is missing or fails):
+report and continue if the script is missing or fails), using the same one-or-two-sentence
+completion summary you're about to give the user as the commit message:
 
 ```bash
-bash "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh" push \
-  "<org>/<repo>: subagent-driven-development — implemented <plan-filename>.md ($(date '+%Y-%m-%d %H:%M'))"
+bash "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh" push "<the summary you gave the user>"
 ```
 
 The note goes in the plan document, which survives; the workspace does not. Write it only when

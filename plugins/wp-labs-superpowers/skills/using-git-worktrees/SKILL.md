@@ -30,7 +30,7 @@ BRANCH=$(git branch --show-current)
 git rev-parse --show-superproject-working-tree 2>/dev/null
 ```
 
-**If `GIT_DIR != GIT_COMMON` (and not a submodule):** You are already in a linked worktree. Skip to Step 2 (Project Setup). Do NOT create another worktree.
+**If `GIT_DIR != GIT_COMMON` (and not a submodule):** You are already in a linked worktree. Skip to Step 2 (Project Setup). Do NOT create another worktree. First run the sidecar-symlink step in the "Team workflow" section at the end of this skill.
 
 Report with branch state:
 - On a branch: "Already in isolated workspace at `<path>` on branch `<name>`."
@@ -50,7 +50,7 @@ Honor any existing declared preference without asking. If the user declines cons
 
 ### 1a. Native Worktree Tools (preferred)
 
-The user has asked for an isolated workspace (Step 0 consent). Do you already have a way to create a worktree? It might be a tool with a name like `EnterWorktree`, `WorktreeCreate`, a `/worktree` command, or a `--worktree` flag. If you do, use it and skip to Step 2.
+The user has asked for an isolated workspace (Step 0 consent). Do you already have a way to create a worktree? It might be a tool with a name like `EnterWorktree`, `WorktreeCreate`, a `/worktree` command, or a `--worktree` flag. If you do, use it. **Immediately `cd` into the new worktree's path** — a native tool creates the directory but does not always leave your active directory there; confirm with `pwd` if unsure, and never continue work from the original directory. Then run the sidecar-symlink step in the "Team workflow" section at the end of this skill, and skip to Step 2.
 
 Native tools handle directory placement, branch creation, and cleanup automatically. Using `git worktree add` when you have a native tool creates phantom state your harness can't see or manage.
 
@@ -94,7 +94,10 @@ git check-ignore -q .worktrees 2>/dev/null || git check-ignore -q worktrees 2>/d
 path="$LOCATION/$BRANCH_NAME"
 
 git worktree add "$path" -b "$BRANCH_NAME"
-cd "$path"
+cd "$path"   # do this immediately — never continue work from the original directory
+
+# Give this worktree its own sidecar symlink if the project is adopted — see
+# the "Team workflow" section at the end of this skill.
 ```
 
 **Sandbox fallback:** If `git worktree add` fails with a permission error (sandbox denial), tell the user the sandbox blocked worktree creation and you're working in the current directory instead. Then run setup and baseline tests in place.
@@ -165,3 +168,25 @@ Ready to implement <feature-name>
 | "The worktree directory is surely ignored already" | Run `git check-ignore`. An unignored worktree directory commits the whole tree into the repo. |
 | "Any directory name works" | Explicit instructions beat an existing project-local directory, which beats the `.worktrees/` default. |
 | "The workspace is fresh — baseline tests can wait" | A dirty baseline makes every later failure ambiguous. Run the tests now; proceeding past failures is your human partner's call. |
+| "The native tool surely left me in the new worktree" | Confirm with `pwd`. Working from the original directory while believing you're isolated is worse than no isolation — every edit lands in the wrong place. |
+
+<!-- wp-labs team overlay: BEGIN -->
+
+## Team workflow: symlink the superpowers sidecar
+
+If this project has already been adopted into the superpowers sidecar (its main working tree's
+`.superpowers` is a symlink), a freshly created worktree needs its own symlink into that same
+sidecar destination — otherwise `.superpowers` there is just an ordinary empty directory until
+someone re-runs `/superpowers-sidecar-init` on it by hand.
+
+Run this once, from inside the new worktree, right after Step 1 creates it (whichever of Step 0's
+already-in-a-worktree path, Step 1a, or Step 1b got you there):
+
+```bash
+bash "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh" worktree-link || true
+```
+
+Best-effort: if `sidecar-sync.sh` isn't installed, or the project was never adopted, this is a
+silent no-op — nothing to report, nothing to block on.
+
+<!-- wp-labs team overlay: END -->

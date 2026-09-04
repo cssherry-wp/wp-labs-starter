@@ -179,11 +179,34 @@ applied; everything else is reported as a suggestion.
 
 ## 6. Apply / comment (only when flagged)
 
-- **`--fix`**: apply the high-confidence fixes — run linters/formatters with `--fix`/`--write` on
-  new files, edit stale docs, and run `/code-review --fix` for correctness. Locally, stage them so
-  the user can review and commit. **With `--ci` the agent is read-only: apply fixes to the working tree only and do NOT commit,
-  push, or comment — a separate privileged job stages the edits into an `[autofix]` commit and
-  pushes it.** Report what was fixed vs left as a suggestion.
+- **`--fix`**: apply the high-confidence (≥80) mechanically-fixable findings. Don't apply them one
+  by one in this session on whatever model is running the review — **group them and dispatch each
+  group to an Agent, choosing that group's model for the fix's nature, not the reviewer's own
+  model**:
+  1. **Group** the ≥80 findings by what applying them actually takes — typically: (a) lint/format
+     on new files (run the tool's own `--fix`/`--write`, one call per language/tool, no agent
+     needed), (b) stale-doc edits, (c) ponytail-flagged mechanical simplifications, (d)
+     `/code-review --fix` correctness findings (already its own dispatch — forward `--fix` to it
+     directly, don't re-group its findings here). Keep groups small enough that one agent holds
+     the whole group's context; split a group that spans unrelated files or areas rather than
+     handing one agent a grab-bag.
+  2. **Pick a model per group**, not per run: a mechanical, low-ambiguity group (formatting,
+     stale-doc one-liners, a ponytail deletion with an obvious replacement) needs `haiku` or
+     `sonnet` — reserving `opus` for those wastes cost for no quality gain. A group requiring
+     judgment (a correctness fix with more than one plausible approach, a security remediation,
+     anything touching control flow or an interface other code depends on) needs `opus` — reaching
+     for a cheaper model there risks a confidently-wrong fix. When unsure which a group is, treat
+     it as the judgment tier.
+  3. **Dispatch** one `Agent` call per group (`subagent_type: "general-purpose"` unless a more
+     specific reviewer/implementer agent fits), passing the group's findings (`file:line`,
+     description, suggested fix) and the model chosen in step 2 via the `model` parameter.
+     Independent groups run in parallel (single message, multiple `Agent` calls); a group whose
+     fix depends on another group's result runs after it instead.
+  Locally, stage the applied fixes so the user can review and commit. **With `--ci` the agent is
+  read-only: apply fixes to the working tree only and do NOT commit, push, or comment — a separate
+  privileged job stages the edits into an `[autofix]` commit and pushes it.** (Dispatched agents
+  still only touch the working tree under `--ci` — they inherit the same restriction.) Report what
+  was fixed vs left as a suggestion, and which model handled each group.
   **Commit messages for applied fixes must not include `[CR-NNN]` identifiers** — these IDs reset
   each run and are not stable references. Describe what was fixed in plain language instead.
 - **`--comment`**: post the report's findings as PR comments (use `github-pr-review` plumbing or
@@ -337,7 +360,12 @@ The user may attach a free-text note to any choice; read it from `annotations[].
 action (append to the issue body, prefix the queue item, or record alongside an ignored finding).
 
 Act on each selection:
-- **Fix it**: apply the edit now.
+- **Fix it**: apply the edit now. These are the findings the initial `--fix` pass (section 6)
+  left as suggestions — often lower-confidence or requiring the judgment the user just supplied
+  ("how" they want it fixed) — so use the same group-then-dispatch approach as section 6: group
+  the now-selected findings by what fixing them takes, pick a model per group by the fix's
+  difficulty (not this session's own model), and dispatch one `Agent` call per group. A single
+  selection can just be applied directly without spinning up an agent for it.
 - **Add to queue**: call `/queue <finding summary>` to defer to this session's backlog.
 - **Log as issue**: `gh issue create` (or Jira via `acli`) capturing the finding; link it back.
 - **Ignore**: record it as acknowledged.

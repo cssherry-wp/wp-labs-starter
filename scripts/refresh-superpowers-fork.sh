@@ -119,9 +119,50 @@ build_fork_tree() {
   if [ -f "$bs" ]; then
     sed -i.bak \
       -e 's#<name-of-spec>\.md` and commit#<name-of-spec>.md` (git-ignored working copy; not committed)#' \
-      -e 's#^- Commit the design document to git$#- Do NOT commit the spec — `.superpowers/` is git-ignored working space; the GitHub tracking issue (see the "Team workflow" section at the end of this skill) is its durable record#' \
+      -e 's#^- Commit the design document to git$#- Do NOT commit the spec — `.superpowers/` is git-ignored working space in the host repo; the GitHub tracking issue (see the "Team workflow" section at the end of this skill) is its durable record there. Instead, push it to the sidecar (same section), passing the same summary you give the user as the commit message.#' \
       -e 's#^> "Spec written and committed to `<path>`\.#> "Spec written to `<path>` (git-ignored working copy).#' \
       "$bs" 2>/dev/null && rm -f "$bs.bak" || true
+  fi
+
+  # --- worktree creation -> cd immediately, point at the sidecar-symlink step -
+  # Upstream has no notion of the sidecar, and never calls out that a native
+  # tool may not actually leave you positioned in the new worktree — so there's
+  # no existing sentence to rewrite here (unlike the "commit the spec" block
+  # above). These substitutions each append onto an existing anchor line
+  # instead, one per path that lands you in a newly created worktree. Each is
+  # exact-match, idempotent, and best-effort, same as the docs-path rules above.
+  uwt="$dest/skills/using-git-worktrees/SKILL.md"
+  if [ -f "$uwt" ]; then
+    sed -i.bak \
+      -e 's#Skip to Step 2 (Project Setup)\. Do NOT create another worktree\.#Skip to Step 2 (Project Setup). Do NOT create another worktree. First run the sidecar-symlink step in the "Team workflow" section at the end of this skill.#' \
+      -e 's#If you do, use it and skip to Step 2\.#If you do, use it. **Immediately `cd` into the new worktree'"'"'s path** — a native tool creates the directory but does not always leave your active directory there; confirm with `pwd` if unsure, and never continue work from the original directory. Then run the sidecar-symlink step in the "Team workflow" section at the end of this skill, and skip to Step 2.#' \
+      -e 's@^cd "\$path"$@cd "$path"   # do this immediately — never continue work from the original directory\
+\
+# Give this worktree its own sidecar symlink if the project is adopted — see\
+# the "Team workflow" section at the end of this skill.@' \
+      -e 's#| "The workspace is fresh — baseline tests can wait" \| A dirty baseline makes every later failure ambiguous\. Run the tests now; proceeding past failures is your human partner'"'"'s call\. \|#&\n| "The native tool surely left me in the new worktree" | Confirm with `pwd`. Working from the original directory while believing you'"'"'re isolated is worse than no isolation — every edit lands in the wrong place. |#' \
+      "$uwt" 2>/dev/null && rm -f "$uwt.bak" || true
+  fi
+
+  # --- worktree isolation -> ask, never assume --------------------------------
+  # Upstream tells the controller to just create/verify an isolated workspace.
+  # The team wants the human asked each time instead of it being assumed —
+  # using-git-worktrees' own Step 0 already asks, but only when the caller
+  # hasn't already "declared a preference"; upstream's directive phrasing reads
+  # as exactly that declared preference, which is what suppressed the ask.
+  # Same exact-match/idempotent/best-effort mechanism as the blocks above.
+  ep="$dest/skills/executing-plans/SKILL.md"
+  if [ -f "$ep" ]; then
+    sed -i.bak \
+      -e 's#^1\. Ensure an isolated workspace: use superpowers:using-git-worktrees to create one or verify the existing one$#1. Ask whether to execute in an isolated git worktree or in the current directory — do not assume isolation is wanted. If they want isolation, use superpowers:using-git-worktrees to create one or verify the existing one#' \
+      "$ep" 2>/dev/null && rm -f "$ep.bak" || true
+  fi
+  sdd="$dest/skills/subagent-driven-development/SKILL.md"
+  if [ -f "$sdd" ]; then
+    sed -i.bak \
+      -e 's#^Ensure the work happens in an isolated workspace: use$#Ask whether to execute in an isolated git worktree or in the current directory — do not assume#' \
+      -e 's#^superpowers:using-git-worktrees to create one or verify the existing one\.$#isolation is wanted. If they want isolation, use superpowers:using-git-worktrees to create one or\nverify the existing one.#' \
+      "$sdd" 2>/dev/null && rm -f "$sdd.bak" || true
   fi
 
   # --- Re-apply team workflow overlays (survive the upstream rebuild) --------

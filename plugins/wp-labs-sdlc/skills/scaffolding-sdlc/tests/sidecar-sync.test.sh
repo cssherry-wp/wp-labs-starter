@@ -118,6 +118,33 @@ check "push from a worktree reached the remote" \
   "$(git -C "$TMP/remote.git" log -1 --pretty=%s)" "org/repo: from a worktree"
 teardown
 
+# --- worktree-link gives a fresh worktree its own .superpowers symlink ---
+setup
+git init -q "$TMP/project"
+git -C "$TMP/project" config user.email p@p.p
+git -C "$TMP/project" config user.name p
+echo x > "$TMP/project/README.md"
+git -C "$TMP/project" add README.md && git -C "$TMP/project" commit -qm init
+git -C "$TMP/project" worktree add -q "$TMP/wt2" -b feature2
+(cd "$TMP/wt2" && SIDECAR_DIR="$TMP/sidecar" bash "$SCRIPT" worktree-link) >/dev/null 2>&1
+check "worktree-link created a symlink in the new worktree" \
+  "$([ -L "$TMP/wt2/.superpowers" ] && echo yes || echo no)" "yes"
+check "worktree-link's symlink resolves to the sidecar dest" \
+  "$(cd -P "$TMP/wt2/.superpowers" && pwd -P)" "$(cd -P "$TMP/sidecar/org/repo" && pwd -P)"
+check "worktree-link added the .gitignore line" \
+  "$(grep -cx '\.superpowers' "$TMP/wt2/.gitignore")" "1"
+teardown
+
+# --- worktree-link no-ops when the project was never adopted ---
+setup
+mkdir -p "$TMP/plain2"
+git init -q "$TMP/plain2"
+out="$(cd "$TMP/plain2" && SIDECAR_DIR="$TMP/sidecar" bash "$SCRIPT" worktree-link 2>&1; echo "rc=$?")"
+check "worktree-link no-ops when not adopted" "$out" "rc=0"
+check "worktree-link created no .superpowers when not adopted" \
+  "$([ -e "$TMP/plain2/.superpowers" ] && echo yes || echo no)" "no"
+teardown
+
 # --- secrets block the push entirely ---
 setup
 printf 'aws_secret_access_key = AKIAIOSFODNN7EXAMPLE\n' \
