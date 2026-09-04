@@ -24,15 +24,25 @@ from typing import Any
 # (input, output, cache_write, cache_read) $/MTok. Keep in sync with the
 # PRICING table in session-dashboard.html so DB and dashboard costs agree.
 PRICING: dict[str, tuple[float, float, float, float]] = {
-    "claude-opus-5":             (5.0,  25.0,  6.25,  0.5),
-    "claude-opus-4-8":           (5.0,  25.0,  6.25,  0.5),
-    "claude-opus-4-7":           (5.0,  25.0,  6.25,  0.5),
-    "claude-opus-4-6":           (5.0,  25.0,  6.25,  0.5),
-    "claude-sonnet-4-6":         (3.0,  15.0,  3.75,  0.3),
-    "claude-sonnet-4-5":         (3.0,  15.0,  3.75,  0.3),
-    "claude-haiku-4-5":          (1.0,  5.0,   1.25,  0.1),
-    "claude-haiku-4-5-20251001": (1.0,  5.0,   1.25,  0.1),
-    "_default":                  (3.0,  15.0,  3.75,  0.3),
+    "claude-fable-5":           (10.0, 50.0, 12.5, 1.0),
+    "claude-opus-5":            (5.0, 25.0, 6.25, 0.5),
+    "claude-opus-4-8":          (5.0, 25.0, 6.25, 0.5),
+    "claude-opus-4-7":          (5.0, 25.0, 6.25, 0.5),
+    "claude-opus-4-6":          (5.0, 25.0, 6.25, 0.5),
+    "claude-opus-4-5":          (5.0, 25.0, 6.25, 0.5),
+    "claude-sonnet-5":          (2.0, 10.0, 2.5, 0.2),
+    "claude-sonnet-4-6":        (3.0, 15.0, 3.75, 0.3),
+    "claude-sonnet-4-5":        (3.0, 15.0, 3.75, 0.3),
+    "claude-haiku-4-5":         (1.0, 5.0, 1.25, 0.1),
+    "claude-haiku-4-5-20251001":(1.0,  5.0,   1.25,  0.1),
+    "claude-fable-5-1":         (10.0, 50.0, 12.5, 0.25),
+    "claude-mythos-5-1":        (10.0, 50.0, 12.5, 0.25),
+    "claude-mythos-5":          (10.0, 50.0, 12.5, 1.0),
+    "claude-opus-4-1":          (15.0, 75.0, 18.75, 1.5),
+    "claude-opus-4":            (15.0, 75.0, 18.75, 1.5),
+    "claude-sonnet-4":          (3.0, 15.0, 3.75, 0.3),
+    "claude-haiku-3-5":         (0.8, 4.0, 1.0, 0.08),
+    "_default":                 (3.0,  15.0,  3.75,  0.3),
 }
 
 MAX_BATCH = 10
