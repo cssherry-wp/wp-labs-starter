@@ -206,7 +206,7 @@ is the whole process.
 - Write the validated design (spec) to `.superpowers/01-specs/YYYY-MM-DD-HHmm-<name-of-spec>.md`
   - (User preferences for spec location override this default)
 - Use elements-of-style:writing-clearly-and-concisely skill if available
-- Do NOT commit the spec — `.superpowers/` is git-ignored working space; the GitHub tracking issue (see the "Team workflow" section at the end of this skill) is its durable record
+- Do NOT commit the spec — `.superpowers/` is git-ignored working space in the host repo; the GitHub tracking issue (see the "Team workflow" section at the end of this skill) is its durable record there. Instead, push it to the sidecar (same section), passing the same summary you give the user as the commit message.
 
 **Spec Self-Review:**
 After writing the spec document, look at it with fresh eyes:
@@ -304,6 +304,14 @@ tracker counterpart in place — do NOT post a duplicate:
 
 **Specs are git-ignored working copies — do NOT commit the spec file.** The tracker issue is its
 durable record. This overrides any "commit the design document to git" step earlier in this skill.
+
+That's about the host repo, not the sidecar: push the spec to the sidecar instead (best-effort —
+if the script is missing or fails, report it and continue; never block on it), using the same
+one-or-two-sentence summary you're about to give the user as the commit message:
+
+```bash
+bash "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh" push "<the summary you gave the user>"
+```
 
 If the chosen CLI (`gh` or `acli`) is missing or unauthenticated, report it and continue — never
 block the workflow on it.

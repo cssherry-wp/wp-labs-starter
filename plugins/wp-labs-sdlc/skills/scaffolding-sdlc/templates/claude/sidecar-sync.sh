@@ -14,6 +14,9 @@
 #   sidecar-sync.sh push "<message>"    # commit everything + push, with retry
 #   sidecar-sync.sh sweep               # push with a session-end message the
 #                                       # script builds itself (Stop hook)
+#   sidecar-sync.sh worktree-link       # give the CURRENT $PWD its own
+#                                       # .superpowers symlink, matching an
+#                                       # already-adopted main tree
 set -uo pipefail
 
 SIDECAR_DIR="${SIDECAR_DIR:-$HOME/.superpowers-sidecar}"
@@ -110,8 +113,21 @@ case "$cmd" in
     # already knows how to find the project.
     do_push "$(project_key): session-end sweep ($(date '+%Y-%m-%d %H:%M'))"
     ;;
+  worktree-link)
+    # Called from inside a freshly created worktree, which has no .superpowers
+    # of its own yet. The guard above already confirmed the MAIN tree ($ROOT)
+    # is adopted — give this worktree ($PWD, which differs from $ROOT here)
+    # its own symlink into the same sidecar destination.
+    link="$PWD/.superpowers"
+    [ -e "$link" ] || ln -s "$SIDECAR_DIR/$(project_key)" "$link"
+    ignore="$PWD/.gitignore"
+    if ! { [ -f "$ignore" ] && grep -qx '\.superpowers' "$ignore"; }; then
+      [ -f "$ignore" ] && [ -n "$(tail -c1 "$ignore")" ] && printf '\n' >> "$ignore"
+      printf '.superpowers\n' >> "$ignore"
+    fi
+    ;;
   *)
-    echo "usage: sidecar-sync.sh {pull|push \"<message>\"|sweep}" >&2
+    echo "usage: sidecar-sync.sh {pull|push \"<message>\"|sweep|worktree-link}" >&2
     exit 2
     ;;
 esac

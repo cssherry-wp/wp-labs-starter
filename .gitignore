@@ -46,3 +46,4 @@ __pycache__/
 # Docker
 docker-compose.override.yml
 *.local.env
+.superpowers

@@ -48,11 +48,11 @@ Promoted to plan: .superpowers/02-plans/<plan-filename>.md (<YYYY-MM-DD HH:mm>)
 ```
 
 Then sync both documents to the sidecar (best-effort — if the script is missing or fails, report
-it and continue; never block on it):
+it and continue; never block on it), using the same one-or-two-sentence summary you're about to
+give the user as the commit message:
 
 ```bash
-bash "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh" push \
-  "<org>/<repo>: writing-plans — <plan-filename>.md ($(date '+%Y-%m-%d %H:%M'))"
+bash "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh" push "<the summary you gave the user>"
 ```
 
 This is a note in the documents themselves, separate from the tracker steps above. If the plan was

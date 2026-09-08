@@ -1,0 +1,63 @@
+name: Sync model pricing
+
+# Weekly check against platform.claude.com's official pricing table. When any
+# model's price (active or retired) differs from what's committed, update the
+# PRICING tables and open a PR. Also runnable on demand via the Actions tab.
+on:
+  schedule:
+    - cron: "0 10 * * 1" # Mondays 10:00 UTC (an hour after the superpowers refresh)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Fetch and reconcile pricing
+        id: sync
+        run: |
+          set -euo pipefail
+          out="$(python3 scripts/sync-model-pricing.py)"
+          echo "$out"
+          changed="$(echo "$out" | grep -o 'changed=true\|changed=false')"
+          version="$(echo "$out" | sed -n 's/^version=//p')"
+          echo "changed=${changed#changed=}" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Open or update PR
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.sync.outputs.version }}
+        run: |
+          set -euo pipefail
+          case "$VERSION" in *[!A-Za-z0-9._-]*) echo "Refusing unsafe version: $VERSION" >&2; exit 1;; esac
+          branch="chore/sync-model-pricing"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git switch -C "$branch"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No file changes after sync; nothing to do."
+            exit 0
+          fi
+          git commit -m "Sync model pricing from platform.claude.com" -m "Automated reconciliation against the official pricing table, including retired-model prices. Review the diff before merging."
+          git push -f origin "$branch"
+          if [ -n "$(gh pr list --head "$branch" --state open --json number --jq '.[].number')" ]; then
+            echo "PR already open for $branch (updated by force-push)."
+          else
+            gh pr create \
+              --base main \
+              --head "$branch" \
+              --title "Sync model pricing from platform.claude.com" \
+              --body "Automated pricing sync from [platform.claude.com/docs/en/about-claude/pricing](https://platform.claude.com/docs/en/about-claude/pricing).
+
+          Reconciles every model row in the official table — active and retired — into \`summarize_ai_usage.py\`'s and \`session-dashboard.html\`'s \`PRICING\` tables, via \`scripts/sync-model-pricing.py\`. Dated snapshot aliases (e.g. \`claude-haiku-4-5-20251001\`) not present in the docs table are left untouched.
+
+          **Review before merging** — confirm the new/changed prices look right and that \`claude plugin validate\` passes."
+          fi
