@@ -8,11 +8,11 @@ When a request could reasonably be interpreted in more than one way, surface the
 
 ## Tool Usage Notes
 
-- **ScheduleWakeup**: pass `prompt`, `reason`, and `noop` together whenever `stop` is not `true` — omitting `prompt` throws an error. Don't call it just to wait on a harness-tracked background task (e.g. a backgrounded `Bash` command or `Monitor`) — those notify automatically on completion; reserve it for `/loop` dynamic-mode pacing.
+- **ScheduleWakeup**: pass `prompt`, `reason`, and `noop` together whenever `stop` is not `true`. Omitting `prompt` throws an error. Don't call it just to wait on a harness-tracked background task (e.g. a backgrounded `Bash` command or `Monitor`), since those notify automatically on completion; reserve it for `/loop` dynamic-mode pacing.
 
 ## Plans
 
-Save all implementation plans in the project's root `.superpowers/02-plans` folder — never
+Save all implementation plans in the project's root `.superpowers/02-plans` folder, never
 the current working directory or a worktree subdirectory. From a git worktree, resolve the
 main working tree's root explicitly rather than assuming the cwd:
 
@@ -25,7 +25,7 @@ repo_top=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplev
 After making any code changes in a git repository, always create a git commit before finishing. The commit message must include:
 
 1. **Subject line**: Concise summary of what changed (50 chars max)
-2. **Logic**: Why this change was made — as succinct bullets (the problem being solved or goal being achieved), not a single paragraph
+2. **Logic**: Why this change was made, as succinct bullets (the problem being solved or goal being achieved), not a single paragraph
 3. **Alternatives considered**: Other approaches evaluated and why they were rejected
 4. **Caveats/assumptions**: Any assumptions made, edge cases not handled, or limitations to be aware of
 
@@ -50,24 +50,21 @@ Omit a section only if it genuinely doesn't apply (e.g. no real alternatives for
 
 ### Commit granularity
 
-Prefer one commit per task — each task's work is its own commit. But keep a completed task to a **single** commit: if you make a follow-up commit that modifies an already-committed task (a fix, review correction, or amendment for that same task), squash it into that task's original commit rather than leaving a separate fixup commit. A finished task should show up as exactly one commit in the log.
+Prefer one commit per task: each task's work is its own commit. But keep a completed task to a **single** commit: if you make a follow-up commit that modifies an already-committed task (a fix, review correction, or amendment for that same task), squash it into that task's original commit rather than leaving a separate fixup commit. A finished task should show up as exactly one commit in the log.
 
 ### Issue linking
 
 If the commit addresses a tracker issue, add a reference at the end of the commit body:
 
-- **GitHub**: trailer on its own line — `Closes #123` when this commit resolves the issue, `Refs #123` when it relates but doesn't close it
-- **Jira**: prefix the subject line — `PROJ-123: <summary>` — and add `Refs PROJ-123` as a trailer when a commit shares multiple issues
+- **GitHub**: trailer on its own line. `Closes #123` when this commit resolves the issue, `Refs #123` when it relates but doesn't close it
+- **Jira**: prefix the subject line (`PROJ-123: <summary>`), and add `Refs PROJ-123` as a trailer when a commit shares multiple issues
 - Omit entirely when no issue applies; do not create an issue just to have one to reference
 
 ## Pull Request Descriptions
 
-<!-- scaffolder (SKILL.md step 8b): keep only the bullet for this repo's issue
-     tracker and delete the other bullet and this comment. -->
-
 Link the tracker issue by its type:
 
-- **GitHub issue**: put a [linking keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword) with the issue number — `Closes #123` (also `Fixes`/`Resolves`) to close on merge, or `Refs #123` to link without closing — on its own plain-text line; GitHub ignores it inside a markdown heading or backticks/code spans. A single issue goes at the bottom of the description. When the PR resolves **multiple** issues, put each keyword at the bottom of the description section it relates to, not all together at the absolute bottom.
+- **GitHub issue**: put a [linking keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword) with the issue number on its own plain-text line: `Closes #123` (also `Fixes`/`Resolves`) to close on merge, or `Refs #123` to link without closing. GitHub ignores it inside a markdown heading or backticks/code spans. A single issue goes at the bottom of the description. When the PR resolves **multiple** issues, put each keyword at the bottom of the description section it relates to, not all together at the absolute bottom.
 - **Jira issue(s)**: prefix the PR title with the issue ID, joining multiple with a comma and space (e.g. `JIRA-1: <summary>` or `JIRA-1, JIRA-2: <summary>`).
 
 ## Output Style
@@ -96,7 +93,7 @@ At the end of a coding task in a Claude Code session, include a brief summary co
 - What was done (files changed, decisions made)
 - Any assumptions or caveats the user needs to know
 
-A few lines is enough. This applies to Claude Code sessions — not general writing tasks. It is the delivery note for what the user needs to act on the work, not a content recap. It pairs with the "no closers/recaps" rule: recaps restate what the user can read; a task summary surfaces what they cannot (assumptions, scope decisions, known limitations).
+A few lines is enough. This applies to Claude Code sessions, not general writing tasks. It is the delivery note for what the user needs to act on the work, not a content recap. It pairs with the "no closers/recaps" rule: recaps restate what the user can read; a task summary surfaces what they cannot (assumptions, scope decisions, known limitations).
 
 ### No sycophancy
 
@@ -136,9 +133,9 @@ Cut intensifiers with no concrete claim behind them: powerful, robust, seamless,
 
 ### No em-dashes
 
-Never use an em-dash (-) or double hyphen (--) as sentence punctuation. A plain hyphen is fine for compound words. Recast with a comma, colon, parentheses, or two sentences.
+Never use an em-dash (—) or double hyphen (--) as sentence punctuation. A plain hyphen is fine for compound words. Recast with a comma, colon, parentheses, or two sentences.
 
-"loops - up to ten times - over the tools" -> "loops over the tools, up to ten times"
+"loops — up to ten times — over the tools" -> "loops over the tools, up to ten times"
 
 ### No emoji
 
