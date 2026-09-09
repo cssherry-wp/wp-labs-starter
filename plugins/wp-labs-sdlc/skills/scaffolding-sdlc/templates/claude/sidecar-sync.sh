@@ -66,7 +66,7 @@ secret_scan() { # -> 0 if clean, 1 if something looks like a credential
     | grep -iE "$pat" \
     | head -20)"
   [ -z "$hits" ] && return 0
-  echo "WARNING: superpowers-sidecar push BLOCKED — the staged changes look like they contain secrets:" >&2
+  echo "ERROR: superpowers-sidecar push BLOCKED — the staged changes look like they contain secrets:" >&2
   printf '         %s\n' "$hits" >&2
   echo "         Nothing was committed or pushed. Redact the values in $SIDECAR_DIR, then re-run." >&2
   echo "         If this is a false positive: SIDECAR_ALLOW_SECRETS=1 <your command>" >&2
@@ -77,19 +77,25 @@ do_push() {
   local msg="$1"
   git -C "$SIDECAR_DIR" add -A
   # Nothing staged: no empty commits, no pointless network call.
-  git -C "$SIDECAR_DIR" diff --cached --quiet && exit 0
+  if git -C "$SIDECAR_DIR" diff --cached --quiet; then
+    echo "OK: nothing to sync"
+    exit 0
+  fi
   if ! secret_scan; then
     git -C "$SIDECAR_DIR" reset --quiet
     exit 1
   fi
-  git -C "$SIDECAR_DIR" commit --quiet -m "$msg" || exit 0
-  if ! git -C "$SIDECAR_DIR" push --quiet; then
+  git -C "$SIDECAR_DIR" commit --quiet -m "$msg" || { echo "OK: nothing to sync"; exit 0; }
+  if git -C "$SIDECAR_DIR" push --quiet; then
+    echo "OK: pushed to superpowers-sidecar"
+  else
     if git -C "$SIDECAR_DIR" pull --rebase --quiet && git -C "$SIDECAR_DIR" push --quiet; then
-      : # recovered
+      echo "WARNING: push failed once, recovered after rebase retry" >&2
     else
       git -C "$SIDECAR_DIR" rebase --abort 2>/dev/null
-      echo "WARNING: superpowers-sidecar push failed and rebase could not resolve it." >&2
-      echo "         Your work IS committed locally in $SIDECAR_DIR — resolve and push manually." >&2
+      echo "ERROR: superpowers-sidecar push failed and rebase could not resolve it." >&2
+      echo "       Your work IS committed locally in $SIDECAR_DIR — resolve and push manually." >&2
+      exit 1
     fi
   fi
 }
@@ -97,10 +103,13 @@ do_push() {
 cmd="${1:-}"
 case "$cmd" in
   pull)
-    git -C "$SIDECAR_DIR" pull --rebase --quiet || {
+    if git -C "$SIDECAR_DIR" pull --rebase --quiet; then
+      echo "OK: superpowers-sidecar pull complete"
+    else
       git -C "$SIDECAR_DIR" rebase --abort 2>/dev/null
-      echo "WARNING: superpowers-sidecar pull failed; resolve manually in $SIDECAR_DIR" >&2
-    }
+      echo "ERROR: superpowers-sidecar pull failed; resolve manually in $SIDECAR_DIR" >&2
+      exit 1
+    fi
     ;;
   push)
     msg="${2:-}"
@@ -119,7 +128,12 @@ case "$cmd" in
     # is adopted — give this worktree ($PWD, which differs from $ROOT here)
     # its own symlink into the same sidecar destination.
     link="$PWD/.superpowers"
-    [ -e "$link" ] || ln -s "$SIDECAR_DIR/$(project_key)" "$link"
+    if [ -e "$link" ]; then
+      echo "OK: .superpowers already linked"
+    else
+      ln -s "$SIDECAR_DIR/$(project_key)" "$link"
+      echo "OK: linked .superpowers for this worktree"
+    fi
     ignore="$PWD/.gitignore"
     if ! { [ -f "$ignore" ] && grep -qx '\.superpowers' "$ignore"; }; then
       [ -f "$ignore" ] && [ -n "$(tail -c1 "$ignore")" ] && printf '\n' >> "$ignore"

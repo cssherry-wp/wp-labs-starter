@@ -118,6 +118,20 @@ if [ -f "$src" ]; then
   fi
 fi
 
+# --- plan-sync.sh ---
+# Called from the Stop hook by absolute path, same reason as sidecar-sync.sh.
+src="$TMPL/plan-sync.sh"
+dst="$CLAUDE_DIR/plan-sync.sh"
+if [ -f "$src" ]; then
+  if [ -f "$dst" ] && diff -q "$src" "$dst" > /dev/null 2>&1; then
+    echo "plan-sync.sh: already up to date"
+  else
+    cp "$src" "$dst"
+    chmod +x "$dst"
+    echo "plan-sync.sh: installed"
+  fi
+fi
+
 # --- rules/* ---
 if [ -d "$TMPL/rules" ]; then
   mkdir -p "$CLAUDE_DIR/rules"

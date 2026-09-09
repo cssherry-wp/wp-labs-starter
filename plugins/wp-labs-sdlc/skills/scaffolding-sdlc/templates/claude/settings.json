@@ -22,6 +22,11 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash \"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plan-sync.sh\" || true",
+            "statusMessage": "Syncing plan-mode plans..."
+          },
+          {
+            "type": "command",
             "command": "bash \"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh\" sweep || true",
             "statusMessage": "Sweeping superpowers sidecar..."
           }
