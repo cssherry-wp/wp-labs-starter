@@ -266,13 +266,25 @@ directory; copy from there.
    rules that keep Claude's prose from sounding AI-generated). It complements
    Ponytail, which governs code minimalism; CLAUDE.md governs communication style.
 
-   **Trim "Pull Request Descriptions" to the repo's issue tracker.** The template
-   carries both a GitHub-issue and a Jira bullet; keep only the one in use and
-   delete the other (and the `<!-- scaffolder: … -->` marker). Default to the
-   **GitHub** bullet for a GitHub-hosted repo (step 1); keep the **Jira** bullet
-   instead when the repo uses Jira — a `.jira`/Jira URL in the repo, a Jira remote,
-   or the user says so. If both trackers are genuinely in use, keep both. Carrying
-   the non-applicable bullet just trains the wrong PR convention into every session.
+   **Trim the tracker bullets to the repo's issue tracker.** The template names a
+   tracker in two separate sections. Decide once, then apply the same choice to
+   both. Default to **GitHub** for a GitHub-hosted repo (step 1); choose **Jira**
+   when the repo uses Jira — a `.jira`/Jira URL in the repo, a Jira remote, or
+   the user says so. If both trackers are genuinely in use, keep every bullet in
+   both sections and skip the rest of this step.
+
+   Otherwise keep the chosen tracker's bullet and delete the other in each of:
+
+   - `### Issue linking`, which governs commit trailers: `- **GitHub**:` and
+     `- **Jira**:`. That section has a **third** bullet,
+     `- Omit entirely when no issue applies…`, which is tracker-agnostic. Keep
+     it. Deleting it would drop the rule that a commit with no issue needs no
+     reference.
+   - `## Pull Request Descriptions`, which governs PR body text:
+     `- **GitHub issue**:` and `- **Jira issue(s)**:`.
+
+   Carrying the non-applicable bullet just trains the wrong convention into
+   every session.
 
 9. **Verify & summarize.** Run `make check` and `make coverage` locally and report
    results. Summarize what was created/changed and list manual follow-ups: add
