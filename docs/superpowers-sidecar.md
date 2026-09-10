@@ -46,7 +46,9 @@ Three triggers keep the sidecar in sync without manual `git` commands:
 
 - **`SessionStart`** — pulls (`git pull --rebase`) the sidecar clone at the start of every Claude Code session, so you start with the latest state from any machine.
 - **Per-document pushes** — skills that write into `.superpowers/` (e.g. `superpowers-sidecar-init` on finalize) push immediately after writing, so changes land in the sidecar remote right away rather than waiting for session end.
-- **`Stop`** — `sidecar-sync.sh sweep` runs as insurance at the end of every session, pushing anything that wasn't already pushed by a per-document push. `sweep` builds its own commit message, so the `<org>/<repo>` key is derived in one place rather than inline in the hook.
+- **`Stop`** — two hooks run in sequence at the end of every session:
+  - `plan-sync.sh` copies this session's Plan Mode plan into `.superpowers/02-plans/` under the team's dated-slug naming, if it isn't already there. Plan Mode (the `ExitPlanMode` flow) writes its plan to a global, per-user location (`~/.claude/plans/<slug>.md`) that isn't tied to any project, and unlike the `writing-plans` skill nothing else syncs that file into the project. The plan is located via the Stop hook's transcript, so other projects' plans in that shared directory aren't swept in.
+  - `sidecar-sync.sh sweep` then runs as insurance, pushing anything that wasn't already pushed by a per-document push — including whatever `plan-sync.sh` just copied, since it runs first and lands the plan in the same push. `sweep` builds its own commit message, so the `<org>/<repo>` key is derived in one place rather than inline in the hook.
 
 Every push commits with the message format:
 
@@ -78,7 +80,7 @@ SIDECAR_ALLOW_SECRETS=1 bash ~/.claude/sidecar-sync.sh sweep
 
 Only newly staged lines are scanned, deliberately: scanning all tracked content would let one already-committed false positive wedge every future push. This is a safety net against the obvious mistake, not a secrets scanner — keep the sidecar remote **private** regardless.
 
-**Known limitation:** syncing only happens from the **main** working tree. `.superpowers` is a symlink there, so in a `git worktree` checkout the path does not exist and `sidecar-sync.sh` exits silently — the `SessionStart` pull and `Stop` sweep are both no-ops for a session run from a worktree. Specs, plans, and reviews are unaffected, because the docs convention resolves them to the main working tree's root; only the automatic sync of a worktree session is skipped. Run `/setup-claude --sync`'s push manually, or start a session from the main checkout, to sweep.
+**Worktrees:** `sidecar-sync.sh` resolves the **main** working tree's root (via `git rev-parse --git-common-dir`) rather than `$PWD`, so `pull`, `push`, and `sweep` all work from a `git worktree` checkout the same as from the main tree — the `SessionStart` pull and `Stop` sweep are not no-ops there. A fresh worktree still has no `.superpowers` symlink of its own, though; skills that read or write `.superpowers/*` paths directly from `$PWD` (rather than going through `sidecar-sync.sh`) need one, so run `sidecar-sync.sh worktree-link` from inside the worktree to give it a symlink into the same sidecar destination plus the matching `.gitignore` line.
 
 ## 6. When something goes wrong
 

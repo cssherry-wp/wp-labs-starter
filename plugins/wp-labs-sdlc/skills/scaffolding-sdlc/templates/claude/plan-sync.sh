@@ -16,36 +16,68 @@
 # Usage: plan-sync.sh   (reads the Stop hook's JSON payload from stdin)
 set -uo pipefail
 
+# Missing lib = stale config dir with only one file installed. Fail quietly
+# rather than spew a bash error into the user's session on every Stop.
+# shellcheck source=./claude-lib.sh disable=SC1091
+. "$(dirname "${BASH_SOURCE[0]}")/claude-lib.sh" 2>/dev/null || exit 0
+
 payload="$(cat)"
 transcript="$(printf '%s' "$payload" | grep -o '"transcript_path"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed -E 's/.*:[[:space:]]*"(.*)"/\1/')"
 [ -n "$transcript" ] && [ -f "$transcript" ] || exit 0
 
-project_root() {
-  local gcd root
-  gcd="$(git rev-parse --git-common-dir 2>/dev/null)" || { echo "$PWD"; return; }
-  root="$(cd "$gcd/.." 2>/dev/null && pwd -P)" || { echo "$PWD"; return; }
-  echo "$root"
-}
-
-ROOT="$(project_root)"
-[ -n "$ROOT" ] || exit 0
+# No $PWD fallback: outside a git repo there is no project to sync into, and
+# guessing the cwd would write plans into $HOME.
+ROOT="$(project_root)" || exit 0
+# Only sync into an adopted project, same guard as sidecar-sync.sh: in an
+# unadopted tree these would land as untracked files someone may commit.
+[ -L "$ROOT/.superpowers" ] || exit 0
 DEST="$ROOT/.superpowers/02-plans"
 
-plans="$(grep -oE '[^"[:space:]]*/\.claude/plans/[^"/[:space:]]*\.md' "$transcript" | sort -u)"
+# ponytail: the harness writes the plan path as a structured field on
+# ExitPlanMode (input.planFilePath), not just prose, so grep that field name
+# instead of scanning for path-shaped text (which also matches paths merely
+# mentioned in web pages/files the session read). input.plan in the same
+# block holds the full plan text too, so the file could be reconstructed
+# without touching the filesystem at all, but that needs a real JSON parser
+# for a multi-line escaped string, and jq isn't reliably on every machine, so
+# path-plus-grep stays for now.
+plans="$(grep -oE '"planFilePath"[[:space:]]*:[[:space:]]*"[^"]*"' "$transcript" | sed -E 's/.*"planFilePath"[[:space:]]*:[[:space:]]*"([^"]*)"/\1/' | sort -u)"
 [ -n "$plans" ] || exit 0
 
 copied=0
 while IFS= read -r src; do
+  # Provenance guard: the transcript contains arbitrary attacker-influenceable
+  # text (web pages, file contents). Only this user's own plans directory is
+  # trusted, and never a symlink — cp would publish whatever it points at to a
+  # shared remote.
+  case "$src" in "$HOME"/.claude/plans/*) ;; *) continue ;; esac
+  case "$src" in *..*) continue ;; esac
+  [ -L "$src" ] && continue
   [ -f "$src" ] || continue
   slug="$(basename "$src" .md)"
-  # Already synced if a dated file for this slug exists in the destination.
-  if compgen -G "$DEST/*-$slug.md" > /dev/null 2>&1; then
+  # Anchored to the dated-filename convention (YYYY-MM-DD-HHMM-<slug>.md), not
+  # a bare *-$slug.md glob: unanchored, an existing ...-plan-sync.md would
+  # satisfy the check for an unrelated plan whose slug is just "sync".
+  existing="$(compgen -G "$DEST/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-[0-9][0-9][0-9][0-9]-$slug.md" 2>/dev/null)"
+  # Keep the latest: skip only if a same-content copy already exists. If the
+  # plan was revised since, every existing file differs, so fall through and
+  # add a new dated file rather than overwrite the old one (history is free).
+  already_synced=0
+  if [ -n "$existing" ]; then
+    while IFS= read -r f; do
+      cmp -s "$src" "$f" && { already_synced=1; break; }
+    done <<< "$existing"
+  fi
+  [ "$already_synced" -eq 1 ] && continue
+  # No `set -e`: report copy/date failures instead of printing OK for them.
+  stamp="$(date -r "$src" '+%Y-%m-%d-%H%M')" || continue
+  mkdir -p "$DEST"
+  if ! cp "$src" "$DEST/$stamp-$slug.md"; then
+    echo "ERROR: failed to copy $src to .superpowers/02-plans" >&2
     continue
   fi
-  mkdir -p "$DEST"
-  dst="$DEST/$(date -r "$src" '+%Y-%m-%d-%H%M')-$slug.md"
-  cp "$src" "$dst"
   copied=$((copied + 1))
 done <<< "$plans"
 
-echo "OK: copied $copied plan(s) to .superpowers/02-plans"
+[ "$copied" -gt 0 ] && echo "OK: copied $copied plan(s) to .superpowers/02-plans"
+exit 0

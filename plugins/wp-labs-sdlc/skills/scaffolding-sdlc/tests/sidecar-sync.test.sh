@@ -72,10 +72,15 @@ echo other > "$TMP/other/org/repo/01-specs/other.md"
 git -C "$TMP/other" add -A && git -C "$TMP/other" commit -qm "other side"
 git -C "$TMP/other" push -q
 echo mine > "$TMP/project/.superpowers/01-specs/mine.md"
-(cd "$TMP/project" && SIDECAR_DIR="$TMP/sidecar" bash "$SCRIPT" push "mine") >/dev/null 2>&1
+out="$(cd "$TMP/project" && SIDECAR_DIR="$TMP/sidecar" bash "$SCRIPT" push "mine" 2>"$TMP/stderr"; echo "rc=$?")"
+err="$(cat "$TMP/stderr")"
 git -C "$TMP/remote.git" log --pretty=%s > "$TMP/subjects"
 check "rebase-retry landed our commit" "$(grep -c '^mine$' "$TMP/subjects")" "1"
 check "rebase-retry preserved theirs" "$(grep -c '^other side$' "$TMP/subjects")" "1"
+check "rebase-retry printed success message" \
+  "$(echo "$out" | grep -c 'OK: pushed to superpowers-sidecar (after rebase retry)')" "1"
+check "rebase-retry exited 0" "$(echo "$out" | grep -o 'rc=[0-9]*$')" "rc=0"
+check "rebase-retry printed no WARNING" "$(echo "$err" | grep -c '^WARNING:')" "0"
 teardown
 
 # --- pull brings down remote commits ---
@@ -185,6 +190,60 @@ PROSE
 (cd "$TMP/project" && SIDECAR_DIR="$TMP/sidecar" bash "$SCRIPT" push "org/repo: prose") >/dev/null 2>&1
 check "prose mentioning secrets is not blocked" \
   "$(git -C "$TMP/remote.git" log -1 --pretty=%s)" "org/repo: prose"
+teardown
+
+# --- success and failure are reported distinguishably (the point of this PR) ---
+setup
+out="$(cd "$TMP/project" && SIDECAR_DIR="$TMP/sidecar" bash "$SCRIPT" push "nothing" 2>&1; echo "rc=$?")"
+check "push with nothing staged says so and exits 0" "$out" "OK: nothing to sync
+rc=0"
+teardown
+
+setup
+echo hi > "$TMP/project/.superpowers/01-specs/msg.md"
+out="$(cd "$TMP/project" && SIDECAR_DIR="$TMP/sidecar" bash "$SCRIPT" push "org/repo: msg" 2>&1; echo "rc=$?")"
+check "successful push reports OK and exits 0" "$out" "OK: pushed to superpowers-sidecar
+rc=0"
+teardown
+
+setup
+out="$(cd "$TMP/project" && SIDECAR_DIR="$TMP/sidecar" bash "$SCRIPT" pull 2>&1; echo "rc=$?")"
+check "successful pull reports OK" "$out" "OK: superpowers-sidecar pull complete
+rc=0"
+teardown
+
+setup
+git -C "$TMP/sidecar" remote set-url origin "$TMP/does-not-exist.git"
+out="$(cd "$TMP/project" && SIDECAR_DIR="$TMP/sidecar" bash "$SCRIPT" pull 2>&1)"
+rc=$?
+check "failed pull exits 1" "$rc" "1"
+check "failed pull prints an ERROR line" \
+  "$(echo "$out" | grep -c '^ERROR: superpowers-sidecar pull failed')" "1"
+teardown
+
+# A failing commit is a real error, never "nothing to sync".
+setup
+printf '#!/bin/sh\nexit 1\n' > "$TMP/sidecar/.git/hooks/pre-commit"
+chmod +x "$TMP/sidecar/.git/hooks/pre-commit"
+echo blocked > "$TMP/project/.superpowers/01-specs/blocked.md"
+out="$(cd "$TMP/project" && SIDECAR_DIR="$TMP/sidecar" bash "$SCRIPT" push "org/repo: blocked" 2>&1)"
+rc=$?
+check "commit failure exits non-zero" "$([ "$rc" -ne 0 ] && echo yes || echo no)" "yes"
+check "commit failure prints no OK line" "$(echo "$out" | grep -c '^OK:')" "0"
+check "commit failure prints an ERROR line" \
+  "$(echo "$out" | grep -c '^ERROR: superpowers-sidecar commit failed')" "1"
+teardown
+
+setup
+git init -q "$TMP/project"
+git -C "$TMP/project" config user.email p@p.p
+git -C "$TMP/project" config user.name p
+echo x > "$TMP/project/README.md"
+git -C "$TMP/project" add README.md && git -C "$TMP/project" commit -qm init
+git -C "$TMP/project" worktree add -q "$TMP/wt3" -b feature3
+out="$(cd "$TMP/wt3" && SIDECAR_DIR="$TMP/sidecar" bash "$SCRIPT" worktree-link 2>&1; echo "rc=$?")"
+check "worktree-link reports what it linked" "$out" "OK: linked .superpowers for this worktree
+rc=0"
 teardown
 
 exit "$fail"
