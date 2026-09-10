@@ -156,10 +156,10 @@ pass.
 `<repo-root>/.superpowers/03-review/<YYYY-MM-DD-HHmm>-audit-<slug>.md` where `slug` is the audited
 path with slashes replaced by dashes (or `repo` for a full-repo audit). The `HHmm` is a 24-hour
 timestamp — without it a second audit of the same path on the same day silently overwrites the
-first. Create the directory if absent:
+first. Resolve `<repo-root>` the way `team-docs-convention` prescribes (the main working tree's
+root, worktree-safe) and create the directory if absent:
 
 ```bash
-repo_top=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
 mkdir -p "$repo_top/.superpowers/03-review"
 ```
 
@@ -175,8 +175,8 @@ bash "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh" push \
   "<org>/<repo>: codebase-audit — <YYYY-MM-DD-HHmm>-audit-<slug>.md ($(date '+%Y-%m-%d %H:%M'))"
 ```
 
-Derive the repo root with `git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel`
-— this resolves to the main repo even when called from inside a throwaway worktree.
+`team-docs-convention` owns the repo-root resolution; its snippet resolves to the main repo even
+when called from inside a throwaway worktree.
 
 ## Notes
 
