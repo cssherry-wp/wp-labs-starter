@@ -1,0 +1,25 @@
+{
+  "body": "## Change review — PR #7\n\n### Verdict\nOne blocker.\n\n## Auto-fixed (1)\n- `README.md:3` — Typo in heading.\n\n## Other findings (not line-anchored)\n- Secret scan cannot classify non-credential content. _(confidence 80)_ — _security_ — _follow-up_\n- No test for the new error path. _(confidence 70)_ — _tests_\n\n<!-- claude-autofix -->",
+  "comments": [
+    {
+      "body": "**Any transcript-mentioned path is copied to the shared remote.**\n\nThe path is matched by shape, and cp follows symlinks.\n\n_Suggestion:_ Accept only paths under $HOME/.claude/plans; skip symlinks.\n\n- **Scenario:** A symlinked file mentioned in a README gets its target published to every teammate.\n- **Trigger:** Needs a crafted repo in the session's context; not ordinary use.\n- **Evidence:** reproduced — a symlink to /etc/hosts was copied before the guard.\n- **Origin:** introduced here\n- **Alternatives:**\n  - Content-scan for secrets — cheap, but cannot classify arbitrary exfiltrated data.\n  - Do nothing — leaves a silent path from untrusted text to a shared remote.\n- **Cost & risk of fixing:** Could reject a plan stored outside the default dir; none exist today.\n- **Caveats:** Verified on macOS only; GNU cp not exercised.\n- **Interacts with:** CR-003\n- **Recommendation:** fix in this changeset — same code path being added, cheap here.\n\n_(confidence 85)_",
+      "line": 41,
+      "path": "src/sync.sh",
+      "side": "RIGHT"
+    },
+    {
+      "body": "**Possible unused variable.**\n\n- **Evidence:** inferred — grep found one write and no reads; a dynamic reference would confirm otherwise.\n- **Origin:** pre-existing (a1b2c3d)\n- **Recommendation:** accept — pre-existing and harmless.\n\n_(confidence 40)_",
+      "line": 9,
+      "path": "src/sync.sh",
+      "side": "RIGHT"
+    },
+    {
+      "body": "**Typo in heading.**\n\n_(confidence 90)_\n\n_Auto-fixed in the `[autofix]` commit._\n\n<!-- claude-autofix -->",
+      "line": 3,
+      "path": "README.md",
+      "side": "RIGHT"
+    }
+  ],
+  "commit_id": "deadbeef",
+  "event": "COMMENT"
+}

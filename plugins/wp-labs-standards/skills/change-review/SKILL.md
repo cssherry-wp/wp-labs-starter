@@ -18,9 +18,11 @@ when `--fix`/`--comment` is passed.
 
 From `$ARGUMENTS`, separate the target from the flags:
 
-- `--fix` — after reviewing, apply **high-confidence**, mechanically-fixable findings
-  (lint/style on new files, stale-doc edits, and correctness via `/code-review --fix`).
-  Never auto-fix lower-confidence findings — surface them as suggestions.
+- `--fix` — after reviewing, apply the findings that meet the **auto-fix eligibility** rule in
+  `decision-record.md`: confidence ≥ 80 **and** evidence `reproduced` (or tool-verified) **and**
+  recommendation `fix in this changeset` **and** mechanically fixable (lint/style on new files,
+  stale-doc edits, correctness via `/code-review --fix`). Everything else is surfaced as a
+  suggestion, never applied.
 - `--comment` — post **all** findings (every checklist point + both hand-offs) as comments,
   each **with its confidence score**.
 - `--effort low|medium|high|max` — forwarded to `/code-review` (and used to scale the security
@@ -111,13 +113,28 @@ across all seven checklist points, including those folded in from `/code-review`
 digits). IDs are assigned in the order findings appear in the report (section 1 → section 7). They
 reset each run; the output file (section 7) is the stable reference.
 
+### Decision records
+
+**Read `decision-record.md` (next to this file) before writing any finding.** It is the single
+definition of the block every finding carries so a reader can decide whether to act — shared with
+`codebase-audit` and rendered by the CI job, so it is not restated here.
+
+- **Every** finding in points (3) and (6), any severity or confidence, deep-pass findings included,
+  gets the **full record**: Scenario, Trigger, Evidence, Origin, Proposed fix, Alternatives (doing
+  nothing always among them), Cost & risk of fixing, Caveats, Interacts with, Recommendation.
+- Findings in points (2), (5), (7) get the **light record**: Origin · Cost · Recommendation.
+- Point (4) carries neither.
+- The **auto-fix eligibility** rule and the **handing-on** template for queued/logged findings
+  live there too; §6 and §8 below refer to them.
+
 **(1) Summary of the changes.** A short, faithful description grouped by theme/area — not a
 file-by-file restatement. Lead with the primary intent.
 
 **(2) Outlying changes.** Anything a reader would *not* predict from (1): unrelated edits, drive-by
 refactors, changed behavior in untouched-seeming areas, dependency bumps, config/flag flips,
 formatting churn mixed with logic, generated files, deletions. List each with `file:line` and one
-line on why it's surprising. Incorporate anything the history/blame lens (section 3) surfaced.
+line on why it's surprising, plus the **light record** (Origin, Cost, Recommendation as
+keep/split/revert). Incorporate anything the history/blame lens (section 3) surfaced.
 
 **(3) Architecture / security / structure risks.** Call out anything forcing — or smuggling in — a
 substantial change to architecture, security posture, or file structure: new cross-layer
@@ -125,7 +142,8 @@ dependencies/layering violations, new external surface (endpoints, public APIs),
 auth/permission/RBAC changes, secrets/credentials, injection/SSRF/path-traversal/deserialization
 risks, new dependencies (supply chain), data-model/migration changes, broad moves/renames, new
 top-level dirs, or anything contradicting the stated rules from section 2. For each: severity
-(high/med/low) and a suggested direction.
+(high/med/low) and a suggested direction, followed by the full **decision record**
+(`decision-record.md`) — for every finding, whatever its severity or confidence.
 **Deep security hand-off:** always run `/security-review` against the working diff (the throwaway
 worktree for PR targets), scoped to these changes, and fold its findings into this point. Forward
 `--comment`/effort; security findings are generally not auto-fixable.
@@ -134,8 +152,8 @@ hunt reinvented stdlib, unneeded dependencies, speculative abstractions, and dea
 its findings into this point. Forward `--fix` and `--comment`. Normalize ponytail's output into the
 same format as other findings — `[SEV] file:line — description (confidence N) [CR-NNN]` — before
 folding in; assign IDs from the shared counter (section 4). Since ponytail-review lists fixes but
-does not apply them, `--fix` means change-review applies mechanically-fixable ponytail findings
-(confidence ≥ 80) itself, same as for correctness findings.
+does not apply them, `--fix` means change-review applies auto-fix-eligible ponytail findings
+itself, under the same rule as correctness findings.
 
 **(4) Lint/style on new files.** For every **newly added** file, verify it matches the repo's
 linting/formatting and local conventions. Prefer running the real tools, scoped to the new files:
@@ -148,18 +166,25 @@ confident regress the repo norm.)
 
 **(5) Documentation freshness.** Confirm docs that *should* reflect these changes do — `README`,
 `docs/`, `AGENTS.md`, `CLAUDE.md`, CHANGELOG, command cheatsheets, env-var/config tables, public API
-references, example snippets. Flag missing or stale docs with the specific file and what to add. If
-doc-neutral, say so.
+references, example snippets. Flag missing or stale docs with the specific file and what to add,
+plus the **light record** — a stale doc that was already stale before this change is a different
+decision from one this change made stale. If doc-neutral, say so.
 
 **(6) Correctness — deep hand-off.** Always invoke built-in **`/code-review`** against the working
 diff (the throwaway worktree for PR targets) for the deep correctness + reuse/simplification/
 efficiency pass; forward `--effort` and (with `--fix`) `--fix`. Fold its findings into this point.
 Add your own high-confidence obvious-defect findings the deep pass missed and anything the
-history/prior-PR lenses (section 3) surfaced.
+history/prior-PR lenses (section 3) surfaced. Every finding here gets the full **decision record**
+(`decision-record.md`) — the deep pass reports a defect, but the decision to apply its fix is still
+the reader's, and `/code-review` does not supply the scenario, alternatives, or fix risk. When the deep
+pass and your own reading disagree (it flags something real transcripts or a quick repro
+disprove), keep the finding at its honest confidence and say so under `Evidence` rather than
+dropping it silently.
 
 **(7) Tests.** Whether changed/added behavior is covered. Did new logic get tests? Were existing
-tests updated, or are any now stale/broken? Name the specific missing or affected test files. If
-test-neutral (docs, config, pure formatting), say so.
+tests updated, or are any now stale/broken? Name the specific missing or affected test files, plus
+the **light record** — a gap this change opened is a blocker candidate; a gap that predates it is
+a follow-up. If test-neutral (docs, config, pure formatting), say so.
 
 **Coverage:** run `make coverage` (TypeScript) or `make coverage-python` (Python) if the target
 exists. Report the overall line % and flag any changed module below 80% as a blocker. For e2e:
@@ -171,19 +196,21 @@ Score every finding 0–100 for how confident you are it's a real, relevant issu
 
 - **0–49** — uncertain / possible false positive / pre-existing. Surface as a *suggestion* only.
 - **50–79** — likely real but a nit or low-impact. Suggestion; never auto-fixed.
-- **80–100** — verified, high-impact, or a direct stated-rule violation. Eligible for `--fix`.
+- **80–100** — verified, high-impact, or a direct stated-rule violation. Meets the confidence
+  condition for `--fix` (the other conditions are in `decision-record.md`).
 
 Do **not** drop findings by score — report them all. With `--comment`, every comment shows its
-score, e.g. `(confidence 85)`. With `--fix`, only findings ≥ 80 that are mechanically fixable are
-applied; everything else is reported as a suggestion.
+score, e.g. `(confidence 85)`. With `--fix`, a finding is applied only if it is **auto-fix
+eligible**: confidence ≥ 80, evidence `reproduced` (or tool-verified), recommendation `fix in this
+changeset`, and mechanically fixable. Confidence alone is not enough — a confidence-90 finding that
+was inferred rather than reproduced is reported, not applied.
 
 ## 6. Apply / comment (only when flagged)
 
-- **`--fix`**: apply the high-confidence (≥80) mechanically-fixable findings. Don't apply them one
-  by one in this session on whatever model is running the review — **group them and dispatch each
-  group to an Agent, choosing that group's model for the fix's nature, not the reviewer's own
-  model**:
-  1. **Group** the ≥80 findings by what applying them actually takes — typically: (a) lint/format
+- **`--fix`**: apply the auto-fix-eligible findings (§5). Don't apply them one by one in this
+  session on whatever model is running the review — **group them and dispatch each group to an
+  Agent, choosing that group's model for the fix's nature, not the reviewer's own model**:
+  1. **Group** the eligible findings by what applying them actually takes — typically: (a) lint/format
      on new files (run the tool's own `--fix`/`--write`, one call per language/tool, no agent
      needed), (b) stale-doc edits, (c) ponytail-flagged mechanical simplifications, (d)
      `/code-review --fix` correctness findings (already its own dispatch — forward `--fix` to it
@@ -230,9 +257,17 @@ When `--ci` is passed (read-only mode), write findings as JSON, not prose — re
   explanation), and `suggestion` (how to fix it). The job renders them as a **bold** headline,
   then the detail, then a suggestion line. `summary` alone is fine when there's nothing more to
   add; `detail`/`suggestion` are optional.
-- `status: "fixed"` iff you applied the fix to the working tree under `--fix` (confidence ≥ 80,
-  mechanically fixable). All other findings are `"unfixed"`. Do **not** add the marker to any
-  finding — the job appends it to fixed items.
+- **Decision-record fields.** Every finding from point (3) or (6) also carries `scenario`,
+  `trigger`, `evidence`, `origin`, `alternatives`, `fix_risk`, `caveats`, `interacts_with`, and
+  `recommendation` — the machine form defined in `decision-record.md`, one string each
+  (`alternatives` and `interacts_with` are arrays). Findings from points 2, 5, and 7 carry the
+  light record: `origin`, `fix_risk` (the Cost line), and `recommendation`. Point 4 carries none.
+  The job renders whichever are present as a labelled list under the detail. They are also present
+  in `report_markdown`, since that is the full prose report — the structured copies exist so the
+  job can render them inline on the anchored line.
+- `status: "fixed"` iff you applied the fix to the working tree under `--fix`, which requires the
+  finding to be auto-fix eligible (§5). All other findings are `"unfixed"`. Do **not** add the
+  marker to any finding — the job appends it to fixed items.
 - `side`: `"RIGHT"` for head-side/added/context lines, `"LEFT"` for a removed line (optional,
   defaults to `"RIGHT"`). Set `start_line` only for a multi-line range, else omit it.
 - `unanchored[]` items take a `category` (e.g. `tests`, `efficiency`, `simplification`) plus the
@@ -248,10 +283,28 @@ When `--ci` is passed (read-only mode), write findings as JSON, not prose — re
       "status": "fixed",
       "summary": "Unused import left after refactor.",
       "detail": "`os` is no longer referenced once readFile moved to fs/promises.",
-      "suggestion": "Remove the `import os` line." }
+      "suggestion": "Remove the `import os` line." },
+    { "id": "CR-002", "path": "src/sync.ts", "line": 88, "side": "RIGHT", "severity": "high", "confidence": 85,
+      "status": "unfixed",
+      "summary": "Any transcript-mentioned path is copied to the shared remote.",
+      "detail": "The path is matched by shape, so a path merely quoted in text the session read is accepted, and cp follows symlinks.",
+      "scenario": "A repo shipping a symlinked file under .claude/plans/, mentioned in its README, gets that symlink's target published to the shared sidecar where every teammate can read it.",
+      "trigger": "Needs a crafted or compromised repo in the session's context; does not fire in ordinary use.",
+      "evidence": "reproduced — a planFilePath pointing at a symlink to /etc/hosts was copied before the guard; refused after.",
+      "origin": "introduced here",
+      "suggestion": "Accept only paths under $HOME/.claude/plans, reject `..`, skip symlinks.",
+      "alternatives": [
+        "Content-scan the copied file for secrets: cheap, but a credential regex cannot classify arbitrary exfiltrated data (PII, source).",
+        "Canonicalise with realpath: airtight, but adds a coreutils dependency for what a prefix match plus a symlink test already covers.",
+        "Do nothing: no code change, but leaves a silent path from untrusted text to a shared remote."
+      ],
+      "fix_risk": "A tightened prefix could reject a legitimate plan stored outside the default directory; no such case exists today. Needs a test asserting a symlink is refused.",
+      "caveats": "Verified on macOS only; GNU cp's symlink handling was not exercised. Assumes the hook always runs with the user's own $HOME.",
+      "interacts_with": ["CR-005"],
+      "recommendation": "Fix in this changeset — it is the same code path being added, and cheap here." }
   ],
   "unanchored": [
-    { "id": "CR-002", "category": "tests", "confidence": 70,
+    { "id": "CR-003", "category": "tests", "confidence": 70,
       "summary": "No test covers the new error path.",
       "detail": "throwOnMissingConfig has no test asserting it throws.",
       "suggestion": "Add a case in tests/foo.test.ts." }
@@ -269,29 +322,47 @@ When `--ci` is passed (read-only mode), write findings as JSON, not prose — re
 
 ### 2. Outlying changes
 - [CR-NNN] <file:line> — <why surprising> (confidence N)   (or: None)
+  - **Origin:** … · **Cost:** … · **Recommendation:** keep / split into its own changeset / revert — <why>
 
 ### 3. Architecture / security / structure
 - [CR-NNN] [HIGH/MED/LOW] <file:line> — <risk> → <direction> (confidence N)   (or: None)
-  <deep security via /security-review folded in, same format>
-  <deep over-engineering via /ponytail-review folded in, same format>
+  - **Scenario:** …
+  - **Trigger:** …
+  - **Evidence:** reproduced — <command/output> | inferred — <what would confirm it>
+  - **Origin:** introduced here | pre-existing (<commit>)
+  - **Proposed fix:** … (blast radius: …)
+  - **Alternatives:** <option> — pros / cons; … ; do nothing — <its cost>
+  - **Cost & risk of fixing:** …
+  - **Caveats:** what was assumed or not verified   (omit only if you verified everything)
+  - **Interacts with:** CR-NNN, …   (omit if none)
+  - **Recommendation:** fix in this changeset / follow-up / accept — <why>
+  <every finding, any severity or confidence; deep security via /security-review and deep
+   over-engineering via /ponytail-review folded in, same format; field semantics in
+   decision-record.md>
 
 ### 4. Lint & style (new files)
 - [CR-NNN] <file> — <tool result / deviation + fix> (confidence N)   (or: All new files conform)
 
 ### 5. Docs
 - [CR-NNN] <doc path> — <what needs updating> (confidence N)   (or: Up to date)
+  - **Origin:** … · **Cost:** … · **Recommendation:** …
 
 ### 6. Correctness
-- [CR-NNN] <file:line> — <bug + failure scenario> (confidence N)   (or: No obvious defects)
+- [CR-NNN] [HIGH/MED/LOW] <file:line> — <bug + failure scenario> (confidence N)   (or: No obvious defects)
+  <the full decision-record block, same fields as section 3, for every finding>
   <deep correctness via /code-review folded in, same format>
 
 ### 7. Tests
 Coverage: <overall line %> (or: not available)
 - [CR-NNN] <test file / area> — <missing or stale coverage> (confidence N)   (or: Adequate / N/A)
+  - **Origin:** … · **Cost:** … · **Recommendation:** …
 
 ### Verdict
 **Blockers (fix before merge):**
-- <ordered by severity, include CR-NNN>   (or: None)
+- <every finding whose Recommendation is "fix in this changeset", ordered by severity, with CR-NNN>   (or: None)
+
+**Follow-ups (queue or log, not blocking):**
+- <every finding whose Recommendation is "follow-up", with CR-NNN>   (or: None)
 
 **Nits (optional):**
 - <minor items, include CR-NNN>   (or: None)
@@ -347,10 +418,16 @@ IDs (assigned during the report — section 4). Skip this step entirely under `-
 
 **> 4 unfixed findings**: render a markdown table instead, then prompt for dispositions as text:
 
-| ID | Section | Finding | Confidence |
-|----|---------|---------|-----------|
-| CR-001 | Correctness | `foo.ts:42` unused import | 85 |
-| … | … | … | … |
+| ID | Section | Finding | Sev | Confidence | Recommendation |
+|----|---------|---------|-----|-----------|----------------|
+| CR-001 | Correctness | `foo.ts:42` unused import | low | 85 | fix now |
+| CR-003 | Security | `sync.ts:88` untrusted path copied to shared remote | high | 85 | fix now |
+| CR-007 | Docs | `README.md` stale env-var table (pre-existing) | low | 70 | follow-up |
+| … | … | … | … | … | … |
+
+Carry the `Recommendation` straight from each finding's decision record, and mark a `pre-existing`
+origin inline as above — those two columns are what let a reader triage the table without scrolling
+back to the findings.
 
 Then ask: "For each finding reply: `<CR-NNN> fix|queue|issue|ignore [note]`.
 E.g. `CR-001 fix CR-003 queue CR-005 ignore`."
@@ -366,8 +443,11 @@ Act on each selection:
   the now-selected findings by what fixing them takes, pick a model per group by the fix's
   difficulty (not this session's own model), and dispatch one `Agent` call per group. A single
   selection can just be applied directly without spinning up an agent for it.
-- **Add to queue**: call `/queue <finding summary>` to defer to this session's backlog.
-- **Log as issue**: `gh issue create` (or Jira via `acli`) capturing the finding; link it back.
+- **Add to queue**: call `/queue` with the finding's **whole decision record** in the handing-on
+  shape from `decision-record.md` — not the headline alone. The person who picks it up later must
+  have the same material the reviewer had.
+- **Log as issue**: `gh issue create` (or Jira via `acli`) with the same handing-on body, plus
+  the user's note and a link back to the review file or PR; record the issue number.
 - **Ignore**: record it as acknowledged.
 
 Report a one-line summary: what was fixed, queued, logged, and ignored.
@@ -382,16 +462,20 @@ of the review document saved above:
 
 _Updated 2026-08-31 14:22_
 
-- CR-001: fixed
-- CR-003: queued — revisit after the perf work lands
-- CR-005: ignored — intentional, mirrors the upstream behaviour
-- CR-007: logged — #142
+- CR-001: fixed · recommended fix in this changeset
+- CR-003: queued · recommended fix in this changeset — revisit after the perf work lands
+- CR-005: ignored · recommended follow-up — intentional, mirrors the upstream behaviour
+- CR-007: logged #142 · recommended follow-up
 ```
 
 Rules:
 
 - One line per finding, using the `CR-NNN` IDs from the report. Every finding gets a line —
   including the ones auto-fixed during the review under `--fix`, which are `fixed`.
+- Every line carries the review's **recommendation** next to the **decision**, always, even when
+  they agree. Where they differ, the reader's reason (their note) follows the dash. The file is
+  then calibration data: over time it shows where the reviewer and the reader disagreed and, once
+  the code has run, who was right.
 - Carry across any free-text note the user attached to a disposition.
 - **Update this section again after every later fix round.** When the user comes back and says
   "fix CR-003 now", change that row in place from `queued` to `fixed` and refresh the

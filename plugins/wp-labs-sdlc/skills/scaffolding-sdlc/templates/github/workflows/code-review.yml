@@ -76,7 +76,9 @@ jobs:
           prompt: |
             /wp-labs-standards:change-review --ci --fix --effort high
             Review the changes in this pull request against its base branch.
-            Apply ONLY high-confidence, mechanically-fixable findings to the working tree.
+            Apply ONLY auto-fix-eligible findings to the working tree (the change-review skill's
+            decision-record.md rule: confidence >= 80 AND evidence reproduced or tool-verified
+            AND recommendation "fix in this changeset" AND mechanically fixable).
             Do NOT commit, push, or post any PR comment. Write ALL findings to
             change-review-findings.json in the repository root, following the CI findings
             JSON schema in the change-review skill: line-anchored findings (path+line inside

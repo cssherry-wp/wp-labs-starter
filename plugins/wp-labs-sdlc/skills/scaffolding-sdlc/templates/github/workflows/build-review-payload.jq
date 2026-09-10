@@ -21,8 +21,32 @@ def headline:
 
 def confidence_line: "\n\n_(confidence \(.confidence))_";
 
+# change-review's decision record: the fields a reader needs to decide whether
+# to act on a finding, beyond what it is. All optional; render whichever are
+# present, in the skill's canonical order, as a labelled list. Array fields
+# (alternatives, interacts_with) become nested bullets / a comma list.
+def labelled($label; $value):
+  if ($value // "") != "" then "- **\($label):** \($value)" else empty end;
+
+def decision_block:
+  ( [ labelled("Scenario"; .scenario),
+      labelled("Trigger"; .trigger),
+      labelled("Evidence"; .evidence),
+      labelled("Origin"; .origin),
+      (if ((.alternatives // []) | length) > 0
+       then "- **Alternatives:**\n" + ((.alternatives) | map("  - " + .) | join("\n"))
+       else empty end),
+      labelled("Cost & risk of fixing"; .fix_risk),
+      labelled("Caveats"; .caveats),
+      (if ((.interacts_with // []) | length) > 0
+       then "- **Interacts with:** " + ((.interacts_with) | join(", "))
+       else empty end),
+      labelled("Recommendation"; .recommendation) ]
+    | join("\n") ) as $block
+  | if $block != "" then "\n\n" + $block else "" end;
+
 def comment_body:
-  finding_text + confidence_line
+  finding_text + decision_block + confidence_line
   + (if .status == "fixed"
      then "\n\n_Auto-fixed in the `[autofix]` commit._\n\n" + $marker
      else "" end);
@@ -40,7 +64,10 @@ def fixed_list:
 def unanchored_list:
   [ (.unanchored // [])[]
     | "- \(headline) _(confidence \(.confidence))_"
-      + (if (.category // "") != "" then " — _\(.category)_" else "" end) ];
+      + (if (.category // "") != "" then " — _\(.category)_" else "" end)
+      # Unanchored items are a digest, so only the recommendation rides along
+      # inline; the full record is in report_markdown above.
+      + (if (.recommendation // "") != "" then " — _\(.recommendation)_" else "" end) ];
 
 {
   commit_id: $commit_id,
