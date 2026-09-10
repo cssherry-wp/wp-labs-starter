@@ -128,7 +128,12 @@ definition of the block every finding carries so a reader can decide whether to 
   live there too; §6 and §8 below refer to them.
 
 **(1) Summary of the changes.** A short, faithful description grouped by theme/area — not a
-file-by-file restatement. Lead with the primary intent.
+file-by-file restatement. Lead with the primary intent. End with one **risk profile** line so the
+reader knows how much scrutiny the changeset owes before reading a single finding: size (files,
+net lines), whether it changes behavior or only restructures, its blast radius (shared interfaces,
+public API, on-disk/wire formats, hook or CI wiring touched), and whether it runs unattended
+(hooks, cron, CI). "12 files / +340 −60, behavior-changing, touches the Stop hook every session
+runs" and "2 files, pure rename, no callers outside the package" are different reviews.
 
 **(2) Outlying changes.** Anything a reader would *not* predict from (1): unrelated edits, drive-by
 refactors, changed behavior in untouched-seeming areas, dependency bumps, config/flag flips,
@@ -185,10 +190,29 @@ dropping it silently.
 tests updated, or are any now stale/broken? Name the specific missing or affected test files, plus
 the **light record** — a gap this change opened is a blocker candidate; a gap that predates it is
 a follow-up. If test-neutral (docs, config, pure formatting), say so.
+**Reconcile the author's test plan.** If the PR body (or commit message) claims verification —
+checked boxes, "manually tested X", "ran the suite" — take each claim and mark it `confirmed`
+(you reproduced it or a CI run shows it), `not verified` (plausible, but nothing you can point
+to), or `contradicted` (your evidence disagrees). An unchecked box is a claim too: say whether it
+is still open. A test plan the review never checks against is a test plan the reader will trust
+by default.
 
 **Coverage:** run `make coverage` (TypeScript) or `make coverage-python` (Python) if the target
 exists. Report the overall line % and flag any changed module below 80% as a blocker. For e2e:
 note any new user-visible flows in the diff that lack a Playwright test.
+
+**Scope & limits (always present, after point 7).** The report-level caveats: what this review
+did *not* do, so the reader knows what a "No issues" means. Three lists, each allowed to be
+"None":
+
+- **Not reviewed:** files skipped as mechanical churn (from section 1), areas the deep passes did
+  not run against (no worktree, effort tier), anything you consciously left out and why.
+- **Not exercised:** tools that were unavailable or not run (`make coverage` absent, no
+  `shellcheck`, GNU vs BSD not tried), environments not tested, claims taken on trust.
+- **Checked and clean:** concerns you considered and discounted, each with the reason — a deep
+  pass finding you disproved, a suspicious pattern that turned out to be guarded, a stated rule
+  that looked violated but was not. This stops the reader re-raising them and shows the review's
+  reach; keep it to genuine near-misses, not a list of everything you glanced at.
 
 ## 5. Confidence scoring
 
@@ -319,6 +343,7 @@ When `--ci` is passed (read-only mode), write findings as JSON, not prose — re
 
 ### 1. Summary
 <grouped prose>
+Risk profile: <N files / +A −D> · <behavior-changing | refactor-only | docs/config> · <blast radius> · <runs unattended: hooks/CI/cron, or interactive only>
 
 ### 2. Outlying changes
 - [CR-NNN] <file:line> — <why surprising> (confidence N)   (or: None)
@@ -356,6 +381,12 @@ When `--ci` is passed (read-only mode), write findings as JSON, not prose — re
 Coverage: <overall line %> (or: not available)
 - [CR-NNN] <test file / area> — <missing or stale coverage> (confidence N)   (or: Adequate / N/A)
   - **Origin:** … · **Cost:** … · **Recommendation:** …
+Author's test plan: <claim> — confirmed | not verified | contradicted (<evidence>)   (or: No test plan stated)
+
+### Scope & limits
+- **Not reviewed:** …   (or: None)
+- **Not exercised:** …   (or: None)
+- **Checked and clean:** <concern> — <why discounted>; …   (or: None)
 
 ### Verdict
 **Blockers (fix before merge):**
