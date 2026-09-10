@@ -1,6 +1,8 @@
 ---
 name: rebasing
 description: Use when rebasing a branch, updating a branch onto a moved base, restacking onto a rebased or force-pushed parent branch in a stack of PRs, resolving rebase conflicts, or recovering from a rebase that went wrong — identifies commits by message and patch content rather than SHA (the parent branch may itself have been rebased) and requires a byte-identical verification before and after.
+user-invocable: true
+argument-hint: "[target-branch, e.g. origin/main or origin/feature/parent]"
 allowed-tools: Bash
 ---
 

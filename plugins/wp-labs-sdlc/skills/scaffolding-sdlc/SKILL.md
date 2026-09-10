@@ -261,30 +261,20 @@ directory; copy from there.
 
    **b. CLAUDE.md** — copy `templates/claude/CLAUDE.md` → `.claude/CLAUDE.md` if
    not already present. If it exists, show the diff and offer to merge sections.
-   This sets the git commit policy, ambiguity-handling, and prose output-style
-   rules for the whole team (the "no filler, no trailing summaries, no AI slop"
-   rules that keep Claude's prose from sounding AI-generated). It complements
-   Ponytail, which governs code minimalism; CLAUDE.md governs communication style.
+   This sets the ambiguity-handling and prose output-style rules for the whole
+   team (the "no filler, no trailing summaries, no AI slop" rules that keep
+   Claude's prose from sounding AI-generated) and points at the
+   `wp-labs-standards` skills for commits, PRs, docs paths, reviews, and
+   rebasing rather than restating them — the restated copies drifted from their
+   source. It complements Ponytail, which governs code minimalism; CLAUDE.md
+   governs communication style.
 
-   **Trim the tracker bullets to the repo's issue tracker.** The template names a
-   tracker in two separate sections. Decide once, then apply the same choice to
-   both. Default to **GitHub** for a GitHub-hosted repo (step 1); choose **Jira**
-   when the repo uses Jira — a `.jira`/Jira URL in the repo, a Jira remote, or
-   the user says so. If both trackers are genuinely in use, keep every bullet in
-   both sections and skip the rest of this step.
-
-   Otherwise keep the chosen tracker's bullet and delete the other in each of:
-
-   - `### Issue linking`, which governs commit trailers: `- **GitHub**:` and
-     `- **Jira**:`. That section has a **third** bullet,
-     `- Omit entirely when no issue applies…`, which is tracker-agnostic. Keep
-     it. Deleting it would drop the rule that a commit with no issue needs no
-     reference.
-   - `## Pull Request Descriptions`, which governs PR body text:
-     `- **GitHub issue**:` and `- **Jira issue(s)**:`.
-
-   Carrying the non-applicable bullet just trains the wrong convention into
-   every session.
+   The template therefore needs no per-repo tracker trimming: issue-linking
+   rules for GitHub vs Jira live in `/wp-labs-standards:commit` and
+   `wp-labs-standards:github-pr-prepare`, which state both and apply whichever
+   the issue reference names. It does require the `wp-labs-standards` plugin to be installed in the
+   target repo's `.claude/settings.json` (step 8a's marketplace/plugin entries),
+   or the references resolve to nothing.
 
 9. **Verify & summarize.** Run `make check` and `make coverage` locally and report
    results. Summarize what was created/changed and list manual follow-ups: add
