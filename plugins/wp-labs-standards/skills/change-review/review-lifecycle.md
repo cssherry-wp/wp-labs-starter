@@ -17,6 +17,7 @@ prescribes (it owns the snippet; it resolves correctly from inside a throwaway w
 Create the directory if absent:
 
 ```bash
+repo_top=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
 mkdir -p "$repo_top/.superpowers/03-review"
 ```
 

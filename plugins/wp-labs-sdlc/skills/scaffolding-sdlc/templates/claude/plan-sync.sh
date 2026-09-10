@@ -44,14 +44,27 @@ DEST="$ROOT/.superpowers/02-plans"
 plans="$(grep -oE '"planFilePath"[[:space:]]*:[[:space:]]*"[^"]*"' "$transcript" | sed -E 's/.*"planFilePath"[[:space:]]*:[[:space:]]*"([^"]*)"/\1/' | sort -u)"
 [ -n "$plans" ] || exit 0
 
+# Resolved once: the only directory whose files are trusted as plans. Keyed off
+# CLAUDE_CONFIG_DIR the same way settings.json invokes this script, so a
+# non-default config dir isn't a permanent silent skip. Empty if it doesn't
+# exist, in which case nothing can match and every candidate is rejected below.
+PLANS_DIR="$(cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plans" 2>/dev/null && pwd -P)" || PLANS_DIR=""
+
 copied=0
 while IFS= read -r src; do
   # Provenance guard: the transcript contains arbitrary attacker-influenceable
-  # text (web pages, file contents). Only this user's own plans directory is
-  # trusted, and never a symlink — cp would publish whatever it points at to a
-  # shared remote.
-  case "$src" in "$HOME"/.claude/plans/*) ;; *) continue ;; esac
-  case "$src" in *..*) continue ;; esac
+  # text (web pages, file contents). Only files sitting directly in this user's
+  # own plans directory are trusted, and never a symlink — cp follows one and
+  # would publish whatever it points at to a shared remote.
+  #
+  # The parent is compared *resolved* (pwd -P), not as a string prefix. A string
+  # prefix check passes for a symlinked intermediate directory
+  # (~/.claude/plans/hop -> /etc), and neither a `..` substring test nor the
+  # -L test on the final component catches that: cp would then exfiltrate an
+  # arbitrary file to the shared sidecar remote.
+  [ -n "$PLANS_DIR" ] || continue
+  src_dir="$(cd "$(dirname "$src")" 2>/dev/null && pwd -P)" || continue
+  [ "$src_dir" = "$PLANS_DIR" ] || continue
   [ -L "$src" ] && continue
   [ -f "$src" ] || continue
   slug="$(basename "$src" .md)"
@@ -72,6 +85,12 @@ while IFS= read -r src; do
   # No `set -e`: report copy/date failures instead of printing OK for them.
   stamp="$(date -r "$src" '+%Y-%m-%d-%H%M')" || continue
   mkdir -p "$DEST"
+  # ponytail: the stamp is minute-granular, so a plan revised twice inside one
+  # minute overwrites its own earlier copy, contradicting the keep-every-version
+  # intent above. A numeric suffix fixes it but then falls outside the
+  # dated-name glob used for the already-synced check, so an unchanged plan
+  # would re-copy forever. Fix both together (widen the glob to accept the
+  # suffix) if losing a same-minute revision ever bites.
   if ! cp "$src" "$DEST/$stamp-$slug.md"; then
     echo "ERROR: failed to copy $src to .superpowers/02-plans" >&2
     continue

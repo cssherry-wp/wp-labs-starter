@@ -87,9 +87,15 @@ Only newly staged lines are scanned, deliberately: scanning all tracked content 
 If a push fails and an automatic `pull --rebase` retry can't resolve it, you'll see:
 
 ```
-WARNING: superpowers-sidecar push failed and rebase could not resolve it.
-         Your work IS committed locally in ~/.superpowers-sidecar — resolve and push manually.
+ERROR: superpowers-sidecar push failed and rebase could not resolve it.
+       Your work IS committed locally in ~/.superpowers-sidecar — resolve and push manually.
 ```
+
+Every outcome is now reported: `OK:` on success (including `OK: nothing to sync`), `ERROR:` on a
+real failure, with a non-zero exit. Silence means the script decided it had nothing to do — the
+project isn't adopted (no `.superpowers` symlink), or `claude-lib.sh` is missing from your config
+dir, which it sources and without which every sync is a silent no-op. Re-run
+`/setup-claude --sync` to reinstall both files if syncing stops happening with no message at all.
 
 Nothing is lost: the commit already exists in `~/.superpowers-sidecar`. Resolve it like any other git conflict:
 

@@ -31,6 +31,10 @@ setup() {
   export GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t.t
   export CLAUDE_CONFIG_DIR="$TMP/cfg"
   mkdir -p "$CLAUDE_CONFIG_DIR"
+  # Mirror what setup-claude.sh installs: sidecar-sync.sh sources claude-lib.sh
+  # from its own directory and exits 0 if it's missing, so a lib-less config dir
+  # makes every push a silent no-op.
+  cp "$HERE/../../scaffolding-sdlc/templates/claude/claude-lib.sh" "$CLAUDE_CONFIG_DIR/claude-lib.sh"
   cp "$HERE/../../scaffolding-sdlc/templates/claude/sidecar-sync.sh" "$CLAUDE_CONFIG_DIR/sidecar-sync.sh"
   chmod +x "$CLAUDE_CONFIG_DIR/sidecar-sync.sh"
 }

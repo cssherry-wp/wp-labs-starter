@@ -1,10 +1,18 @@
 {
-  "meta": { "target": "PR #7: feat/sync → main", "files_changed": 2 },
+  "meta": {
+    "target": "PR #7: feat/sync → main",
+    "files_changed": 2
+  },
   "report_markdown": "## Change review — PR #7\n\n### Verdict\nOne blocker.",
   "findings": [
     {
-      "id": "CR-001", "path": "src/sync.sh", "line": 41, "side": "RIGHT",
-      "severity": "high", "confidence": 85, "status": "unfixed",
+      "id": "CR-001",
+      "path": "src/sync.sh",
+      "line": 41,
+      "side": "RIGHT",
+      "severity": "high",
+      "confidence": 85,
+      "status": "unfixed",
       "summary": "Any transcript-mentioned path is copied to the shared remote.",
       "detail": "The path is matched by shape, and cp follows symlinks.",
       "suggestion": "Accept only paths under $HOME/.claude/plans; skip symlinks.",
@@ -18,20 +26,32 @@
       ],
       "fix_risk": "Could reject a plan stored outside the default dir; none exist today.",
       "caveats": "Verified on macOS only; GNU cp not exercised.",
-      "interacts_with": ["CR-003"],
+      "interacts_with": [
+        "CR-003"
+      ],
       "recommendation": "fix in this changeset — same code path being added, cheap here."
     },
     {
-      "id": "CR-002", "path": "src/sync.sh", "line": 9, "side": "RIGHT",
-      "severity": "low", "confidence": 40, "status": "unfixed",
+      "id": "CR-002",
+      "path": "src/sync.sh",
+      "line": 9,
+      "side": "RIGHT",
+      "severity": "low",
+      "confidence": 40,
+      "status": "unfixed",
       "summary": "Possible unused variable.",
-      "evidence": "inferred — grep found one write and no reads; a dynamic reference would confirm otherwise.",
+      "evidence": "inferred — grep found one write and no reads:\n$ grep -rn unused_var src/\nsrc/a.py:12: unused_var = 1",
       "origin": "pre-existing (a1b2c3d)",
       "recommendation": "accept — pre-existing and harmless."
     },
     {
-      "id": "CR-004", "path": "README.md", "line": 3, "side": "RIGHT",
-      "severity": "low", "confidence": 90, "status": "fixed",
+      "id": "CR-004",
+      "path": "README.md",
+      "line": 3,
+      "side": "RIGHT",
+      "severity": "low",
+      "confidence": 90,
+      "status": "fixed",
       "summary": "Typo in heading.",
       "alternatives": [],
       "interacts_with": []
@@ -39,12 +59,16 @@
   ],
   "unanchored": [
     {
-      "id": "CR-003", "category": "security", "confidence": 80,
+      "id": "CR-003",
+      "category": "security",
+      "confidence": 80,
       "summary": "Secret scan cannot classify non-credential content.",
       "recommendation": "follow-up"
     },
     {
-      "id": "CR-005", "category": "tests", "confidence": 70,
+      "id": "CR-005",
+      "category": "tests",
+      "confidence": 70,
       "summary": "No test for the new error path."
     }
   ]

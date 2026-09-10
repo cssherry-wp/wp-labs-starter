@@ -25,8 +25,12 @@ def confidence_line: "\n\n_(confidence \(.confidence))_";
 # to act on a finding, beyond what it is. All optional; render whichever are
 # present, in the skill's canonical order, as a labelled list. Array fields
 # (alternatives, interacts_with) become nested bullets / a comma list.
+# Multi-line values (reproduced command output in `evidence`, typically) are
+# indented so they stay inside the bullet instead of breaking the list.
 def labelled($label; $value):
-  if ($value // "") != "" then "- **\($label):** \($value)" else empty end;
+  if ($value // "") != ""
+  then "- **\($label):** \($value | gsub("\n"; "\n  "))"
+  else empty end;
 
 def decision_block:
   ( [ labelled("Scenario"; .scenario),

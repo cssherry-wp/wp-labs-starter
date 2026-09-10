@@ -79,10 +79,8 @@ origin, alternatives[], fix_risk, caveats, interacts_with[], recommendation }`.
 
 The last nine are the **decision record** defined in `../change-review/decision-record.md` —
 read it before dispatching, and put its "Full record" and "Audit mode" sections in each agent's
-prompt. Every correctness and security finding carries the full record regardless of severity or
-confidence; the "Audit mode" section says how `origin` (introducing commit + age) and `trigger`
-(is the path reachable at all) read when there is no diff, and gives the audit recommendation
-vocabulary `fix now` / `schedule` / `accept`.
+prompt. That file owns which findings carry a record, how `origin` and `trigger` read when there
+is no diff, and the audit recommendation vocabulary; do not restate them here.
 
 ## 5. Confidence scoring
 
@@ -160,6 +158,7 @@ first. Resolve `<repo-root>` the way `team-docs-convention` prescribes (the main
 root, worktree-safe) and create the directory if absent:
 
 ```bash
+repo_top=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
 mkdir -p "$repo_top/.superpowers/03-review"
 ```
 

@@ -101,7 +101,7 @@ install_file() {
     echo "$name: already up to date"
   else
     cp "$src" "$dst"
-    [ "$exe" = "true" ] && chmod +x "$dst"
+    if [ "$exe" = "true" ]; then chmod +x "$dst"; fi
     echo "$name: installed"
   fi
 }

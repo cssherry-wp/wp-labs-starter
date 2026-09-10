@@ -8,7 +8,7 @@
       "side": "RIGHT"
     },
     {
-      "body": "**Possible unused variable.**\n\n- **Evidence:** inferred — grep found one write and no reads; a dynamic reference would confirm otherwise.\n- **Origin:** pre-existing (a1b2c3d)\n- **Recommendation:** accept — pre-existing and harmless.\n\n_(confidence 40)_",
+      "body": "**Possible unused variable.**\n\n- **Evidence:** inferred — grep found one write and no reads:\n  $ grep -rn unused_var src/\n  src/a.py:12: unused_var = 1\n- **Origin:** pre-existing (a1b2c3d)\n- **Recommendation:** accept — pre-existing and harmless.\n\n_(confidence 40)_",
       "line": 9,
       "path": "src/sync.sh",
       "side": "RIGHT"

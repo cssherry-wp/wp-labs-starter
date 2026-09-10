@@ -246,4 +246,17 @@ check "worktree-link reports what it linked" "$out" "OK: linked .superpowers for
 rc=0"
 teardown
 
+# --- missing claude-lib.sh: a deliberate silent no-op, never a commit ---
+# The script exits 0 without output when its lib is absent (stale config dir).
+# This is an accepted risk: it also hides a broken lib. Pinned here so the
+# behaviour is a choice, not an accident, and so nothing is pushed on that path.
+setup
+mkdir -p "$TMP/cfg"
+cp "$SCRIPT" "$TMP/cfg/sidecar-sync.sh"
+echo hi > "$TMP/project/.superpowers/01-specs/orphan.md"
+out="$(cd "$TMP/project" && SIDECAR_DIR="$TMP/sidecar" bash "$TMP/cfg/sidecar-sync.sh" push "org/repo: orphan" 2>&1; echo "rc=$?")"
+check "missing lib exits 0 silently" "$out" "rc=0"
+check "missing lib commits nothing" "$(git -C "$TMP/sidecar" log --pretty=%s | grep -c orphan)" "0"
+teardown
+
 exit "$fail"

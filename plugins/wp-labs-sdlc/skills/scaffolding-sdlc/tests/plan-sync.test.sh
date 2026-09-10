@@ -29,7 +29,8 @@ teardown() { rm -rf "$TMP"; }
 run() {
   printf '%s' "$1" > "$TMP/transcript.jsonl"
   printf '{"transcript_path": "%s"}' "$TMP/transcript.jsonl" \
-    | (cd "$TMP/project" && HOME="$TMP/home" bash "$SCRIPT" 2>&1)
+    | (cd "$TMP/project" && HOME="$TMP/home" CLAUDE_CONFIG_DIR="$TMP/home/.claude" \
+         bash "$SCRIPT" 2>&1)
 }
 plan_count() { find "$TMP/sidecar/02-plans" -name '*.md' | wc -l | tr -d ' '; }
 
@@ -83,6 +84,30 @@ run "{\"input\":{\"planFilePath\":\"$TMP/home/.claude/plans/link.md\"}}" > /dev/
 check "symlinked plan is not copied" "$(plan_count)" "0"
 teardown
 
+# --- a symlinked INTERMEDIATE directory under plans/ is not dereferenced ---
+# A string-prefix guard passes here and the -L test only sees the final
+# component, so cp would publish an arbitrary file to the shared sidecar.
+setup
+mkdir -p "$TMP/secretdir"
+echo id_rsa > "$TMP/secretdir/stolen.md"
+ln -s "$TMP/secretdir" "$TMP/home/.claude/plans/hop"
+out="$(run "{\"input\":{\"planFilePath\":\"$TMP/home/.claude/plans/hop/stolen.md\"}}")"
+check "plan behind a symlinked directory is not copied" "$(plan_count)" "0"
+check "plan behind a symlinked directory prints nothing" "$out" ""
+teardown
+
+# --- the plans dir follows CLAUDE_CONFIG_DIR, as settings.json does ---
+setup
+mkdir -p "$TMP/home/.claude-work/plans"
+echo plan > "$TMP/home/.claude-work/plans/mine.md"
+printf '%s' "{\"input\":{\"planFilePath\":\"$TMP/home/.claude-work/plans/mine.md\"}}" \
+  > "$TMP/transcript.jsonl"
+printf '{"transcript_path": "%s"}' "$TMP/transcript.jsonl" \
+  | (cd "$TMP/project" && HOME="$TMP/home" CLAUDE_CONFIG_DIR="$TMP/home/.claude-work" \
+      bash "$SCRIPT" >/dev/null 2>&1)
+check "plan under CLAUDE_CONFIG_DIR is copied" "$(plan_count)" "1"
+teardown
+
 # --- an unadopted project creates nothing and exits 0 ---
 setup
 rm "$TMP/project/.superpowers"
@@ -131,6 +156,18 @@ echo "unrelated plan" > "$TMP/sidecar/02-plans/2026-01-01-0000-plan-sync.md"
 echo "actual plan" > "$TMP/home/.claude/plans/sync.md"
 run "{\"input\":{\"planFilePath\":\"$TMP/home/.claude/plans/sync.md\"}}" > /dev/null
 check "slug collision does not block a different plan" "$(plan_count)" "2"
+teardown
+
+# --- missing claude-lib.sh: silent exit 0, nothing copied (accepted risk) ---
+setup
+mkdir -p "$TMP/cfg"
+cp "$SCRIPT" "$TMP/cfg/plan-sync.sh"
+echo plan > "$TMP/home/.claude/plans/mine.md"
+printf '%s' "{\"input\":{\"planFilePath\":\"$TMP/home/.claude/plans/mine.md\"}}" > "$TMP/transcript.jsonl"
+out="$(printf '{"transcript_path": "%s"}' "$TMP/transcript.jsonl" \
+  | (cd "$TMP/project" && HOME="$TMP/home" bash "$TMP/cfg/plan-sync.sh" 2>&1); echo "rc=$?")"
+check "missing lib exits 0 silently" "$out" "rc=0"
+check "missing lib copies nothing" "$(plan_count)" "0"
 teardown
 
 exit "$fail"
