@@ -404,124 +404,14 @@ Author's test plan: <claim> — confirmed | not verified | contradicted (<eviden
 
 Keep it tight. End with the verdict, blockers first.
 
-**Persist the report:** after printing (or writing `--ci` JSON), save the prose report to
-`<repo-root>/.superpowers/03-review/<YYYY-MM-DD-HHmm>-<slug>.md` where `slug` is `uncommitted`,
-`pr-<N>`, or derived from the branch name. The `HHmm` is a 24-hour timestamp — without it a
-second review of the same branch on the same day silently overwrites the first. Create the
-directory if absent:
+## 8. After the report (non-`--ci` only)
 
-```bash
-repo_top=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
-mkdir -p "$repo_top/.superpowers/03-review"
-```
-
-Do **not** add a self-ignoring `.gitignore` to this folder. In a project adopted into the
-superpowers sidecar, `.superpowers` is a symlink and the project's own `.gitignore` already hides
-it by name; inside the sidecar the reviews are meant to be tracked. In a project that has not
-been adopted, the folder is untracked working scratch either way.
-
-After writing the file, sync it to the sidecar (best-effort — report and continue on failure):
-
-```bash
-bash "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh" push \
-  "<org>/<repo>: change-review — <YYYY-MM-DD-HHmm>-<slug>.md ($(date '+%Y-%m-%d %H:%M'))"
-```
-
-Derive the repo root with `git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel`
-— this resolves to the main repo even when called from inside a throwaway worktree. Skip this step
-under `--ci` when the JSON file is the deliverable.
-
-## 8. Interactive triage (non-`--ci` only)
-
-After printing the report, collect all **unfixed** findings from sections 2–7. Use their `CR-NNN`
-IDs (assigned during the report — section 4). Skip this step entirely under `--ci`.
-
-**≤ 4 unfixed findings**: use `AskUserQuestion` — one question per finding, all in a single call.
-
-- **`header`**: `"CR-NNN"` (+ section label if helpful, e.g. `"CR-007 Tests"`, max 12 chars)
-- **`question`**: the finding's impact (what breaks or degrades if left as-is) and the trade-off
-  of each choice, so the user can decide without re-reading the report.
-- **`options`** — always exactly these 4, in this order (the tool rejects <2 — never omit any):
-  1. label `"Fix it"`, description `"Apply the change now"`
-  2. label `"Add to queue"`, description `"Defer to /queue for a later session"`
-  3. label `"Log as issue"`, description `"Create a tracker issue and link it"`
-  4. label `"Ignore"`, description `"Drop it"`
-
-**> 4 unfixed findings**: render a markdown table instead, then prompt for dispositions as text:
-
-| ID | Section | Finding | Sev | Confidence | Recommendation |
-|----|---------|---------|-----|-----------|----------------|
-| CR-001 | Correctness | `foo.ts:42` unused import | low | 85 | fix now |
-| CR-003 | Security | `sync.ts:88` untrusted path copied to shared remote | high | 85 | fix now |
-| CR-007 | Docs | `README.md` stale env-var table (pre-existing) | low | 70 | follow-up |
-| … | … | … | … | … | … |
-
-Carry the `Recommendation` straight from each finding's decision record, and mark a `pre-existing`
-origin inline as above — those two columns are what let a reader triage the table without scrolling
-back to the findings.
-
-Then ask: "For each finding reply: `<CR-NNN> fix|queue|issue|ignore [note]`.
-E.g. `CR-001 fix CR-003 queue CR-005 ignore`."
-
-The user may attach a free-text note to any choice; read it from `annotations[].notes`
-(≤ 4 findings path) or inline in the text reply (> 4 findings path) and carry it into the
-action (append to the issue body, prefix the queue item, or record alongside an ignored finding).
-
-Act on each selection:
-- **Fix it**: apply the edit now. These are the findings the initial `--fix` pass (section 6)
-  left as suggestions — often lower-confidence or requiring the judgment the user just supplied
-  ("how" they want it fixed) — so use the same group-then-dispatch approach as section 6: group
-  the now-selected findings by what fixing them takes, pick a model per group by the fix's
-  difficulty (not this session's own model), and dispatch one `Agent` call per group. A single
-  selection can just be applied directly without spinning up an agent for it.
-- **Add to queue**: call `/queue` with the finding's **whole decision record** in the handing-on
-  shape from `decision-record.md` — not the headline alone. The person who picks it up later must
-  have the same material the reviewer had.
-- **Log as issue**: `gh issue create` (or Jira via `acli`) with the same handing-on body, plus
-  the user's note and a link back to the review file or PR; record the issue number.
-- **Ignore**: record it as acknowledged.
-
-Report a one-line summary: what was fixed, queued, logged, and ignored.
-
-**Then record it in the persisted review file.** The spoken summary disappears with the
-conversation; the file is what someone reads later — including on another machine, since the
-sidecar syncs it. Append (or update, if it already exists) a `## Disposition` section at the end
-of the review document saved above:
-
-```markdown
-## Disposition
-
-_Updated 2026-08-31 14:22_
-
-- CR-001: fixed · recommended fix in this changeset
-- CR-003: queued · recommended fix in this changeset — revisit after the perf work lands
-- CR-005: ignored · recommended follow-up — intentional, mirrors the upstream behaviour
-- CR-007: logged #142 · recommended follow-up
-```
-
-Rules:
-
-- One line per finding, using the `CR-NNN` IDs from the report. Every finding gets a line —
-  including the ones auto-fixed during the review under `--fix`, which are `fixed`.
-- Every line carries the review's **recommendation** next to the **decision**, always, even when
-  they agree. Where they differ, the reader's reason (their note) follows the dash. The file is
-  then calibration data: over time it shows where the reviewer and the reader disagreed and, once
-  the code has run, who was right.
-- Carry across any free-text note the user attached to a disposition.
-- **Update this section again after every later fix round.** When the user comes back and says
-  "fix CR-003 now", change that row in place from `queued` to `fixed` and refresh the
-  `_Updated ..._` line. This is a current-state list, not a change log — do not append a second
-  Disposition section, and do not keep the superseded row.
-- Sync after every write of this section, the same way the report itself was synced:
-
-  ```bash
-  bash "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh" push \
-    "<org>/<repo>: change-review — disposition for <slug> ($(date '+%Y-%m-%d %H:%M'))"
-  ```
-
-If the review file for the findings under discussion cannot be located (e.g. the findings came
-from a session whose file was never persisted), say so and skip — do not invent a new review file
-just to hold a Disposition section.
+**Read `review-lifecycle.md` (next to this file) and follow it.** It owns everything that happens
+once the report is printed: persisting it to `.superpowers/03-review/` and syncing to the sidecar,
+interactive triage of every unfixed finding (with the `/queue` option dropped when `wp-labs-sdlc`
+is not installed — deferrals become tracker issues instead), acting on each selection, and the
+`## Disposition` section that records decision beside recommendation and is updated in place on
+every later fix round. Under `--ci` skip all of it; the JSON file is the deliverable.
 
 ## Notes
 
