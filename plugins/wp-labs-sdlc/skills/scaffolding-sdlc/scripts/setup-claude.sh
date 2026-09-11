@@ -90,46 +90,45 @@ else
   echo "CLAUDE.md: created"
 fi
 
-# --- statusline.sh ---
-src="$TMPL/statusline.sh"
-dst="$CLAUDE_DIR/statusline.sh"
-if [ -f "$src" ]; then
+# Copy-if-different install of one file from $TMPL into $CLAUDE_DIR (or an
+# arbitrary destination dir, for rules/*). Executables get chmod +x; a
+# sourced-only lib and plain markdown rules don't need it.
+install_file() {
+  local name="$1" exe="${2:-true}"
+  local src="$TMPL/$name" dst="$CLAUDE_DIR/$name"
+  [ -f "$src" ] || return 0
   if [ -f "$dst" ] && diff -q "$src" "$dst" > /dev/null 2>&1; then
-    echo "statusline.sh: already up to date"
+    echo "$name: already up to date"
   else
     cp "$src" "$dst"
-    chmod +x "$dst"
-    echo "statusline.sh: installed"
+    if [ "$exe" = "true" ]; then chmod +x "$dst"; fi
+    echo "$name: installed"
   fi
-fi
+}
+
+# --- statusline.sh ---
+install_file statusline.sh
+
+# --- claude-lib.sh ---
+# Sourced, not executed, by sidecar-sync.sh and plan-sync.sh — installed
+# before them so a reader sees the dependency come first. No chmod +x.
+install_file claude-lib.sh false
 
 # --- sidecar-sync.sh ---
 # The superpowers-sidecar hooks in settings.json call this by absolute path, so
 # it has to live in the config dir rather than the plugin cache.
-src="$TMPL/sidecar-sync.sh"
-dst="$CLAUDE_DIR/sidecar-sync.sh"
-if [ -f "$src" ]; then
-  if [ -f "$dst" ] && diff -q "$src" "$dst" > /dev/null 2>&1; then
-    echo "sidecar-sync.sh: already up to date"
-  else
-    cp "$src" "$dst"
-    chmod +x "$dst"
-    echo "sidecar-sync.sh: installed"
-  fi
-fi
+install_file sidecar-sync.sh
+
+# --- plan-sync.sh ---
+# Called from the Stop hook by absolute path, same reason as sidecar-sync.sh.
+install_file plan-sync.sh
 
 # --- rules/* ---
 if [ -d "$TMPL/rules" ]; then
   mkdir -p "$CLAUDE_DIR/rules"
   for src in "$TMPL/rules/"*; do
     [ -e "$src" ] || continue
-    dst="$CLAUDE_DIR/rules/$(basename "$src")"
-    if [ -f "$dst" ] && diff -q "$src" "$dst" > /dev/null 2>&1; then
-      echo "rules/$(basename "$src"): already up to date"
-    else
-      cp "$src" "$dst"
-      echo "rules/$(basename "$src"): installed"
-    fi
+    install_file "rules/$(basename "$src")" false
   done
 fi
 

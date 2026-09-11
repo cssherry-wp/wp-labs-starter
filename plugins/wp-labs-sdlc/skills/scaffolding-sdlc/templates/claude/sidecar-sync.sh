@@ -19,20 +19,21 @@
 #                                       # already-adopted main tree
 set -uo pipefail
 
+# Missing lib = stale config dir with only one file installed. Fail quietly
+# rather than spew a bash error into the user's session on every Stop.
+# shellcheck source=./claude-lib.sh disable=SC1091
+. "$(dirname "${BASH_SOURCE[0]}")/claude-lib.sh" 2>/dev/null || exit 0
+
 SIDECAR_DIR="${SIDECAR_DIR:-$HOME/.superpowers-sidecar}"
 
 # The .superpowers symlink lives in the MAIN working tree. A git worktree has no
 # copy of it, so resolving $PWD alone would make every worktree session a silent
 # no-op — and worktrees are where a lot of work actually happens. Resolve the
-# main working tree the same way CLAUDE.md prescribes.
-project_root() {
-  local gcd root
-  gcd="$(git rev-parse --git-common-dir 2>/dev/null)" || { echo "$PWD"; return; }
-  root="$(cd "$gcd/.." 2>/dev/null && pwd -P)" || { echo "$PWD"; return; }
-  echo "$root"
-}
-
-ROOT="$(project_root)"
+# main working tree the same way CLAUDE.md prescribes. Unlike plan-sync.sh,
+# fall back to $PWD on failure: a project can be adopted (a .superpowers
+# symlink) without being a git repo itself, and this only ever feeds the -L
+# check below, which fails safely either way.
+ROOT="$(project_root)" || ROOT="$PWD"
 LINK="$ROOT/.superpowers"
 
 # Not adopted (or no sidecar clone yet) -> silent no-op.
@@ -66,7 +67,7 @@ secret_scan() { # -> 0 if clean, 1 if something looks like a credential
     | grep -iE "$pat" \
     | head -20)"
   [ -z "$hits" ] && return 0
-  echo "WARNING: superpowers-sidecar push BLOCKED — the staged changes look like they contain secrets:" >&2
+  echo "ERROR: superpowers-sidecar push BLOCKED — the staged changes look like they contain secrets:" >&2
   printf '         %s\n' "$hits" >&2
   echo "         Nothing was committed or pushed. Redact the values in $SIDECAR_DIR, then re-run." >&2
   echo "         If this is a false positive: SIDECAR_ALLOW_SECRETS=1 <your command>" >&2
@@ -77,19 +78,32 @@ do_push() {
   local msg="$1"
   git -C "$SIDECAR_DIR" add -A
   # Nothing staged: no empty commits, no pointless network call.
-  git -C "$SIDECAR_DIR" diff --cached --quiet && exit 0
+  if git -C "$SIDECAR_DIR" diff --cached --quiet; then
+    echo "OK: nothing to sync"
+    exit 0
+  fi
   if ! secret_scan; then
     git -C "$SIDECAR_DIR" reset --quiet
     exit 1
   fi
-  git -C "$SIDECAR_DIR" commit --quiet -m "$msg" || exit 0
-  if ! git -C "$SIDECAR_DIR" push --quiet; then
+  # Staged changes are known non-empty by here, so any failure is real (rejected
+  # commit hook, missing user.name/user.email, index lock). git's own message
+  # already went to stderr.
+  if ! git -C "$SIDECAR_DIR" commit --quiet -m "$msg"; then
+    echo "ERROR: superpowers-sidecar commit failed; nothing was pushed." >&2
+    echo "       Your work is still staged in $SIDECAR_DIR — commit it manually." >&2
+    exit 1
+  fi
+  if git -C "$SIDECAR_DIR" push --quiet; then
+    echo "OK: pushed to superpowers-sidecar"
+  else
     if git -C "$SIDECAR_DIR" pull --rebase --quiet && git -C "$SIDECAR_DIR" push --quiet; then
-      : # recovered
+      echo "OK: pushed to superpowers-sidecar (after rebase retry)"
     else
       git -C "$SIDECAR_DIR" rebase --abort 2>/dev/null
-      echo "WARNING: superpowers-sidecar push failed and rebase could not resolve it." >&2
-      echo "         Your work IS committed locally in $SIDECAR_DIR — resolve and push manually." >&2
+      echo "ERROR: superpowers-sidecar push failed and rebase could not resolve it." >&2
+      echo "       Your work IS committed locally in $SIDECAR_DIR — resolve and push manually." >&2
+      exit 1
     fi
   fi
 }
@@ -97,10 +111,13 @@ do_push() {
 cmd="${1:-}"
 case "$cmd" in
   pull)
-    git -C "$SIDECAR_DIR" pull --rebase --quiet || {
+    if git -C "$SIDECAR_DIR" pull --rebase --quiet; then
+      echo "OK: superpowers-sidecar pull complete"
+    else
       git -C "$SIDECAR_DIR" rebase --abort 2>/dev/null
-      echo "WARNING: superpowers-sidecar pull failed; resolve manually in $SIDECAR_DIR" >&2
-    }
+      echo "ERROR: superpowers-sidecar pull failed; resolve manually in $SIDECAR_DIR" >&2
+      exit 1
+    fi
     ;;
   push)
     msg="${2:-}"
@@ -119,7 +136,12 @@ case "$cmd" in
     # is adopted — give this worktree ($PWD, which differs from $ROOT here)
     # its own symlink into the same sidecar destination.
     link="$PWD/.superpowers"
-    [ -e "$link" ] || ln -s "$SIDECAR_DIR/$(project_key)" "$link"
+    if [ -e "$link" ]; then
+      echo "OK: .superpowers already linked"
+    else
+      ln -s "$SIDECAR_DIR/$(project_key)" "$link"
+      echo "OK: linked .superpowers for this worktree"
+    fi
     ignore="$PWD/.gitignore"
     if ! { [ -f "$ignore" ] && grep -qx '\.superpowers' "$ignore"; }; then
       [ -f "$ignore" ] && [ -n "$(tail -c1 "$ignore")" ] && printf '\n' >> "$ignore"

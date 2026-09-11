@@ -74,7 +74,13 @@ insecure deserialization, missing authn/authz, secrets in code, unsafe crypto. `
 is change-scoped, so this taxonomy is the lens.
 
 Each finding: `{ file, line, category (over-engineering|correctness|security), severity
-(high|med|low), confidence (0-100), summary, detail, suggestion }`.
+(high|med|low), confidence (0-100), summary, detail, suggestion, scenario, trigger, evidence,
+origin, alternatives[], fix_risk, caveats, interacts_with[], recommendation }`.
+
+The last nine are the **decision record** defined in `../change-review/decision-record.md` —
+read it before dispatching, and put its "Full record" and "Audit mode" sections in each agent's
+prompt. That file owns which findings carry a record, how `origin` and `trigger` read when there
+is no diff, and the audit recommendation vocabulary; do not restate them here.
 
 ## 5. Confidence scoring
 
@@ -108,16 +114,33 @@ _net: -<N> lines / -<M> deps possible_
 
 ### Correctness
 - **CO-1** [HIGH/MED/LOW] <file:line> — <bug + failure scenario> → <fix> (confidence N)   (or: No obvious defects)
+  - **Scenario:** …
+  - **Trigger:** … (including whether the path is reachable at all)
+  - **Evidence:** reproduced — <command/output> | inferred — <what would confirm it>
+  - **Origin:** <commit> (<age>)
+  - **Proposed fix:** … (blast radius: …)
+  - **Alternatives:** <option> — pros / cons; … ; do nothing — <its cost>
+  - **Cost & risk of fixing:** …
+  - **Caveats:** what was assumed or not verified   (omit only if you verified everything)
+  - **Interacts with:** CO-n, SE-n, OE-n   (omit if none)
+  - **Recommendation:** fix now / schedule / accept — <why>
 
 ### Security
 - **SE-1** [HIGH/MED/LOW] <file:line> — <vuln> → <remediation> (confidence N)   (or: No issues found)
+  <the same decision-record block, for every finding>
+
+Over-engineering findings keep the one-line form; `decision-record.md` § "Audit mode" says when
+one earns a record anyway.
 
 ### Verdict
 **Must fix:**
-- <finding ID + one-line, high-severity/high-confidence, ordered>   (or: None)
+- <every finding recommended `fix now`, ordered by severity × confidence, with ID>   (or: None)
 
-**Worth doing:**
-- <finding ID + one-line, med/low items>   (or: None)
+**Schedule:**
+- <every finding recommended `schedule`, with ID>   (or: None)
+
+**Accepted (with reason):**
+- <every finding recommended `accept`, one line each on why>   (or: None)
 
 <one line: overall health + the single highest-value action (by ID)>
 ```
@@ -131,7 +154,8 @@ pass.
 `<repo-root>/.superpowers/03-review/<YYYY-MM-DD-HHmm>-audit-<slug>.md` where `slug` is the audited
 path with slashes replaced by dashes (or `repo` for a full-repo audit). The `HHmm` is a 24-hour
 timestamp — without it a second audit of the same path on the same day silently overwrites the
-first. Create the directory if absent:
+first. Resolve `<repo-root>` the way `team-docs-convention` prescribes (the main working tree's
+root, worktree-safe) and create the directory if absent:
 
 ```bash
 repo_top=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
@@ -150,8 +174,8 @@ bash "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh" push \
   "<org>/<repo>: codebase-audit — <YYYY-MM-DD-HHmm>-audit-<slug>.md ($(date '+%Y-%m-%d %H:%M'))"
 ```
 
-Derive the repo root with `git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel`
-— this resolves to the main repo even when called from inside a throwaway worktree.
+`team-docs-convention` owns the repo-root resolution; its snippet resolves to the main repo even
+when called from inside a throwaway worktree.
 
 ## Notes
 

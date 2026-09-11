@@ -26,4 +26,5 @@ run_case realistic
 run_case body_compat
 run_case report_full
 run_case report_empty
+run_case decision_record
 exit "$fail"

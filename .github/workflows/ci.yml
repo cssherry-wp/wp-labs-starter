@@ -181,9 +181,13 @@ jobs:
             -not -path './feature/*' \
             -not -path '*/templates/*' \
             -not -path '*/.venv/*' \
-            | sort \
-            | while read -r f; do
-                echo "::group::$f"
-                bash "$f"
-                echo "::endgroup::"
-              done
+            | sort > tests.list
+          # Run every suite and fail at the end: a `find | while` pipeline would
+          # report only the LAST suite's exit status and swallow earlier failures.
+          rc=0
+          while read -r f; do
+            echo "::group::$f"
+            bash "$f" || { echo "::error::$f failed"; rc=1; }
+            echo "::endgroup::"
+          done < tests.list
+          exit "$rc"

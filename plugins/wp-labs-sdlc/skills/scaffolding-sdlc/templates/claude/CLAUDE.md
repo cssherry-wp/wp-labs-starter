@@ -10,62 +10,28 @@ When a request could reasonably be interpreted in more than one way, surface the
 
 - **ScheduleWakeup**: pass `prompt`, `reason`, and `noop` together whenever `stop` is not `true`. Omitting `prompt` throws an error. Don't call it just to wait on a harness-tracked background task (e.g. a backgrounded `Bash` command or `Monitor`), since those notify automatically on completion; reserve it for `/loop` dynamic-mode pacing.
 
-## Plans
+## Team workflows live in the wp-labs-standards plugin
 
-Save all implementation plans in the project's root `.superpowers/02-plans` folder, never
-the current working directory or a worktree subdirectory. From a git worktree, resolve the
-main working tree's root explicitly rather than assuming the cwd:
+The rules below used to be restated here and drifted from their source. This file now only says
+*when* they apply; the plugin skill is the single definition of *what* they say. Invoke the skill
+rather than working from memory.
 
-```bash
-repo_top=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
-```
+- **Plans, specs, and reviews** go where the `wp-labs-standards:team-docs-convention` skill says
+  (`.superpowers/01-specs`, `02-plans`, `03-review` under the *main* working tree's root, resolved
+  via `git rev-parse --git-common-dir` so worktrees land in the right place). It overrides any
+  default path a skill would otherwise use.
+- **Commits.** After making code changes in a git repository, always commit before finishing, using
+  `/wp-labs-standards:commit`. It owns the message format, the one-commit-per-task squash rule,
+  issue linking, and pushing after the final commit.
+- **Pull requests.** Create and describe them with the `wp-labs-standards:github-pr-prepare` skill,
+  which owns the PR template check and issue-linking keywords. Respond to review comments with
+  `wp-labs-standards:github-pr-review`.
+- **Reviewing changes.** `/wp-labs-standards:change-review` for a diff or PR;
+  `/wp-labs-standards:codebase-audit` for a whole repository. `wp-labs-standards:rebasing` for
+  rebasing, including onto a rebased parent branch.
 
-## Git Commit Policy
-
-After making any code changes in a git repository, always create a git commit before finishing. The commit message must include:
-
-1. **Subject line**: Concise summary of what changed (50 chars max)
-2. **Logic**: Why this change was made, as succinct bullets (the problem being solved or goal being achieved), not a single paragraph
-3. **Alternatives considered**: Other approaches evaluated and why they were rejected
-4. **Caveats/assumptions**: Any assumptions made, edge cases not handled, or limitations to be aware of
-
-Format the commit body as:
-
-```
-<subject line>
-
-Logic:
-- <reason / problem being solved>
-- <goal being achieved>
-
-Alternatives considered:
-- <option A>: <why rejected>
-- <option B>: <why rejected>
-
-Caveats/assumptions:
-- <item>
-```
-
-Omit a section only if it genuinely doesn't apply (e.g. no real alternatives for a trivial rename, no meaningful caveats). Do not invent content to fill sections.
-
-### Commit granularity
-
-Prefer one commit per task: each task's work is its own commit. But keep a completed task to a **single** commit: if you make a follow-up commit that modifies an already-committed task (a fix, review correction, or amendment for that same task), squash it into that task's original commit rather than leaving a separate fixup commit. A finished task should show up as exactly one commit in the log.
-
-### Issue linking
-
-If the commit addresses a tracker issue, add a reference at the end of the commit body:
-
-- **GitHub**: trailer on its own line. `Closes #123` when this commit resolves the issue, `Refs #123` when it relates but doesn't close it
-- **Jira**: prefix the subject line (`PROJ-123: <summary>`), and add `Refs PROJ-123` as a trailer when a commit shares multiple issues
-- Omit entirely when no issue applies; do not create an issue just to have one to reference
-
-## Pull Request Descriptions
-
-Link the tracker issue by its type:
-
-- **GitHub issue**: put a [linking keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword) with the issue number on its own plain-text line: `Closes #123` (also `Fixes`/`Resolves`) to close on merge, or `Refs #123` to link without closing. GitHub ignores it inside a markdown heading or backticks/code spans. A single issue goes at the bottom of the description. When the PR resolves **multiple** issues, put each keyword at the bottom of the description section it relates to, not all together at the absolute bottom.
-- **Jira issue(s)**: prefix the PR title with the issue ID, joining multiple with a comma and space (e.g. `JIRA-1: <summary>` or `JIRA-1, JIRA-2: <summary>`).
+These require the `wp-labs-standards` plugin from the team marketplace; `/setup-claude` installs
+it.
 
 ## Output Style
 

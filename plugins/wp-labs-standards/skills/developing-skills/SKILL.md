@@ -18,6 +18,7 @@ plugin-specific mechanics only.
 |---|---|---|
 | `skills/<name>/SKILL.md` | _(none)_ or `user-invocable: true` | Listed, invocable by user |
 | `skills/<name>/SKILL.md` | `user-invocable: false` | Hidden from user; Claude auto-loads it |
+| `skills/<name>/SKILL.md` | `user-invocable: true` + `disable-model-invocation: true` | Listed; only the user can invoke it — Claude never auto-loads it, even when the description matches (e.g. `queue`, which must not fire mid-task on its own) |
 | `skills/<name>/references/*.md` | _(no frontmatter)_ | Internal reference; never auto-loaded |
 
 Non-skill reference material (heavy API docs, guides like this one) belongs in
