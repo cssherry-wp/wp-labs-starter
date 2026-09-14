@@ -9,7 +9,7 @@ on:
 jobs:
   plugin-versions:
     name: Plugin version bump check
-    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions: { contents: read }
     steps:
