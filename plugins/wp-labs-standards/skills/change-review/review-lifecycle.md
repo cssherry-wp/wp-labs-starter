@@ -102,7 +102,7 @@ later — on another machine too, since the sidecar syncs it. Append (or update,
 
 _Updated 2026-08-31 14:22_
 
-- CR-001: fixed · recommended fix in this changeset
+- CR-001: fixed (model: claude-sonnet-5) · recommended fix in this changeset
 - CR-003: queued · recommended fix in this changeset — revisit after the perf work lands
 - CR-005: ignored · recommended follow-up — intentional, mirrors the upstream behaviour
 - CR-007: logged #142 · recommended follow-up
@@ -112,6 +112,10 @@ Rules:
 
 - One line per finding, by `CR-NNN`. Every finding gets a line — including those auto-fixed under
   `--fix`, which are `fixed`.
+- Every `fixed` row names the model that made the fix — `(model: <model>)` right after `fixed` —
+  since `SKILL.md` §6 and the "Fix it" step above dispatch each group to a model picked for that
+  group's difficulty, not necessarily the reviewing session's own model. Rows with any other
+  decision carry no model.
 - Every line carries the review's **recommendation** next to the **decision**, always, even when
   they agree. Where they differ, the user's reason (their note) follows the dash. The file is then
   calibration data: over time it shows where reviewer and reader disagreed and, once the code has

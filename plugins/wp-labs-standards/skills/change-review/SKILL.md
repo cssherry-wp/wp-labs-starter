@@ -338,8 +338,12 @@ When `--ci` is passed (read-only mode), write findings as JSON, not prose — re
 
 ## 7. Output format
 
+See `../report-model-provenance.md` for the `Model:` line's convention.
+
 ```
 ## Change review — <what was reviewed>
+
+Model: <model that produced this review>
 
 ### 1. Summary
 <grouped prose>

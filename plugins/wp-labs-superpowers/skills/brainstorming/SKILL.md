@@ -316,4 +316,9 @@ bash "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sidecar-sync.sh" push "<the summary yo
 If the chosen CLI (`gh` or `acli`) is missing or unauthenticated, report it and continue — never
 block the workflow on it.
 
+## Team workflow: record the model in the spec
+
+Add a `Model: <model that wrote this spec>` line directly under the spec's title before saving it.
+See `../model-provenance.md` for the convention this line follows.
+
 <!-- wp-labs team overlay: END -->

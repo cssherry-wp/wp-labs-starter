@@ -105,8 +105,12 @@ so keep it stable and never reuse a number within one report. Produce the report
 
 ## 7. Output format
 
+See `../report-model-provenance.md` for the `Model:` line's convention.
+
 ```
 ## Codebase audit — <path or repo>, <N> files / ~<L> lines, <S> slices
+
+Model: <model that produced this audit>
 
 ### Over-engineering
 - **OE-1** <file:line> — <tag> <what to cut> → <replacement> (confidence N)   (or: Lean already)
