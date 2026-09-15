@@ -1,0 +1,173 @@
+#!/usr/bin/env python3
+"""Self-check for build-deck: builds the sample deck and a tiny deck, asserts structure."""
+import collections
+import importlib.machinery
+import importlib.util
+import json
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+ASSETS = HERE.parent / "assets"
+SAMPLE = ASSETS / "sample-deck.json"
+BUILD = HERE / "build-deck"
+
+spec = importlib.util.spec_from_loader("bd", importlib.machinery.SourceFileLoader("bd", str(BUILD)))
+bd = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(bd)
+
+
+def run(*args, check=True):
+    return subprocess.run([sys.executable, str(BUILD), *map(str, args)],
+                          check=check, capture_output=True, text=True)
+
+
+# The sample is the only fixture this suite builds, and references/deck-json.md tells the next
+# editor it "exercises every block". Assert that rather than trusting it.
+def keys_in(obj, counter):
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            counter[k] += 1
+            keys_in(v, counter)
+    elif isinstance(obj, list):
+        for x in obj:
+            keys_in(x, counter)
+    return counter
+
+
+sample = json.loads(SAMPLE.read_text())
+used = keys_in(sample, collections.Counter())
+handled = re.findall(r'if "(\w+)" in b:', BUILD.read_text())
+unexercised = [h for h in handled if not used[h]]
+assert not unexercised, f"sample-deck.json does not exercise: {unexercised}"
+types = set(re.findall(r't == "(\w+)"', BUILD.read_text())) | {"content"}
+assert types <= {s.get("type", "content") for s in sample["slides"]}, "sample misses a slide type"
+
+with tempfile.TemporaryDirectory() as d:
+    d = Path(d)
+    out = d / "sample.html"
+    run(SAMPLE, out)
+    html = out.read_text()
+    n = len(sample["slides"])
+    assert html.count('<section class="slide') == n, "one section per slide"
+    assert re.findall(r'data-n="(\d\d)"', html)[:3] == ["01", "02", "03"], "two-digit numbering"
+    assert "<!-- SLIDES:START -->" in html and "<!-- SLIDES:END -->" in html
+    assert 'id="deck-comments">{}</script>' in html
+    assert 'data-chart="{&quot;type&quot;:&quot;bar&quot;' in html, "chart JSON escaped into attribute"
+    assert "<title>Deck title</title>" in html
+    assert "�" not in html and "None" not in re.sub(r"<script.*?</script>", "", html, flags=re.S), "no stray None/replacement chars"
+
+    # self-contained: fonts inlined, nothing fetched from a third party at open time
+    assert "<!-- FONTS:START --><style>" in html and "@font-face" in html, "fonts inlined"
+    assert "data:font/woff2;base64," in html, "fonts embedded, not linked"
+    assert "fonts.googleapis.com" not in html and "fonts.gstatic.com" not in html, "no font CDN"
+    assert html.count("https://") == 1 and "cdn.jsdelivr.net/npm/pptxgenjs" in html, \
+        "the on-demand pptx bundle is the only remote URL in a built deck"
+    assert re.search(r"integrity\s*=\s*PPTX_SRI", html) and "sha384-" in html, "pptx bundle pinned by hash"
+    assert not re.search(r"<script[^>]+\bsrc=", html), "a built deck loads no external script at open time"
+    assert "script[src]" in html, "serialize() strips the pptx bundle the exporter injects"
+
+    # navigation and comment features are runtime-only, so assert the shell carries their wiring:
+    # a deck built from an older shell would otherwise lose them silently.
+    for needle, why in [
+        ('id="overview"', "slide overview overlay"),
+        ('id="ogrid"', "overview grid container"),
+        ('id="goto"', "jump-to-slide input"),
+        ('id="selbtn"', "comment-on-selection button"),
+        ("function toggleOverview", "overview toggle"),
+        ("function findQuote", "re-find a quoted passage"),
+        ("function allHtml", "all-deck comment list"),
+        ("function ownerOf", "resolve which slide owns a comment"),
+        ("data-act=\"find\"", "clickable quote"),
+        ("scope==='all'", "panel scope switch"),
+    ]:
+        assert needle in html, f"shell is missing the {why} ({needle})"
+    # the overview clones slides, the selection button floats over them, and a half-typed jump is
+    # transient: none of it may end up in a saved deck
+    for stripped in ["#ogrid", "#overview", "#selbtn", "script[src]"]:
+        assert f"doc.querySelector('{stripped}')" in html or f"doc.querySelectorAll('{stripped}')" in html, \
+            f"serialize() does not strip {stripped}"
+
+    # CR-004: every deck carries its own id, so drafts cannot leak between two decks at one path
+    deck_id = re.search(r'data-deck-id="([0-9a-f]{16})"', html)
+    assert deck_id, "deck id stamped"
+    # ...and it is stable across a rebuild, so unsaved drafts are not orphaned
+    run(SAMPLE, out)
+    assert re.search(r'data-deck-id="%s"' % deck_id.group(1), out.read_text()), "deck id stable"
+    other = d / "other.html"
+    run(SAMPLE, other)
+    assert deck_id.group(1) in other.read_text(), "same deck JSON, same id"
+
+    # comments survive a rebuild
+    out.write_text(out.read_text().replace('id="deck-comments">{}</script>', 'id="deck-comments">{"1":[{"a":"R","t":"keep me","ts":"2026-01-01T00:00:00Z"}]}</script>'))
+    run(SAMPLE, out)
+    assert "keep me" in out.read_text(), "comments carried over"
+
+    # CR-002: a comment containing `<!--<script` used to end the JSON block early and swallow the
+    # rest of the document, runtime included. The shell escapes every `<` on the way in; assert a
+    # rebuild keeps it escaped and still round-trips the text the reviewer typed.
+    payload = 'looks good <!--<script> and </script> too'
+    as_saved = json.dumps({"2": [{"a": "R", "t": payload, "ts": "2026-01-01T00:00:00Z"}]}, indent=1).replace("<", "\\u003c")
+    assert "<" not in as_saved, "fixture mirrors serialize(): no raw < reaches the file"
+    out.write_text(re.sub(r'(id="deck-comments">).*?(</script>)', lambda m: m.group(1) + as_saved + m.group(2),
+                          out.read_text(), count=1, flags=re.S))
+    run(SAMPLE, out)
+    kept = out.read_text()
+    blob = re.search(r'<script type="application/json" id="deck-comments">(.*?)</script>', kept, re.S).group(1)
+    assert "<" not in blob, "no raw < survives into the embedded comment JSON"
+    assert json.loads(blob)["2"][0]["t"] == payload, "escaped payload round-trips byte for byte"
+    assert kept.count("<script") == 2, "document still has both scripts; JSON block did not swallow the runtime"
+    # ...and the shell must not contain that byte sequence itself, in a comment or anywhere else:
+    # inside the runtime <script> it would break the deck exactly the same way.
+    assert "<!--" + "<script" not in kept, "shell contains the sequence it guards against"
+
+    # CR-006: malformed carried-over comments fail the build instead of propagating a dead deck
+    broken = d / "broken.html"
+    broken.write_text(kept.replace(blob, '{"1": [oops'))
+    r = run(SAMPLE, broken, check=False)
+    assert r.returncode != 0 and "not valid JSON" in r.stderr, r
+
+    # minimal deck + escape hatch + unknown block fails loudly
+    mini = {"title": "Mini", "slides": [
+        {"type": "cover", "title": "T"},
+        {"title": "Body", "blocks": [{"pts": ["a", "b"]}, {"html": "<div class=\"marker\">x</div>"}]},
+        {"type": "html", "html": "<section class=\"slide\" data-n=\"03\"><div class=\"foot\">f</div></section>"}]}
+    (d / "mini.json").write_text(json.dumps(mini))
+    run(d / "mini.json")
+    m = (d / "mini.html").read_text()
+    assert 'class="marker"' in m and m.count('<section class="slide') == 3 and "<title>Mini</title>" in m
+    bad = {"slides": [{"title": "x", "blocks": [{"nope": 1}]}]}
+    (d / "bad.json").write_text(json.dumps(bad))
+    r = run(d / "bad.json", check=False)
+    assert r.returncode != 0 and "unknown block" in r.stderr, r
+
+    # CR-015: an escape-hatch slide may carry no data-n. The shell falls back to its position, so
+    # the build must not be the thing that guarantees the attribute -- assert the gap is real and
+    # that slideKey's guard is what covers it.
+    hatch = {"title": "Hatch", "slides": [
+        {"type": "cover", "title": "T"},
+        {"type": "html", "html": "<section class=\"slide\"><div class=\"body\">no data-n</div></section>"}]}
+    (d / "hatch.json").write_text(json.dumps(hatch))
+    run(d / "hatch.json")
+    h = (d / "hatch.html").read_text()
+    assert '<section class="slide"><div class="body">no data-n' in h, "verbatim, un-stamped"
+    assert re.search(r"getAttribute\('data-n'\)\s*\|\|\s*String\(k\+1\)", h), \
+        "shell tolerates a slide with no data-n"
+
+    # CR-007: a quote in a numeric field cannot break out of the style attribute it lands in
+    for blk in ({"bars": [{"label": "L", "pct": '5" onload="x'}]},
+                {"phaseBand": [{"name": "P", "flex": '1" onload="x', "segs": [{"flex": 1}]}]}):
+        (d / "inj.json").write_text(json.dumps({"slides": [{"title": "x", "blocks": [blk]}]}))
+        r = run(d / "inj.json", check=False)
+        assert r.returncode != 0, f"non-numeric where a number belongs must fail: {blk}"
+    (d / "inj.json").write_text(json.dumps({"slides": [{"title": "x", "blocks": [
+        {"lede": "L", "style": 'color:red" onload="alert(1)'}]}]}))
+    run(d / "inj.json")
+    assert 'onload="alert(1)' not in (d / "inj.html").read_text(), "style attribute escaped"
+
+# unit-level: the escaper build-deck hands attribute values
+assert bd.attr('a"b&c<d') == "a&quot;b&amp;c&lt;d"
+print("PASS: build-deck")

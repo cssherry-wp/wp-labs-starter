@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+"""Self-check for extract-source. Builds tiny .pptx/.docx/.html fixtures in a temp dir."""
+import importlib.machinery
+import importlib.util
+import subprocess
+import sys
+import tempfile
+import zipfile
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+spec = importlib.util.spec_from_loader("es", importlib.machinery.SourceFileLoader("es", str(HERE / "extract-source")))
+es = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(es)
+
+A = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"'
+SLIDE = lambda body: f'<p:sld {A}><p:cSld><p:spTree>{body}</p:spTree></p:cSld></p:sld>'
+PARA = lambda t: f'<p:sp><p:txBody><a:p><a:r><a:t>{t}</a:t></a:r></a:p></p:txBody></p:sp>'
+TBL = '<p:graphicFrame><a:tbl><a:tr><a:tc><a:txBody><a:p><a:r><a:t>Phase</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Weeks</a:t></a:r></a:p></a:txBody></a:tc></a:tr></a:tbl></p:graphicFrame>'
+W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+DOCX = f'<w:document {W}><w:body><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Objective</w:t></w:r></w:p><w:p><w:r><w:t>Ship the pilot.</w:t></w:r></w:p></w:body></w:document>'
+HTML = '<html><head><style>.x{}</style><script>var a=1;</script></head><body><h1>Six Weeks</h1><p>Plan &amp; scope</p><ul><li>One</li><li>Two</li></ul></body></html>'
+
+with tempfile.TemporaryDirectory() as d:
+    d = Path(d)
+    with zipfile.ZipFile(d / "f.pptx", "w") as z:
+        z.writestr("ppt/slides/slide2.xml", SLIDE(PARA("Second") + TBL))
+        z.writestr("ppt/slides/slide1.xml", SLIDE(PARA("Title here")))
+        z.writestr("ppt/slides/slide10.xml", SLIDE(PARA("Tenth")))
+    with zipfile.ZipFile(d / "f.docx", "w") as z:
+        z.writestr("word/document.xml", DOCX)
+    (d / "f.html").write_text(HTML)
+    (d / "f.md").write_text("# raw\nkeep")
+
+    p = es.extract(d / "f.pptx")
+    assert p.index("Title here") < p.index("Second") < p.index("Tenth"), p  # numeric slide order
+    assert "| Phase | Weeks |" in p, p
+    assert p.count("Phase") == 1 and p.count("Weeks") == 1, p  # cell text not duplicated as paragraphs
+    w = es.extract(d / "f.docx")
+    assert "# Objective" in w and "Ship the pilot." in w, w
+    h = es.extract(d / "f.html")
+    assert "# Six Weeks" in h and "Plan & scope" in h and "- One" in h, h
+    assert "var a" not in h and ".x{" not in h, h
+    assert es.extract(d / "f.md") == "# raw\nkeep"
+
+    ceiling = es.MAX_ENTRY_SIZE
+    es.MAX_ENTRY_SIZE = 10  # lower ceiling so the tiny fixture trips the size guard
+    try:
+        es.extract(d / "f.pptx")
+        assert False, "expected SystemExit for oversized entry"
+    except SystemExit as e:
+        assert "10" in str(e) and "slide" in str(e), e
+    finally:
+        es.MAX_ENTRY_SIZE = ceiling
+    out = subprocess.run([sys.executable, str(HERE / "extract-source"), str(d / "f.md")], capture_output=True, text=True)
+    assert out.returncode == 0 and "keep" in out.stdout, out
+print("PASS: extract-source")

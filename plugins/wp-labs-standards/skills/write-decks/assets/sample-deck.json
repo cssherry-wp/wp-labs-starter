@@ -1,0 +1,785 @@
+{
+ "title": "Deck title",
+ "kicker": "Sponsor org &middot; Team name",
+ "footer": "Strictly confidential",
+ "slides": [
+  {
+   "type": "cover",
+   "title": "Deck title<br>Second line of title",
+   "sub": "Occasion or deck type",
+   "meta": [
+    "Month YYYY",
+    "Prepared for Client"
+   ]
+  },
+  {
+   "type": "agenda",
+   "items": [
+    {
+     "text": "Context",
+     "who": "5 min"
+    },
+    "Where we are",
+    "Completed",
+    "In progress",
+    "Next steps"
+   ]
+  },
+  {
+   "eyebrow": "01 &middot; Context",
+   "title": "Three-card definition slide",
+   "lede": "One sentence that frames the slide, 17px, under 25 words.",
+   "blocks": [
+    {
+     "cols": 3,
+     "blocks": [
+      {
+       "card": {
+        "title": "What it is",
+        "items": [
+         "Point with a <b>bold</b> emphasis",
+         "Second point",
+         "Third point"
+        ]
+       }
+      },
+      {
+       "card": {
+        "title": "Completed",
+        "variant": "ok",
+        "items": [
+         "Green card for shipped items",
+         "Evidence number in bold: <b>42%</b>"
+        ]
+       }
+      },
+      {
+       "card": {
+        "title": "Blocker",
+        "variant": "warn",
+        "items": [
+         "Amber card for risks or blockers",
+         "Owner and date"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "callout": {
+      "big": "Headline claim in one sentence",
+      "small": "Supporting detail or the number behind the claim."
+     },
+     "style": "margin-top:20px"
+    }
+   ]
+  },
+  {
+   "eyebrow": "02 &middot; Where we are",
+   "title": "KPI, status table and chips",
+   "blocks": [
+    {
+     "cols": 2,
+     "auto": false,
+     "blocks": [
+      {
+       "stack": [
+        {
+         "kpi": {
+          "n": "12",
+          "label": "workstreams ongoing or complete"
+         }
+        },
+        {
+         "table": {
+          "head": [
+           "Workstream",
+           "Scope",
+           "Status"
+          ],
+          "widths": [
+           "44%",
+           "",
+           "22%"
+          ],
+          "rows": [
+           [
+            "Workstream A",
+            "Item matching",
+            "<span class=\"pill done\">Complete</span>"
+           ],
+           [
+            "Workstream B",
+            "Support triage",
+            "<span class=\"pill build\">Build</span>"
+           ],
+           [
+            "Workstream C",
+            "~not yet scoped",
+            "<span class=\"pill scope\">Scoping</span>"
+           ]
+          ]
+         }
+        }
+       ]
+      },
+      {
+       "stack": [
+        {
+         "kpi": {
+          "n": "6",
+          "label": "candidates flagged"
+         }
+        },
+        {
+         "chips": [
+          "Candidate one",
+          {
+           "text": "Candidate two",
+           "tag": "Q4"
+          },
+          "Candidate three"
+         ]
+        },
+        {
+         "note": "Footnote text sits at the bottom of the column via margin-top:auto."
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "eyebrow": "03 &middot; Completed",
+   "title": "Numbered narrative (ol.big)",
+   "blocks": [
+    {
+     "big": [
+      {
+       "h": "Headline of item one",
+       "s": "One line of detail, with a <b>number</b> where possible"
+      },
+      {
+       "h": "Headline of item two",
+       "s": "Detail"
+      },
+      {
+       "h": "Headline of item three",
+       "s": "Detail"
+      },
+      {
+       "h": "Headline of item four",
+       "s": "Detail"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "eyebrow": "03 &middot; Completed",
+   "title": "Before/after cards and process flow",
+   "blocks": [
+    {
+     "cols": 2,
+     "blocks": [
+      {
+       "card": {
+        "title": "Input &rarr; output",
+        "items": [
+         "<code>RAW INPUT ROW 1</code>",
+         "<code>RAW INPUT ROW 2</code>",
+         "&rarr; <b>Clean matched record</b>"
+        ]
+       }
+      },
+      {
+       "card": {
+        "title": "Result",
+        "variant": "ok",
+        "items": [
+         "<b>92%</b> auto-resolved",
+         "Cycle time 3 days to 4 hours"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "subhead": "How it works"
+    },
+    {
+     "flow": [
+      {
+       "k": "Narrow",
+       "t": "Deterministic step"
+      },
+      {
+       "k": "Judge",
+       "t": "Model step"
+      },
+      {
+       "k": "Approve",
+       "t": "Human review"
+      },
+      {
+       "k": "Write back",
+       "t": "System of record"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "eyebrow": "04 &middot; In progress",
+   "title": "Progress bars and a stat callout",
+   "badge": "In progress",
+   "blocks": [
+    {
+     "cols": 2,
+     "blocks": [
+      {
+       "bars": [
+        {
+         "label": "Category A",
+         "pct": 51
+        },
+        {
+         "label": "Category B",
+         "pct": 26
+        },
+        {
+         "label": "Category C",
+         "pct": 17
+        },
+        {
+         "label": "Other",
+         "pct": 6
+        }
+       ]
+      },
+      {
+       "card": {
+        "title": "Blockers",
+        "variant": "warn",
+        "items": [
+         "Blocker one, owner, date",
+         "Blocker two"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "callout": {
+      "big": "Only ~14% of tickets can be answered from a knowledge base.",
+      "small": "n = 3,900 tickets over one month."
+     },
+     "style": "margin-top:16px"
+    }
+   ]
+  },
+  {
+   "eyebrow": "Plan &middot; Timeline",
+   "title": "Phase band and milestone steps",
+   "blocks": [
+    {
+     "phaseBand": [
+      {
+       "name": "Phase 1 &middot; ~8 weeks",
+       "note": "What Phase 1 delivers and the gate at its end.",
+       "flex": 2,
+       "segs": [
+        {
+         "kind": "build",
+         "flex": 3,
+         "label": "6-wk build"
+        },
+        {
+         "kind": "test",
+         "flex": 1,
+         "label": "2-wk test"
+        }
+       ]
+      },
+      {
+       "name": "Phase 2 &middot; ~12 weeks",
+       "note": "What Phase 2 delivers.",
+       "flex": 3,
+       "segs": [
+        {
+         "kind": "build",
+         "flex": 2,
+         "label": "build"
+        },
+        {
+         "kind": "test",
+         "flex": 1,
+         "label": "test"
+        },
+        {
+         "kind": "run",
+         "flex": 1,
+         "label": "run"
+        }
+       ]
+      }
+     ],
+     "style": "margin-bottom:26px"
+    },
+    {
+     "cols": 2,
+     "blocks": [
+      {
+       "steps": [
+        {
+         "title": "Week 1 &middot; Kickoff",
+         "text": "Team, access, briefing.",
+         "who": "Owner: Client lead"
+        },
+        {
+         "title": "Week 2 &middot; Design",
+         "text": "Signed-off design.",
+         "who": "Owner: Tech lead"
+        },
+        {
+         "title": "Week 3&ndash;5 &middot; Build",
+         "text": "First end-to-end run."
+        }
+       ]
+      },
+      {
+       "steps": [
+        {
+         "title": "Week 6 &middot; Evaluate",
+         "text": "Scored against the gold set."
+        },
+        {
+         "title": "Week 7 &middot; Validate",
+         "text": "Human review and training."
+        },
+        {
+         "title": "Week 8 &middot; Handoff",
+         "text": "Production plan agreed."
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "eyebrow": "Plan &middot; Phase 1",
+   "title": "Phase one-pager",
+   "blocks": [
+    {
+     "cols": 2,
+     "auto": false,
+     "style": "grid-template-columns:1.5fr 1fr",
+     "blocks": [
+      {
+       "stack": [
+        {
+         "subhead": "Goal"
+        },
+        {
+         "lede": "Productionise the two proven steps at two sites.",
+         "style": "margin:6px 0 14px"
+        },
+        {
+         "subhead": "Workstreams"
+        },
+        {
+         "pts": [
+          "Workstream A: ingestion hardening",
+          "Workstream B: review app",
+          "Workstream C: model serving",
+          "Workstream D: telemetry"
+         ]
+        }
+       ]
+      },
+      {
+       "stack": [
+        {
+         "chips": [
+          "6-week build",
+          "2-week pilot",
+          "~2 months"
+         ]
+        },
+        {
+         "gate": {
+          "tag": "Exit signal &middot; end of pilot",
+          "text": "2 sites live; 80% auto-resolution on the gold set."
+         }
+        },
+        {
+         "gate": {
+          "tag": "Top risk",
+          "risk": true,
+          "text": "Telemetry quality varies by site; mitigated by a data audit in week 1."
+         }
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "eyebrow": "Plan &middot; Commercials",
+   "title": "Team, risks and commercials",
+   "blocks": [
+    {
+     "cols": 2,
+     "blocks": [
+      {
+       "table": {
+        "head": [
+         "Role",
+         "Who",
+         "Commitment"
+        ],
+        "widths": [
+         "34%",
+         "",
+         "26%"
+        ],
+        "rows": [
+         [
+          "Tech lead",
+          "Named lead",
+          "Full time"
+         ],
+         [
+          "Engineers",
+          "2",
+          "Full time"
+         ],
+         [
+          "Client owner",
+          "Named sponsor",
+          "20%"
+         ]
+        ]
+       }
+      },
+      {
+       "table": {
+        "head": [
+         "Risk",
+         "Mitigation",
+         "Owner"
+        ],
+        "widths": [
+         "",
+         "",
+         "18%"
+        ],
+        "rows": [
+         [
+          "Risk one",
+          "Mitigation one",
+          "Tech lead"
+         ],
+         [
+          "Risk two",
+          "Mitigation two",
+          "Client owner"
+         ]
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "cols": 3,
+     "style": "margin-top:20px; grid-template-columns:1fr auto 1fr",
+     "blocks": [
+      {
+       "card": {
+        "title": "Phase 1 &middot; 2 months",
+        "items": [
+         "<b>$2.0M</b> total",
+         "Month 1 &middot; $1.0M",
+         "Month 2 &middot; $1.0M"
+        ]
+       }
+      },
+      {
+       "gate": {
+        "tag": "Milestone gate",
+        "text": "Client decides Phase 2 go-forward. One SOW."
+       }
+      },
+      {
+       "card": {
+        "title": "Phase 2 &middot; 3 months",
+        "items": [
+         "<b>$2.4M</b> total",
+         "Monthly &middot; $0.8M"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "eyebrow": "Readout &middot; Executive summary",
+   "title": "Scorecard, claim/proof/so-what, negative finding",
+   "blocks": [
+    {
+     "cols": 2,
+     "blocks": [
+      {
+       "stack": [
+        {
+         "table": {
+          "head": [
+           "Stack",
+           "Score",
+           "Speed",
+           "Cost"
+          ],
+          "best": 1,
+          "rows": [
+           [
+            "Baseline",
+            "6.1",
+            "1.0x",
+            "$1.00"
+           ],
+           [
+            "Our build <span class=\"pill good\">best</span>",
+            "7.9",
+            "3.2x",
+            "$0.12"
+           ],
+           [
+            "Alternative",
+            "7.2",
+            "1.4x",
+            "$0.60"
+           ]
+          ]
+         }
+        },
+        {
+         "note": "Scores are judge-rated 1&ndash;10 on the 200-item gold set."
+        }
+       ]
+      },
+      {
+       "stack": [
+        {
+         "claims": [
+          {
+           "label": "Claim",
+           "text": "Fine-tuning beat prompting on this task."
+          },
+          {
+           "label": "Proof",
+           "text": "7.9 vs 7.2, &plusmn;0.02 across 3 runs."
+          },
+          {
+           "label": "So what",
+           "text": "Ship the fine-tuned model; drop the prompt variants."
+          }
+         ]
+        },
+        {
+         "callout": {
+          "variant": "flag",
+          "big": "More data slightly hurt",
+          "small": "Doubling the synthetic set lowered the score by 0.1. Reported, not hidden."
+         },
+         "style": "margin-top:14px"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "eyebrow": "Evidence &middot; Charts",
+   "title": "Labeled charts from data",
+   "blocks": [
+    {
+     "cols": 2,
+     "auto": false,
+     "blocks": [
+      {
+       "chart": {
+        "type": "bar",
+        "caption": "Fig 1 &middot; Tickets vs auto-resolved per month",
+        "labels": [
+         "Jan",
+         "Feb",
+         "Mar",
+         "Apr"
+        ],
+        "series": [
+         {
+          "name": "Tickets",
+          "values": [
+           320,
+           410,
+           390,
+           455
+          ]
+         },
+         {
+          "name": "Auto-resolved",
+          "values": [
+           80,
+           170,
+           240,
+           330
+          ]
+         }
+        ]
+       }
+      },
+      {
+       "chart": {
+        "type": "line",
+        "caption": "Fig 2 &middot; Judge score by week",
+        "labels": [
+         "W1",
+         "W2",
+         "W3",
+         "W4",
+         "W5",
+         "W6"
+        ],
+        "series": [
+         {
+          "name": "Score",
+          "values": [
+           6.1,
+           6.8,
+           7.1,
+           7.5,
+           7.8,
+           7.9
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "eyebrow": "Evidence &middot; Charts",
+   "title": "Pie, stacked bar and image figure",
+   "blocks": [
+    {
+     "cols": 3,
+     "auto": false,
+     "blocks": [
+      {
+       "chart": {
+        "type": "pie",
+        "caption": "Fig 3 &middot; Ticket mix, % of volume",
+        "labels": [
+         "Distributor",
+         "User mgmt",
+         "Data fix",
+         "Other"
+        ],
+        "series": [
+         {
+          "name": "Tickets",
+          "values": [
+           26,
+           17,
+           31,
+           26
+          ]
+         }
+        ]
+       }
+      },
+      {
+       "chart": {
+        "type": "stackedBar",
+        "caption": "Fig 4 &middot; Resolution split by site",
+        "labels": [
+         "Site A",
+         "Site B",
+         "Site C"
+        ],
+        "series": [
+         {
+          "name": "Auto",
+          "values": [
+           60,
+           72,
+           55
+          ]
+         },
+         {
+          "name": "Human",
+          "values": [
+           40,
+           28,
+           45
+          ]
+         }
+        ]
+       }
+      },
+      {
+       "image": {
+        "alt": "Dashboard screenshot",
+        "caption": "Fig 5 &middot; Image figure when no data is recoverable",
+        "src": "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='240'%3E%3Crect width='400' height='240' fill='%23eef1f5'/%3E%3Ctext x='200' y='125' text-anchor='middle' font-family='monospace' font-size='14' fill='%238b949e'%3Escreenshot placeholder%3C/text%3E%3C/svg%3E"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "type": "divider",
+   "title": "Appendix",
+   "who": "Detail tables, assumptions, glossary"
+  },
+  {
+   "eyebrow": "Appendix &middot; References",
+   "title": "References and a TBD placeholder",
+   "blocks": [
+    {
+     "cols": 2,
+     "blocks": [
+      {
+       "refs": [
+        "Source document title, author, date",
+        "Prior deck or readout, date",
+        "Dashboard or dataset, link"
+       ]
+      },
+      {
+       "card": {
+        "title": "TBD &middot; Section name",
+        "variant": "tbd",
+        "items": [
+         "Content not found in the source; owner to supply before circulation."
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "type": "html",
+   "html": "<section class=\"slide\" data-n=\"16\"><div class=\"eyebrow\">Escape hatch</div><h1 class=\"slide-title\">Raw HTML slide</h1><div class=\"rule\"></div><div class=\"body\"><p class=\"lede\">A slide of <code>type: html</code> is inserted verbatim. Use it for layouts the block vocabulary cannot express; keep the section, data-n and .foot conventions.</p></div><div class=\"foot\">Strictly confidential</div></section>"
+  }
+ ]
+}

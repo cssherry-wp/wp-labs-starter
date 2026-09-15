@@ -30,6 +30,7 @@ jobs:
       python: ${{ steps.filter.outputs.python }}
       compare-models: ${{ steps.filter.outputs.compare-models }}
       summarize-scripts: ${{ steps.filter.outputs.summarize-scripts }}
+      write-decks: ${{ steps.filter.outputs.write-decks }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -52,6 +53,8 @@ jobs:
               - 'plugins/wp-labs-sdlc/skills/summarize-ai-usage/tests/**'
             summarize-scripts:
               - 'plugins/wp-labs-sdlc/skills/summarize-ai-usage/scripts/**'
+            write-decks:
+              - 'plugins/wp-labs-standards/skills/write-decks/**'
 
   python-lint:
     name: Python lint & typecheck
@@ -165,6 +168,22 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - run: uvx pytest test_summarize_ai_usage.py test_pi_parsing.py
 
+  write-decks-tests:
+    name: Python tests (write-decks)
+    needs: changes
+    if: needs.changes.outputs.write-decks == 'true'
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    defaults:
+      run:
+        working-directory: plugins/wp-labs-standards/skills/write-decks
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 scripts/test-extract-source
+      # run the second suite even when the first failed, so one run reports both
+      - run: python3 scripts/test-build-deck
+        if: ${{ !cancelled() }}
+
   bash-tests:
     name: Bash tests
     needs: changes
@@ -187,7 +206,11 @@ jobs:
           rc=0
           while read -r f; do
             echo "::group::$f"
-            bash "$f" || { echo "::error::$f failed"; rc=1; }
+            if [ -x "$f" ]; then
+              "$f" || { echo "::error::$f failed"; rc=1; }
+            else
+              bash "$f" || { echo "::error::$f failed"; rc=1; }
+            fi
             echo "::endgroup::"
           done < tests.list
           exit "$rc"

@@ -1,0 +1,205 @@
+#!/usr/bin/env python3
+"""Build a deck HTML from deck JSON. Deterministic; stdlib only.
+
+Usage: build-deck <deck.json> [out.html]
+  out.html defaults to <deck>.html next to the JSON. If out.html already exists, its
+  saved comments (<script id="deck-comments">) are carried over.
+
+Strings in the JSON are HTML fragments: <b>, <i>, <br>, &middot; are allowed as written.
+Escape hatch: a slide {"type":"html","html":"<section class=\"slide\" ...>"} or a block
+{"html":"..."} is inserted verbatim. See references/deck-json.md for the schema.
+
+The built file is self-contained: assets/fonts.css (the embedded house faces) is inlined,
+so a deck needs no network and beacons to no third party. Regenerate it with embed-fonts.
+"""
+import hashlib
+import html
+import json
+import re
+import sys
+from pathlib import Path
+
+ASSETS = Path(__file__).resolve().parent.parent / "assets"
+SHELL = ASSETS / "deck-shell.html"
+FONTS = ASSETS / "fonts.css"
+
+
+def attr(s):
+    """Escape a value destined for a double-quoted HTML attribute."""
+    return html.escape(str(s), quote=True)
+
+
+def num(v):
+    """A JSON number reaching a style attribute, coerced so it cannot carry markup."""
+    return float(v)
+
+
+def li(items, cls="pts"):
+    return f'<ul class="{cls}">' + "".join(f"<li>{x}</li>" for x in items) + "</ul>"
+
+
+def block(b):
+    """Render one content block."""
+    if "html" in b:
+        return b["html"]
+    if "cols" in b:
+        style = ' style="height:auto"' if b.get("auto", True) else ""
+        return f'<div class="cols c{b["cols"]}"{style}>' + "".join(block(x) for x in b["blocks"]) + "</div>"
+    if "stack" in b:  # plain column wrapper
+        return "<div>" + "".join(block(x) for x in b["stack"]) + "</div>"
+    if "card" in b:
+        c = b["card"]
+        cls = " ".join(["card", c.get("variant", "")]).strip()
+        body = li(c["items"]) if "items" in c else "".join(block(x) for x in c.get("blocks", []))
+        return f'<div class="{cls}"><h3>{c["title"]}</h3>{body}</div>'
+    if "callout" in b:
+        c = b["callout"]
+        cls = "callout" + (" " + c["variant"] if c.get("variant") else "")
+        small = f'<div class="small">{c["small"]}</div>' if c.get("small") else ""
+        return f'<div class="{cls}"{margin(b)}><div class="big">{c["big"]}</div>{small}</div>'
+    if "kpi" in b:
+        return f'<div class="kpi"><span class="kn">{b["kpi"]["n"]}</span><span class="kl">{b["kpi"]["label"]}</span></div>'
+    if "table" in b:
+        t = b["table"]
+        widths = t.get("widths", [])
+        head = "<tr>" + "".join(f'<th{" style=\"width:%s\"" % attr(widths[k]) if k < len(widths) and widths[k] else ""}>{h}</th>' for k, h in enumerate(t["head"])) + "</tr>"
+        rows = ""
+        for r, row in enumerate(t["rows"]):
+            cls = ' class="best"' if r == t.get("best") else ""
+            cells = "".join(
+                f'<td class="co">{c}</td>' if k == 0 else (f'<td class="none">{c[1:]}</td>' if isinstance(c, str) and c.startswith("~") else f"<td>{c}</td>")
+                for k, c in enumerate(row)
+            )
+            rows += f"<tr{cls}>{cells}</tr>"
+        return f'<table class="tbl"{margin(b)}>{head}{rows}</table>'
+    if "pts" in b:
+        return li(b["pts"])
+    if "refs" in b:
+        return '<ol class="num xs">' + "".join(f"<li>{x}</li>" for x in b["refs"]) + "</ol>"
+    if "big" in b:
+        return '<ol class="big' + (" five" if len(b["big"]) >= 5 else "") + '">' + "".join(
+            f'<li><div class="h">{x["h"]}</div>' + (f'<div class="s">{x["s"]}</div>' if x.get("s") else "") + "</li>" for x in b["big"]) + "</ol>"
+    if "steps" in b:
+        return '<ol class="steps">' + "".join(
+            f'<li><b>{x["title"]}</b>{x.get("text", "")}' + (f'<i class="who">{x["who"]}</i>' if x.get("who") else "") + "</li>" for x in b["steps"]) + "</ol>"
+    if "bars" in b:
+        ramp = ["", " b2", " b3", " b4"]
+        return '<div class="bars">' + "".join(
+            f'<div class="bar-row"><div class="bar-lab">{x["label"]}</div><div class="bar-track"><div class="bar-fill{ramp[min(k, 3)]}" style="width:{num(x["pct"]):g}%"></div></div><div class="bar-val">{num(x["pct"]):g}%</div></div>'
+            for k, x in enumerate(b["bars"])) + "</div>"
+    if "flow" in b:
+        return '<div class="flow">' + '<div class="arr">&rarr;</div>'.join(
+            f'<div class="st"><div class="k"><span>{k + 1}</span>{x["k"]}</div><div class="t">{x["t"]}</div></div>' for k, x in enumerate(b["flow"])) + "</div>"
+    if "chips" in b:
+        return '<div class="chips">' + "".join(
+            f'<div class="chip">{x}</div>' if isinstance(x, str) else f'<div class="chip">{x["text"]} <span>{x["tag"]}</span></div>' for x in b["chips"]) + "</div>"
+    if "subhead" in b:
+        return f'<div class="subhead">{b["subhead"]}</div>'
+    if "lede" in b:
+        return f'<p class="lede"{margin(b)}>{b["lede"]}</p>'
+    if "note" in b:
+        return f'<div class="note">{b["note"]}</div>'
+    if "phaseBand" in b:
+        out = ""
+        for p in b["phaseBand"]:
+            segs = "".join(f'<div class="pb-seg {attr(s.get("kind", "build"))}" style="flex:{num(s.get("flex", 1))} 1 0"></div>' for s in p["segs"])
+            labs = "".join(f'<span style="flex:{num(s.get("flex", 1))} 1 0">{s.get("label", "")}</span>' for s in p["segs"])
+            out += (f'<div class="pb-phase" style="flex:{num(p.get("flex", 1))} 1 0"><div class="pb-bar">{segs}</div><div class="pb-sub">{labs}</div>'
+                    f'<div class="pb-name">{p["name"]}</div>' + (f'<div class="pb-note">{p["note"]}</div>' if p.get("note") else "") + "</div>")
+        return f'<div class="pb-track"{margin(b)}>{out}</div>'
+    if "gate" in b:
+        g = b["gate"]
+        return f'<div class="gate{" risk" if g.get("risk") else ""}"><span class="tag">{g["tag"]}</span><p>{g["text"]}</p></div>'
+    if "claims" in b:
+        return "".join(f'<div class="claim"><b>{x["label"]}</b><span>{x["text"]}</span></div>' for x in b["claims"])
+    if "chart" in b:
+        c = b["chart"]
+        data = json.dumps({"type": c["type"], "labels": c["labels"], "series": c["series"]}, ensure_ascii=False, separators=(",", ":"))
+        return f'<figure class="chart" data-chart="{attr(data)}"><figcaption>{c["caption"]}</figcaption></figure>'
+    if "image" in b:
+        im = b["image"]
+        return f'<figure class="chart"><img alt="{attr(im.get("alt", ""))}" src="{attr(im["src"])}"><figcaption>{im["caption"]}</figcaption></figure>'
+    raise SystemExit(f"unknown block: {json.dumps(b)[:120]}")
+
+
+def margin(b):
+    return f' style="{attr(b["style"])}"' if b.get("style") else ""
+
+
+def slide(s, n, deck):
+    nn = f"{n:02d}"
+    foot = f'<div class="foot">{s.get("footer", deck.get("footer", "Strictly confidential"))}</div>'
+    t = s.get("type", "content")
+    if t == "html":
+        return s["html"]
+    if t == "cover":
+        meta = "".join(f"<span>{m}</span>" for m in s.get("meta", []))
+        return (f'<section class="slide cover" data-n="{nn}"><div class="kicker">{s.get("kicker", deck.get("kicker", ""))}</div><h1>{s["title"]}</h1>'
+                + (f'<div class="sub">{s["sub"]}</div>' if s.get("sub") else "") + f'<div class="meta">{meta}</div>{foot}</section>')
+    if t == "divider":
+        return f'<section class="slide divider" data-n="{nn}"><h1>{s["title"]}</h1>' + (f'<div class="who">{s["who"]}</div>' if s.get("who") else "") + f"{foot}</section>"
+    if t == "agenda":
+        items = "".join(f"<li>{x}</li>" if isinstance(x, str) else f'<li>{x["text"]} <span class="who">{x["who"]}</span></li>' for x in s["items"])
+        return (f'<section class="slide dark" data-n="{nn}"><div class="eyebrow">{s.get("eyebrow", "Agenda")}</div><div class="rule" style="margin-top:14px"></div>'
+                f'<div class="body"><ol class="agenda">{items}</ol></div>{foot}</section>')
+    # content
+    head = (f'<div class="badge">{s["badge"]}</div>' if s.get("badge") else "") + f'<div class="eyebrow">{s.get("eyebrow", "")}</div><h1 class="slide-title">{s["title"]}</h1>'
+    if s.get("lede"):
+        head += f'<p class="lede">{s["lede"]}</p><div class="rule" style="margin:20px 0"></div>'
+    else:
+        head += '<div class="rule"></div>'
+    body = "".join(block(b) for b in s.get("blocks", []))
+    return f'<section class="slide" data-n="{nn}">{head}<div class="body">{body}</div>{foot}</section>'
+
+
+def embed_comments(blob, path):
+    """Re-serialize carried-over comments. Fails loudly rather than propagating a broken deck.
+
+    `<` is escaped as \\u003c: a literal `<` here is enough to end the JSON block early
+    (`<!--<script` puts the parser in script-data double-escaped state), which would swallow
+    the rest of the document including the runtime. See serialize() in the shell.
+    """
+    try:
+        comments = json.loads(blob)
+    except json.JSONDecodeError as e:
+        raise SystemExit(f"{path}: embedded comments are not valid JSON ({e}); fix or remove them")
+    return json.dumps(comments, indent=1).replace("<", "\\u003c")
+
+
+def build(deck, out_path):
+    shell = SHELL.read_text()
+    slides = "\n\n".join(slide(s, k + 1, deck) for k, s in enumerate(deck["slides"]))
+    doc = re.sub(r"<!-- SLIDES:START -->.*<!-- SLIDES:END -->", lambda _: f"<!-- SLIDES:START -->\n{slides}\n<!-- SLIDES:END -->", shell, flags=re.S)
+    doc = re.sub(r"<!-- FONTS:START -->.*<!-- FONTS:END -->",
+                 lambda _: f"<!-- FONTS:START --><style>\n{FONTS.read_text()}</style><!-- FONTS:END -->", doc, flags=re.S)
+    doc = doc.replace("<title>Deck title</title>", f'<title>{deck.get("title", "Deck")}</title>')
+    doc = doc.replace('data-deck-id=""', f'data-deck-id="{attr(deck_id(deck, out_path))}"')
+    if out_path.exists():
+        m = re.search(r'<script type="application/json" id="deck-comments">(.*?)</script>', out_path.read_text(), re.S)
+        if m and m.group(1).strip() not in ("", "{}"):
+            kept = embed_comments(m.group(1), out_path)
+            doc = doc.replace('<script type="application/json" id="deck-comments">{}</script>', f'<script type="application/json" id="deck-comments">{kept}</script>')
+    return doc
+
+
+def deck_id(deck, out_path):
+    """Stable per-deck id, so one deck's unsaved comments can never be offered to another.
+
+    Reused from an existing build of the same file, else derived from the deck's own content —
+    deterministic, so rebuilding does not orphan the drafts a reviewer has not saved yet.
+    """
+    if out_path.exists():
+        m = re.search(r'data-deck-id="([A-Za-z0-9_-]{8,64})"', out_path.read_text())
+        if m:
+            return m.group(1)
+    return hashlib.sha256(json.dumps(deck, sort_keys=True).encode()).hexdigest()[:16]
+
+
+if __name__ == "__main__":
+    if len(sys.argv) not in (2, 3):
+        sys.exit(__doc__)
+    src = Path(sys.argv[1])
+    out = Path(sys.argv[2]) if len(sys.argv) == 3 else src.with_suffix(".html")
+    deck = json.loads(src.read_text())
+    out.write_text(build(deck, out))
+    print(f"wrote {out} ({len(deck['slides'])} slides)")
