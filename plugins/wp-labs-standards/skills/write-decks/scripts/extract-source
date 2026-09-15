@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+"""Extract plain text from a deck source: .pptx, .docx, .html, .md/.txt.
+
+Usage: extract-source <path>
+Prints markdown-ish text to stdout: pptx -> one "## Slide N" block per slide
+(table rows as pipe rows), docx -> paragraphs, html -> visible text with headings
+kept, md/txt -> passthrough. Stdlib only.
+"""
+import html
+import re
+import sys
+import zipfile
+from html.parser import HTMLParser
+from pathlib import Path
+
+NS_A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+MAX_ENTRY_SIZE = 64 * 1024 * 1024
+
+
+def _read_bounded(z: "zipfile.ZipFile", name: str) -> bytes:
+    info = z.getinfo(name)
+    if info.file_size > MAX_ENTRY_SIZE:
+        raise SystemExit(
+            f"{name}: {info.file_size} bytes exceeds {MAX_ENTRY_SIZE}-byte size limit"
+        )
+    return z.read(name)
+
+
+def _slide_key(name: str) -> int:
+    m = re.search(r"slide(\d+)\.xml$", name)
+    return int(m.group(1)) if m else 0
+
+
+def _pptx(path: Path) -> str:
+    import xml.etree.ElementTree as ET
+
+    out = []
+    with zipfile.ZipFile(path) as z:
+        slides = sorted(
+            (n for n in z.namelist() if re.match(r"ppt/slides/slide\d+\.xml$", n)),
+            key=_slide_key,
+        )
+        for n in slides:
+            root = ET.fromstring(_read_bounded(z, n))
+            parent = {c: p for p in root.iter() for c in p}
+            out.append(f"## Slide {_slide_key(n)}")
+            for el in root.iter():
+                tag = el.tag
+                if tag == NS_A + "p":
+                    if _has_ancestor(el, parent, NS_A + "tc"):
+                        continue
+                    text = "".join(t.text or "" for t in el.iter(NS_A + "t")).strip()
+                    if text:
+                        out.append(text)
+                elif tag == NS_A + "tr":
+                    cells = [
+                        "".join(t.text or "" for t in tc.iter(NS_A + "t")).strip()
+                        for tc in el.iter(NS_A + "tc")
+                    ]
+                    out.append("| " + " | ".join(cells) + " |")
+            out.append("")
+    return "\n".join(out)
+
+
+def _has_ancestor(el, parent, tag) -> bool:
+    while el in parent:
+        el = parent[el]
+        if el.tag == tag:
+            return True
+    return False
+
+
+def _docx(path: Path) -> str:
+    import xml.etree.ElementTree as ET
+
+    w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    with zipfile.ZipFile(path) as z:
+        root = ET.fromstring(_read_bounded(z, "word/document.xml"))
+    out = []
+    for p in root.iter(w + "p"):
+        text = "".join(t.text or "" for t in p.iter(w + "t")).strip()
+        style = p.find(f"{w}pPr/{w}pStyle")
+        if text:
+            lvl = style.get(w + "val", "") if style is not None else ""
+            m = re.match(r"Heading(\d)", lvl)
+            out.append(("#" * int(m.group(1)) + " " if m else "") + text)
+    return "\n".join(out)
+
+
+class _Text(HTMLParser):
+    SKIP = {"script", "style", "noscript", "svg", "template"}
+    HEAD = {"h1": "# ", "h2": "## ", "h3": "### ", "h4": "#### "}
+    BLOCK = {"p", "li", "tr", "div", "section", "article", "td", "th", "figcaption"}
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.out, self.skip, self.prefix = [], 0, ""
+
+    def handle_starttag(self, tag, attrs):
+        if tag in self.SKIP:
+            self.skip += 1
+        elif tag in self.HEAD:
+            self.prefix = self.HEAD[tag]
+        elif tag == "li":
+            self.out.append("\n- ")
+        elif tag in ("td", "th"):
+            self.out.append(" | ")
+        elif tag in self.BLOCK:
+            self.out.append("\n")
+
+    def handle_endtag(self, tag):
+        if tag in self.SKIP:
+            self.skip -= 1
+        elif tag in self.HEAD or tag in self.BLOCK:
+            self.out.append("\n")
+
+    def handle_data(self, data):
+        if self.skip or not data.strip():
+            return
+        self.out.append(self.prefix + data.strip() + " ")
+        self.prefix = ""
+
+
+def _html(path: Path) -> str:
+    p = _Text()
+    p.feed(path.read_text(errors="replace"))
+    text = html.unescape("".join(p.out))
+    return re.sub(r"\n\s*\n+", "\n\n", text).strip()
+
+
+def extract(path: Path) -> str:
+    ext = path.suffix.lower()
+    if ext == ".pptx":
+        return _pptx(path)
+    if ext == ".docx":
+        return _docx(path)
+    if ext in (".html", ".htm"):
+        return _html(path)
+    return path.read_text(errors="replace")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        sys.exit(__doc__)
+    print(extract(Path(sys.argv[1])))

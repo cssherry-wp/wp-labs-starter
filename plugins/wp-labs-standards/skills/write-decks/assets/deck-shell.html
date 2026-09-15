@@ -1,0 +1,1075 @@
+<!doctype html>
+<html lang="en" data-deck-id="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Deck title</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20rx%3D%226%22%20fill%3D%22%23005581%22%2F%3E%3Ctext%20x%3D%2216%22%20y%3D%2222%22%20font-family%3D%22system-ui%2Csans-serif%22%20font-size%3D%2215%22%20font-weight%3D%22800%22%20fill%3D%22%23ffffff%22%20text-anchor%3D%22middle%22%3ED%3C%2Ftext%3E%3C%2Fsvg%3E">
+<!-- FONTS:START --><!-- FONTS:END -->
+<style>
+
+:root{
+  --paper:#ffffff; --paper-2:#eef1f5; --shade:#f4f7fa;
+  --ink:#2b2b2b; --ink-2:#444444; --ink-3:#8b949e;
+  --rule:#d0d7df;
+  --accent:#005581; --accent-2:#00405f; --accent-soft:#dce9f0; --accent-ink:#003d5c;
+  --wp-bg:#001e2e radial-gradient(ellipse at 20% 0%, #0b4a6e 0%, #001e2e 60%, #00131f 100%); /* photo: --wp-bg:#001e2e url("cover.jpg") center/cover; */
+  --ok:#2d6a4f; --ok-soft:#e8f5ee; --warn:#a07800; --warn-soft:#fbf3dd;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:#0e1b25;
+  overflow:hidden;
+  font-family:"Inter Tight",system-ui,sans-serif;
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+
+/* ---------- deck shell ---------- */
+#deck{position:fixed; inset:0}
+.slide{
+  position:absolute; left:0; top:0;
+  width:1280px; height:720px;
+  transform-origin:top left;
+  background:var(--paper);
+  box-shadow:0 4px 34px rgba(0,0,0,.42);
+  padding:52px 64px 60px;
+  display:none; flex-direction:column;
+  overflow:hidden;
+}
+.slide.active{display:flex}
+.slide::after{
+  content:attr(data-n);
+  position:absolute; right:34px; bottom:20px;
+  font-family:"JetBrains Mono",monospace; font-size:10.5px;
+  letter-spacing:.14em; color:var(--ink-3);
+}
+.slide .foot{
+  position:absolute; left:64px; bottom:20px;
+  font-family:"JetBrains Mono",monospace; font-size:10px;
+  letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3);
+}
+
+/* ---------- headings ---------- */
+.eyebrow{
+  font-family:"JetBrains Mono",monospace; font-size:10.5px;
+  letter-spacing:.2em; text-transform:uppercase; color:var(--accent);
+  margin:0 0 12px;
+}
+h1.slide-title{
+  font-family:"Source Serif 4",Georgia,serif;
+  font-weight:400; font-size:40px; line-height:1.15; letter-spacing:-.02em;
+  margin:0 0 6px; color:var(--accent-ink);
+}
+.nb{white-space:nowrap}
+p.lede{
+  margin:10px 0 0; max-width:1152px;
+  font-size:17px; line-height:1.55; color:var(--ink-2);
+}
+.rule{height:1px;background:var(--rule);margin:26px 0 26px}
+.body{flex:1;min-height:0}
+
+/* ---------- cover ---------- */
+.cover{
+  background:var(--wp-bg);
+  color:#fff; justify-content:flex-end; padding:64px;
+}
+.cover::after{color:rgba(255,255,255,.5)}
+.cover .foot{color:rgba(255,255,255,.55)}
+.cover .kicker{
+  font-family:"JetBrains Mono",monospace; font-size:11px;
+  letter-spacing:.22em; text-transform:uppercase; color:rgba(255,255,255,.62);
+  margin-bottom:26px;
+}
+.cover h1{
+  font-family:"Source Serif 4",Georgia,serif; font-weight:300;
+  font-size:66px; line-height:1.05; letter-spacing:-.025em; margin:0 0 18px; color:#fff;
+}
+.cover .sub{font-size:21px; font-weight:300; color:rgba(255,255,255,.82); margin:0 0 46px}
+.cover .meta{
+  display:flex; gap:44px; padding-top:22px;
+  border-top:1px solid rgba(255,255,255,.22);
+  font-family:"JetBrains Mono",monospace; font-size:11px;
+  letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.7);
+}
+
+/* ---------- divider ---------- */
+.divider{background:var(--wp-bg); justify-content:center}
+.divider h1{
+  font-family:"Source Serif 4",Georgia,serif; font-weight:300;
+  font-size:58px; letter-spacing:-.025em; margin:0; color:#fff;
+}
+.divider .who{
+  margin-top:18px; font-family:"JetBrains Mono",monospace; font-size:12px;
+  letter-spacing:.2em; text-transform:uppercase; color:#8fc4de;
+}
+
+/* ---------- dark content slides ---------- */
+.slide.dark{background:var(--wp-bg); color:#fff}
+.slide.dark::after{color:rgba(255,255,255,.45)}
+.slide.dark .foot{color:rgba(255,255,255,.5)}
+.slide.dark .eyebrow{color:#8fc4de}
+.slide.dark .rule{background:rgba(255,255,255,.22)}
+.slide.dark ol.agenda li{color:#fff; border-bottom-color:rgba(255,255,255,.18)}
+.slide.dark ol.agenda li::before{color:#8fc4de}
+.slide.dark ol.agenda li .who{color:rgba(255,255,255,.55)}
+
+/* ---------- agenda ---------- */
+ol.agenda{list-style:none; margin:0; padding:0; counter-reset:ag}
+ol.agenda li{
+  counter-increment:ag;
+  display:flex; align-items:baseline; gap:26px;
+  padding:20px 0; border-bottom:1px solid var(--rule);
+  font-family:"Source Serif 4",Georgia,serif; font-size:29px; font-weight:400;
+  color:var(--accent-ink);
+}
+ol.agenda li::before{
+  content:counter(ag,decimal-leading-zero);
+  font-family:"JetBrains Mono",monospace; font-size:13px; font-weight:500;
+  color:var(--accent); letter-spacing:.1em; min-width:34px;
+}
+ol.agenda li .who{
+  margin-left:auto; font-family:"JetBrains Mono",monospace; font-size:11px;
+  letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3);
+}
+
+/* ---------- generic grids ---------- */
+.cols{display:grid; gap:24px; height:100%}
+.c2{grid-template-columns:1fr 1fr}
+.c3{grid-template-columns:repeat(3,1fr)}
+.c4{grid-template-columns:repeat(4,1fr)}
+
+.card{
+  background:var(--shade); border:1px solid var(--rule);
+  border-top:3px solid var(--accent);
+  padding:16px 22px 18px;
+}
+.card h3{
+  margin:0 0 12px; font-size:12px; font-weight:600;
+  font-family:"JetBrains Mono",monospace; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--accent);
+}
+.card.ok{border-top-color:var(--ok); background:var(--ok-soft)}
+.card.ok h3{color:var(--ok)}
+.card.warn{border-top-color:var(--warn); background:var(--warn-soft)}
+.card.warn h3{color:#7d5d00}
+.card.plain{background:#fff}
+.card ul.pts li{margin-bottom:8px; font-size:14.5px; line-height:1.38}
+.subhead{
+  margin:13px 0 10px; padding-top:11px; border-top:1px solid var(--rule);
+  font-family:"JetBrains Mono",monospace; font-size:11px; font-weight:600;
+  letter-spacing:.16em; text-transform:uppercase; color:var(--accent);
+}
+ul.pts{list-style:none; margin:0; padding:0}
+ul.pts li{
+  position:relative; padding:0 0 0 18px; margin:0 0 14px;
+  font-size:16.5px; line-height:1.5; color:var(--ink-2);
+}
+ul.pts li:last-child{margin-bottom:0}
+ul.pts li::before{
+  content:""; position:absolute; left:0; top:9px;
+  width:6px; height:6px; background:var(--accent); border-radius:50%;
+}
+.card.ok ul.pts li::before{background:var(--ok)}
+.card.warn ul.pts li::before{background:var(--warn)}
+ul.pts li b{color:var(--ink); font-weight:600}
+
+/* ---------- stats ---------- */
+.kpi{display:flex; align-items:baseline; gap:12px; margin:0 0 10px}
+.kpi .kn{
+  font-family:"Source Serif 4",Georgia,serif; font-weight:300;
+  font-size:46px; line-height:1; letter-spacing:-.03em; color:var(--accent-ink);
+}
+.kpi .kl{font-size:15.5px; font-weight:500; color:var(--ink)}
+
+.cols.c4{align-content:start}
+
+/* ---------- steps ---------- */
+ol.steps{list-style:none; margin:0; padding:0; counter-reset:st}
+ol.steps li{
+  counter-increment:st; position:relative;
+  padding:0 0 22px 46px; margin:0;
+  font-size:16.5px; line-height:1.5; color:var(--ink-2);
+  border-left:1px solid var(--rule); margin-left:13px;
+}
+ol.steps li:last-child{border-left-color:transparent; padding-bottom:0}
+ol.steps li::before{
+  content:counter(st); position:absolute; left:-13px; top:-2px;
+  width:26px; height:26px; border-radius:50%;
+  background:var(--accent); color:#fff;
+  font-family:"JetBrains Mono",monospace; font-size:12px; font-weight:600;
+  display:flex; align-items:center; justify-content:center;
+}
+ol.steps li b{display:block; color:var(--ink); font-weight:600; margin-bottom:2px}
+
+/* ---------- tables ---------- */
+table.tbl{width:100%; border-collapse:collapse; font-size:14.5px}
+table.tbl th{
+  text-align:left; padding:6px 10px;
+  font-family:"JetBrains Mono",monospace; font-size:10px; font-weight:600;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--accent);
+  border-bottom:1.5px solid var(--accent);
+}
+table.tbl td.none{color:var(--ink-3); font-style:italic}
+table.tbl td{padding:3.5px 10px; border-bottom:1px solid var(--rule); color:var(--ink-2)}
+table.tbl td.co{color:var(--ink); font-weight:500}
+table.tbl tr:last-child td{border-bottom:none}
+.pill{
+  display:inline-block; padding:2px 9px; border-radius:11px;
+  font-family:"JetBrains Mono",monospace; font-size:9.5px; font-weight:600;
+  letter-spacing:.1em; text-transform:uppercase;
+}
+.pill.done{background:var(--ok); color:#fff}
+.pill.build{background:var(--accent-soft); color:var(--accent-ink)}
+.pill+br+.pill{margin-top:4px}
+.sub2{color:var(--ink-3)}
+.pill.scope{background:var(--paper-2); color:var(--ink-3)}
+
+.chips{display:flex; flex-wrap:wrap; gap:8px; margin-top:4px}
+.chip{
+  padding:7px 13px; background:#fff; border:1px solid var(--rule);
+  font-size:14px; color:var(--ink-2);
+}
+.chip span{color:var(--ink-3); font-size:12px}
+
+/* ---------- bar ---------- */
+.bars{margin:0}
+.bar-row{display:flex; align-items:center; gap:14px; margin-bottom:11px}
+.bar-lab{width:150px; font-size:15px; color:var(--ink); line-height:1.35}
+.bar-track{flex:1; height:22px; background:var(--paper-2); position:relative}
+.bar-fill{height:100%; background:var(--accent)}
+.bar-fill.b2{background:#2b7fa8}
+.bar-fill.b3{background:#5aa3c4}
+.bar-fill.b4{background:#a9c9d9}
+.bar-val{width:56px; font-family:"JetBrains Mono",monospace; font-size:12.5px; color:var(--ink-2)}
+
+.note{
+  margin-top:auto; padding-top:16px; border-top:1px solid var(--rule);
+  font-size:13px; color:var(--ink-3); line-height:1.5;
+}
+.callout{
+  background:var(--accent); color:#fff; padding:22px 26px; margin-top:20px;
+}
+.callout .big{font-family:"Source Serif 4",Georgia,serif; font-size:24px; font-weight:300; line-height:1.3}
+.callout .small{margin-top:8px; font-size:14.5px; color:rgba(255,255,255,.78)}
+
+/* ---------- flow (slide 7) ---------- */
+.flow{display:flex; align-items:stretch; gap:6px}
+.flow .st{
+  flex:1; background:var(--shade); border:1px solid var(--rule); border-top:3px solid var(--accent);
+  padding:12px 14px 14px;
+}
+.flow .st .k{
+  font-family:"JetBrains Mono",monospace; font-size:10px; font-weight:600;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--accent);
+}
+.flow .st .k span{color:var(--ink-3); margin-right:6px}
+.flow .st .t{margin-top:4px; font-size:13px; line-height:1.4; color:var(--ink-2)}
+.flow .arr{align-self:center; font-size:18px; color:var(--ink-3); padding:0 2px}
+
+/* ---------- big numbered list (slides 6, 9) ---------- */
+ol.big{list-style:none; margin:0; padding:0; counter-reset:bg}
+ol.big li{
+  counter-increment:bg;
+  display:grid; grid-template-columns:54px 1fr; column-gap:18px; align-items:baseline;
+  padding:19px 0; border-bottom:1px solid var(--rule);
+}
+ol.big li:last-child{border-bottom:none}
+ol.big li::before{
+  content:counter(bg,decimal-leading-zero);
+  font-family:"JetBrains Mono",monospace; font-size:13px; font-weight:500;
+  letter-spacing:.1em; color:var(--accent);
+}
+ol.big li .h{
+  font-family:"Source Serif 4",Georgia,serif; font-weight:400;
+  font-size:27px; line-height:1.2; letter-spacing:-.015em; color:var(--accent-ink);
+}
+ol.big li .s{grid-column:2; margin-top:7px; font-size:15.5px; line-height:1.45; color:var(--ink-2)}
+ol.big li .s b{color:var(--ink); font-weight:600}
+ol.big.five li{padding:14px 0}
+ol.big.five li .h{font-size:25px}
+ol.big.five li .s{margin-top:5px; font-size:15px}
+
+/* ---------- in-progress badge ---------- */
+.badge{
+  position:absolute; right:64px; top:52px; z-index:4;
+  padding:6px 14px; border-radius:20px;
+  background:var(--warn-soft); border:1px solid #d9b85c;
+  font-family:"JetBrains Mono",monospace; font-size:10.5px; font-weight:600;
+  letter-spacing:.16em; text-transform:uppercase; color:#7d5d00;
+}
+
+/* ---------- nav ---------- */
+#nav{
+  position:fixed; right:22px; bottom:20px; z-index:100;
+  display:flex; align-items:center; gap:10px;
+  padding:8px 10px 8px 16px; background:rgba(255,255,255,.92);
+  border-radius:34px;
+  box-shadow:0 3px 16px rgba(0,0,0,.3); backdrop-filter:blur(6px);
+  font-family:"JetBrains Mono",monospace; font-size:11px;
+  letter-spacing:.14em; color:var(--ink-3);
+  opacity:.35; transition:opacity .18s ease;
+}
+#nav:hover{opacity:1}
+#nav button{
+  font:inherit; font-size:15px; line-height:1;
+  width:32px; height:32px; border-radius:50%;
+  background:var(--accent); border:none; color:#fff; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+}
+#nav button:hover{background:var(--accent-2)}
+#nav button:disabled{background:var(--paper-2); color:var(--ink-3); cursor:default}
+/* the counter is a button (click it to jump to a slide number) but must not look round */
+#counter{min-width:52px; width:auto; height:auto; text-align:center; background:none; border-radius:4px;
+  color:var(--ink-3); font:inherit; letter-spacing:.14em; padding:3px 6px; cursor:pointer}
+#counter:hover{background:var(--accent-soft); color:var(--accent-ink)}
+
+@media print{
+  html,body{background:#fff; overflow:visible}
+  #nav{display:none}
+  #deck{position:static; inset:auto}
+  .slide{
+    display:flex !important; position:relative; transform:none !important;
+    box-shadow:none; page-break-after:always; break-after:page;
+  }
+  @page{size:1280px 720px; margin:0}
+}
+
+/* ===== write-decks additions (timeline / readout / charts / comments / export) ===== */
+/* Phase band: proportional gantt. Widths via inline style="flex:N 1 0" on .pb-phase and .pb-seg */
+.pb-track{display:flex; gap:24px; align-items:stretch}
+.pb-phase{display:flex; flex-direction:column; gap:8px; min-width:0}
+.pb-bar{display:flex; height:14px; border-radius:999px; overflow:hidden; background:var(--paper-2)}
+.pb-seg{min-width:0}
+.pb-seg.build{background:var(--accent)}
+.pb-seg.test{background:repeating-linear-gradient(45deg,#5aa3c4 0 5px,#a9c9d9 5px 10px)}
+.pb-seg.run{background:var(--ok)}
+.pb-sub{display:flex; font-family:"JetBrains Mono",monospace; font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3)}
+.pb-sub span{min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.pb-name{font-family:"Source Serif 4",serif; font-size:20px; color:var(--ink)}
+.pb-note{font-size:13px; color:var(--ink-2); line-height:1.4}
+.gate{border-left:3px solid var(--accent); padding:10px 14px; background:var(--shade); margin-top:12px}
+.gate.risk{border-color:var(--warn); background:var(--warn-soft)}
+.gate .tag{display:block; font-family:"JetBrains Mono",monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3); margin-bottom:4px}
+.gate p{margin:0; font-size:14px; line-height:1.45}
+/* Readout */
+.tbl tr.best td{background:var(--accent-soft); font-weight:600}
+.pill.good{background:var(--ok-soft); color:var(--ok)}
+.pill.bad{background:var(--warn-soft); color:var(--warn)}
+.callout.flag{background:var(--warn-soft); color:var(--ink)}
+.callout.flag .big{color:var(--warn)}
+.callout.flag .small{color:var(--ink-2)}
+.claim{display:grid; grid-template-columns:110px 1fr; gap:6px 16px; font-size:14px; line-height:1.45; padding:10px 0; border-bottom:1px solid var(--rule)}
+.claim:last-child{border-bottom:0}
+.claim b{font-family:"JetBrains Mono",monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3); font-weight:400; padding-top:3px}
+/* Charts: <figure class="chart" data-chart='{...}'><figcaption>Label</figcaption></figure> */
+figure.chart{margin:0; display:flex; flex-direction:column; min-height:0; flex:1}
+figure.chart svg{width:100%; height:100%; flex:1; min-height:0; font-family:"Inter Tight",sans-serif}
+figure.chart figcaption{font-family:"JetBrains Mono",monospace; font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); margin-top:8px}
+figure.chart img{max-width:100%; max-height:100%; object-fit:contain}
+.tbd{border:2px dashed var(--warn); background:var(--warn-soft)}
+.tbd h3{color:var(--warn)}
+/* Comments */
+.cbadge{position:absolute; left:64px; bottom:44px; display:flex; align-items:center; gap:5px; font-family:"JetBrains Mono",monospace; font-size:10px; letter-spacing:.1em; color:var(--accent); background:var(--accent-soft); padding:3px 9px; border-radius:999px; cursor:pointer}
+.cbadge::before{content:""; width:7px; height:7px; border-radius:50%; background:var(--accent)}
+.cbadge:empty{display:none}
+.cover .cbadge,.dark .cbadge,.divider .cbadge{background:rgba(255,255,255,.18); color:#fff}
+.cover .cbadge::before,.dark .cbadge::before,.divider .cbadge::before{background:#fff}
+#cpanel{position:fixed; top:0; right:0; bottom:0; width:360px; background:#fff; border-left:1px solid var(--rule); box-shadow:-12px 0 32px rgba(0,30,46,.12); font-family:"Inter Tight",sans-serif; font-size:13.5px; color:var(--ink); z-index:20; display:none; flex-direction:column}
+#cpanel.open{display:flex}
+#cpanel header{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:18px 20px 14px; border-bottom:1px solid var(--rule); background:var(--shade)}
+#cpanel header .k{font-family:"JetBrains Mono",monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3)}
+#cpanel header .ttl{font-family:"Source Serif 4",serif; font-size:17px; line-height:1.3; margin-top:4px; color:var(--ink)}
+#cpanel .close{border:0; background:none; color:var(--ink-3); cursor:pointer; font-size:14px; padding:2px 4px; line-height:1}
+#cpanel .close:hover{color:var(--ink)}
+#cpanel .list{flex:1; overflow:auto; padding:14px 20px; display:flex; flex-direction:column; gap:12px}
+#cpanel .empty{color:var(--ink-3); font-size:13px; text-align:center; padding:28px 0}
+#cpanel .cm{border:1px solid var(--rule); border-radius:6px; padding:12px 14px; background:#fff}
+#cpanel .cm.reply{margin:10px 0 0 22px; padding:10px 12px; background:var(--shade); border-color:transparent}
+#cpanel .cm.composer{background:#fff; border:1px dashed var(--rule)}
+#cpanel .who{display:flex; align-items:center; gap:8px; margin-bottom:6px}
+#cpanel .av{flex:none; width:26px; height:26px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-family:"JetBrains Mono",monospace; font-size:10px}
+#cpanel .reply .av{width:22px; height:22px; background:var(--accent-2); font-size:9px}
+#cpanel .nm{font-weight:600; font-size:13px}
+#cpanel .ts{margin-left:auto; color:var(--ink-3); font-size:11.5px; white-space:nowrap}
+#cpanel .cm p{margin:0; white-space:pre-wrap; line-height:1.5; color:var(--ink-2)}
+#cpanel .acts{display:flex; gap:12px; margin-top:8px; opacity:0; transition:opacity .15s}
+#cpanel .cm:hover > .acts, #cpanel .cm:focus-within > .acts{opacity:1}
+#cpanel .act{border:0; background:none; padding:0; color:var(--accent); cursor:pointer; font:inherit; font-size:12px; font-weight:500}
+#cpanel .act.danger{color:var(--warn)}
+#cpanel .act:hover{text-decoration:underline}
+#cpanel .row{display:flex; align-items:center; gap:10px; margin-top:8px}
+#cpanel .row .act.primary, #cpanel .row .act.ghost{padding:5px 12px; border-radius:4px; font-size:12px; text-decoration:none}
+#cpanel .row .act.primary{background:var(--accent); color:#fff}
+#cpanel .row .act.ghost{border:1px solid var(--rule); color:var(--ink-2)}
+#cpanel textarea, #cpanel input{width:100%; border:1px solid var(--rule); border-radius:4px; padding:9px 10px; font:inherit; font-size:13.5px; line-height:1.45; resize:vertical; background:#fff; color:var(--ink)}
+#cpanel textarea:focus, #cpanel input:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft)}
+#cpanel footer{border-top:1px solid var(--rule); padding:14px 20px 16px; display:flex; flex-direction:column; gap:8px; background:#fff}
+#cpanel .as{font-size:12px; color:var(--ink-3)}
+#cpanel .as b{color:var(--ink); font-weight:600}
+#cpanel .link{border:0; background:none; padding:0; color:var(--accent); cursor:pointer; font:inherit; font-size:12px}
+#cpanel .primary{background:var(--accent); color:#fff; border:0; padding:8px 16px; border-radius:4px; cursor:pointer; font:inherit; font-size:13px; font-weight:500}
+#cpanel .primary:hover{background:var(--accent-2)}
+#cpanel .status{font-size:11.5px; color:var(--ink-3)}
+#cpanel .status.warn{color:var(--warn)}
+#cpanel .ghost{border:1px solid var(--rule); background:#fff; color:var(--ink-2); padding:7px 12px; border-radius:4px; cursor:pointer; font:inherit; font-size:12.5px}
+#cpanel .hint{margin-left:auto; font-family:"JetBrains Mono",monospace; font-size:10px; letter-spacing:.06em; color:var(--ink-3)}
+#nav .tool{background:var(--accent); color:#fff; border:0; height:28px; width:auto; border-radius:14px; padding:0 12px; cursor:pointer; font-family:"JetBrains Mono",monospace; font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; display:inline-flex; align-items:center; gap:6px}
+#nav .tool svg{width:12px; height:12px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
+#nav .tool[disabled]{opacity:.6}
+#banner{position:fixed; top:12px; left:50%; transform:translateX(-50%); background:var(--warn-soft); color:var(--warn); border:1px solid var(--warn); padding:6px 14px; font-size:12px; z-index:30; display:none; gap:12px; align-items:center; border-radius:4px}
+#banner.show{display:flex}
+#banner button{border:0; background:var(--warn); color:#fff; padding:3px 8px; cursor:pointer; font-size:11px; border-radius:3px}
+/* ---------- overview, go-to-slide, selection comment ---------- */
+/* opaque: at 93% the live slide behind it ghosts through as stray lines of text */
+#overview{position:fixed; inset:0; z-index:40; background:#03121c; display:none; overflow:auto; padding:34px 34px 140px} /* bottom pad clears the nav pill */
+#overview.open{display:block}
+#overview h2{margin:0 0 22px; font-family:"JetBrains Mono",monospace; font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.62); font-weight:400}
+#ogrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(232px,1fr)); gap:22px}
+.thumb{background:none; border:0; padding:0; cursor:pointer; text-align:left; color:inherit}
+.thumb .frame{position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; background:#fff; outline:1px solid rgba(255,255,255,.18); outline-offset:-1px}
+.thumb .frame > .slide{display:flex !important; position:absolute; left:0; top:0; transform-origin:top left; box-shadow:none; pointer-events:none}
+.thumb:hover .frame, .thumb:focus-visible .frame{outline:2px solid var(--accent-soft)}
+.thumb.here .frame{outline:2px solid #8fc4de}
+.thumb .cap{display:flex; justify-content:space-between; gap:8px; margin-top:7px; font-family:"JetBrains Mono",monospace; font-size:10px; letter-spacing:.1em; color:rgba(255,255,255,.66)}
+.thumb .cap b{flex:1; min-width:0; text-align:left; font-weight:400; color:#fff; font-family:"Inter Tight",sans-serif; font-size:11.5px; letter-spacing:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.thumb .cap .n{flex:none}
+.thumb .cap .cc{flex:none; color:#8fc4de}
+#goto{display:none; width:52px; height:22px; border:1px solid var(--accent-soft); border-radius:4px; background:#fff; color:var(--ink); font-family:"JetBrains Mono",monospace; font-size:11px; text-align:center}
+#nav.goto #counter{display:none}
+#nav.goto #goto{display:inline-block}
+#selbtn{position:fixed; z-index:35; display:none; transform:translate(-50%,-100%); border:0; background:var(--accent); color:#fff; cursor:pointer; padding:5px 11px; border-radius:999px; font-family:"JetBrains Mono",monospace; font-size:10px; letter-spacing:.1em; text-transform:uppercase; box-shadow:0 3px 12px rgba(0,0,0,.35)}
+#selbtn.show{display:block}
+.quoted{background:var(--accent-soft); box-shadow:0 0 0 2px var(--accent-soft)}
+#cpanel .scope{display:flex; gap:0; margin-top:10px; border:1px solid var(--rule); border-radius:5px; overflow:hidden; width:max-content}
+#cpanel .scope button{border:0; background:#fff; color:var(--ink-3); cursor:pointer; font-family:"JetBrains Mono",monospace; font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; padding:5px 11px}
+#cpanel .scope button[aria-pressed="true"]{background:var(--accent); color:#fff}
+#cpanel .sgroup{border:0; padding:0; margin:0}
+#cpanel .shead{display:flex; align-items:baseline; gap:8px; width:100%; border:0; background:none; cursor:pointer; padding:0 0 8px; font-family:"JetBrains Mono",monospace; font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent)}
+#cpanel .shead:hover span.t, #cpanel .shead:focus-visible span.t{text-decoration:underline}
+#cpanel .shead span.t{font-family:"Inter Tight",sans-serif; font-size:12px; letter-spacing:0; text-transform:none; color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+#cpanel blockquote.q{margin:0 0 8px; padding:5px 10px; border-left:3px solid var(--accent); background:var(--shade); font-size:12.5px; line-height:1.45; color:var(--ink-2); cursor:pointer}
+#cpanel blockquote.q::before{content:"\201c"}
+#cpanel blockquote.q::after{content:"\201d"}
+#cpanel .qchip{display:flex; gap:8px; align-items:flex-start; font-size:12px; color:var(--ink-2); background:var(--shade); border-left:3px solid var(--accent); padding:5px 10px}
+#cpanel .qchip button{flex:none; border:0; background:none; color:var(--ink-3); cursor:pointer; font-size:14px; line-height:1; padding:0}
+@media print{#cpanel,#banner,.cbadge,#overview,#selbtn{display:none !important}}
+ol.num{margin:0; padding-left:22px; font-size:15px; line-height:1.5; color:var(--ink-2)}
+ol.num li{margin-bottom:8px}
+ol.num.xs{font-size:13.5px}
+ol.steps .who{display:block; font-size:12.5px; color:var(--ink-3); font-style:italic}
+body.panel-open #nav{right:382px}
+body.panel-open #banner{left:calc((100% - 360px)/2)}
+</style>
+</head>
+<body>
+
+<div id="deck">
+<!-- SLIDES:START -->
+<!-- SLIDES:END -->
+</div>
+
+<div id="nav">
+  <button id="prev" aria-label="Previous">&#8249;</button>
+  <button id="counter" title="Jump to a slide number (or just type a digit)">1 / 1</button>
+  <input id="goto" type="number" min="1" inputmode="numeric" aria-label="Go to slide number">
+  <button id="next" aria-label="Next">&#8250;</button>
+  <button class="tool" id="otoggle" title="Show all slides (O)"><svg viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/></svg>Slides</button>
+  <button class="tool" id="ctoggle" title="Show or hide comments (C)"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>Comments</button>
+  <button class="tool" id="export" title="Download as PowerPoint (.pptx) with comments"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>PPTX</button>
+</div>
+<aside id="cpanel" aria-label="Comments"></aside>
+<button id="selbtn">Comment on selection</button>
+<div id="overview" aria-label="All slides" role="dialog"><h2>All slides &middot; click one to jump &middot; Esc to close</h2><div id="ogrid"></div></div>
+<div id="banner"><span id="bannertext"></span><button id="bannerkeep">Keep</button><button id="bannerdrop">Discard</button></div>
+<script type="application/json" id="deck-comments">{}</script>
+<script>
+(function(){
+'use strict';
+var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+var i = 0, $ = function(id){ return document.getElementById(id); };
+var PALETTE = ['#005581','#2b7fa8','#5aa3c4','#a9c9d9','#2d6a4f','#a07800'];
+
+/* ---------- navigation ---------- */
+function fit(){
+  var vw = window.innerWidth - (document.body.classList.contains('panel-open') ? 360 : 0);
+  var s = Math.min(vw/1280, window.innerHeight/720);
+  var x = (vw-1280*s)/2, y = (window.innerHeight-720*s)/2;
+  slides.forEach(function(el){ el.style.transform = 'translate('+x+'px,'+y+'px) scale('+s+')'; });
+}
+function show(n){
+  i = Math.max(0, Math.min(slides.length-1, n));
+  slides.forEach(function(el,k){ el.classList.toggle('active', k===i); });
+  $('counter').textContent = (i+1)+' / '+slides.length;
+  $('prev').disabled = i===0; $('next').disabled = i===slides.length-1;
+  fit(); renderPanel();
+}
+$('next').onclick = function(){ show(i+1); };
+$('prev').onclick = function(){ show(i-1); };
+document.addEventListener('keydown', function(e){
+  if(/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+  if(e.key==='Escape'){ if($('overview').classList.contains('open')) toggleOverview(); return; }
+  if(e.key==='ArrowRight'){ e.preventDefault(); show(i+1); }
+  else if(e.key==='ArrowLeft'){ e.preventDefault(); show(i-1); }
+  else if(e.key==='c'||e.key==='C'){ togglePanel(); }
+  else if(e.key==='s'||e.key==='S'){ save(); }
+  else if(e.key==='o'||e.key==='O'){ toggleOverview(); }
+  else if(/^[0-9]$/.test(e.key)){ openGoto(e.key); }   // start typing a slide number
+});
+
+/* ---------- jump to a slide number ---------- */
+function openGoto(seed){
+  var g = $('goto');
+  g.max = slides.length; g.value = seed || '';
+  $('nav').classList.add('goto'); g.focus();
+  if(!seed) g.select();
+}
+function closeGoto(){ $('nav').classList.remove('goto'); $('goto').value = ''; }
+$('counter').onclick = function(){ openGoto(''); };
+$('goto').onkeydown = function(e){
+  if(e.key==='Enter'){ var n = parseInt(this.value, 10); closeGoto(); if(n>=1 && n<=slides.length) show(n-1); }
+  else if(e.key==='Escape'){ closeGoto(); }
+};
+$('goto').onblur = closeGoto;
+
+/* ---------- overview: every slide at a glance, click to jump ---------- */
+function toggleOverview(){
+  var ov = $('overview'), opening = !ov.classList.contains('open');
+  ov.classList.toggle('open', opening);
+  if(!opening){ $('ogrid').textContent = ''; return; }   // cheap: rebuilt each time, never serialized
+  var grid = $('ogrid');
+  grid.textContent = '';
+  slides.forEach(function(el, k){
+    var b = document.createElement('button');
+    b.className = 'thumb' + (k===i ? ' here' : '');
+    b.type = 'button';
+    b.innerHTML = '<div class="frame"></div><div class="cap"><span class="n"></span><b></b><span class="cc"></span></div>';
+    var clone = el.cloneNode(true);
+    clone.classList.remove('active');
+    clone.removeAttribute('style');
+    var badge = clone.querySelector('.cbadge'); if(badge) badge.remove();
+    b.querySelector('.frame').appendChild(clone);
+    b.querySelector('.n').textContent = slideKey(k);
+    b.querySelector('b').textContent = slideTitle(k);
+    var c = countComments(k);
+    b.querySelector('.cc').textContent = c ? c + (c>1 ? ' comments' : ' comment') : '';
+    b.onclick = function(){ toggleOverview(); show(k); };
+    grid.appendChild(b);
+  });
+  scaleThumbs();
+}
+function scaleThumbs(){
+  document.querySelectorAll('#ogrid .frame').forEach(function(f){
+    var sc = f.clientWidth / 1280, inner = f.firstElementChild;
+    if(inner) inner.style.transform = 'scale(' + sc + ')';
+  });
+}
+function slideTitle(k){ // <br> is a word break, and an agenda slide's label is its eyebrow
+  // in priority order: a comma selector would return whichever comes first in the DOM, and the
+  // eyebrow sits above the title.
+  var h = slides[k].querySelector('.slide-title') || slides[k].querySelector('h1') || slides[k].querySelector('.eyebrow');
+  if(!h) return '';
+  return Array.prototype.map.call(h.childNodes, function(n){ return n.nodeName==='BR' ? ' ' : n.textContent; })
+    .join('').replace(/\s+/g, ' ').trim();
+}
+function countComments(k){ return (comments[slideKey(k)] || []).reduce(function(n, x){ return n + 1 + x.replies.length; }, 0); }
+$('otoggle').onclick = toggleOverview;
+window.addEventListener('resize', function(){ fit(); if($('overview').classList.contains('open')) scaleThumbs(); });
+
+/* ---------- charts: <figure class="chart" data-chart='{type,labels,series}'> -> inline SVG ---------- */
+function fmt(v){ return Math.abs(v)>=1000 ? Math.round(v).toLocaleString() : (Math.round(v*10)/10).toString(); }
+function chartData(fig){ try{ return JSON.parse(fig.getAttribute('data-chart')); }catch(e){ return null; } }
+function svgEl(tag, attrs, text){
+  var el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  Object.keys(attrs).forEach(function(k){ el.setAttribute(k, attrs[k]); });
+  if(text!=null) el.textContent = text;
+  return el;
+}
+function renderChart(fig){
+  var d = chartData(fig); if(!d) return;
+  var W=480, H=270, L=44, R=12, T=14, B=34, w=W-L-R, h=H-T-B;
+  var svg = svgEl('svg', {viewBox:'0 0 '+W+' '+H, role:'img', 'aria-label':fig.querySelector('figcaption')?fig.querySelector('figcaption').textContent:''});
+  var n = d.labels.length, S = d.series;
+  if(d.type==='pie'){
+    var vals = S[0].values, tot = vals.reduce(function(a,b){return a+b;},0), cx=W/2-60, cy=H/2, r=Math.min(w,h)/2-6, a0=-Math.PI/2;
+    vals.forEach(function(v,k){
+      var a1 = a0 + 2*Math.PI*v/tot, x0=cx+r*Math.cos(a0), y0=cy+r*Math.sin(a0), x1=cx+r*Math.cos(a1), y1=cy+r*Math.sin(a1);
+      svg.appendChild(svgEl('path', {d:'M'+cx+','+cy+' L'+x0+','+y0+' A'+r+','+r+' 0 '+(a1-a0>Math.PI?1:0)+',1 '+x1+','+y1+' Z', fill:PALETTE[k%6], stroke:'#fff', 'stroke-width':1.5}));
+      svg.appendChild(svgEl('rect', {x:W-120, y:T+k*20, width:10, height:10, fill:PALETTE[k%6]}));
+      svg.appendChild(svgEl('text', {x:W-104, y:T+k*20+9, 'font-size':11, fill:'#444'}, d.labels[k]+' · '+Math.round(100*v/tot)+'%'));
+      a0 = a1;
+    });
+    fig.insertBefore(svg, fig.firstChild); return;
+  }
+  var stacked = d.type==='stackedBar';
+  var max = 0;
+  d.labels.forEach(function(_,k){
+    var m = stacked ? S.reduce(function(a,s){return a+s.values[k];},0) : Math.max.apply(null, S.map(function(s){return s.values[k];}));
+    if(m>max) max=m;
+  });
+  max = (max||1) * (d.type==='stackedBar' ? 1 : 1.12);
+  var Y = function(v){ return T + h - h*v/max; }, X = function(k){ return L + w*(k+0.5)/n; };
+  for(var g=0; g<=4; g++){ var yv = max*g/4, yy=Y(yv);
+    svg.appendChild(svgEl('line', {x1:L, x2:W-R, y1:yy, y2:yy, stroke:'#d0d7df', 'stroke-width':1}));
+    svg.appendChild(svgEl('text', {x:L-6, y:yy+4, 'font-size':10, fill:'#8b949e', 'text-anchor':'end'}, +yv.toFixed(yv<10?1:0)));
+  }
+  d.labels.forEach(function(lab,k){ svg.appendChild(svgEl('text', {x:X(k), y:H-B+16, 'font-size':11, fill:'#444', 'text-anchor':'middle'}, lab)); });
+  if(d.type==='line'){
+    S.forEach(function(s,si){
+      svg.appendChild(svgEl('polyline', {points:s.values.map(function(v,k){return X(k)+','+Y(v);}).join(' '), fill:'none', stroke:PALETTE[si%6], 'stroke-width':2.5}));
+      s.values.forEach(function(v,k){ svg.appendChild(svgEl('circle', {cx:X(k), cy:Y(v), r:3.5, fill:PALETTE[si%6]})); svg.appendChild(svgEl('text', {x:X(k), y:Y(v)-8, 'font-size':10, fill:'#444', 'text-anchor':'middle'}, fmt(v))); });
+    });
+  } else {
+    var bw = w/n*0.7/(stacked?1:S.length);
+    d.labels.forEach(function(_,k){
+      var acc = 0;
+      S.forEach(function(s,si){
+        var v = s.values[k], x = stacked ? X(k)-bw/2 : X(k)-w/n*0.35+si*bw, y0 = stacked ? Y(acc+v) : Y(v), hh = (T+h) - Y(v) ;
+        svg.appendChild(svgEl('rect', {x:x, y:y0, width:bw-2, height:hh, fill:PALETTE[si%6]}));
+        if(stacked) svg.appendChild(svgEl('text', {x:x+(bw-2)/2, y:y0+hh/2+4, 'font-size':10, fill:'#fff', 'text-anchor':'middle'}, fmt(v)));
+        else svg.appendChild(svgEl('text', {x:x+(bw-2)/2, y:y0-4, 'font-size':10, fill:'#444', 'text-anchor':'middle'}, fmt(v)));
+        acc += v;
+      });
+    });
+  }
+  if(S.length>1) S.forEach(function(s,si){
+    svg.appendChild(svgEl('rect', {x:L+si*110, y:2, width:10, height:10, fill:PALETTE[si%6]}));
+    svg.appendChild(svgEl('text', {x:L+si*110+14, y:11, 'font-size':10.5, fill:'#444'}, s.name));
+  });
+  fig.insertBefore(svg, fig.firstChild);
+}
+document.querySelectorAll('figure.chart[data-chart]').forEach(renderChart);
+
+/* ---------- comments: {id,a,t,ts,q?,edited?,replies:[{id,a,t,ts,edited?}]} per slide number
+     `q` is the passage the reviewer highlighted, stored as text rather than a DOM offset so it
+     survives a rebuild; clicking it re-finds and re-selects the passage. ---------- */
+var STORE = $('deck-comments'), DECK_ID = document.documentElement.getAttribute('data-deck-id') || location.pathname;
+// Keyed on the deck's own id, never on its path: two decks downloaded to the same filename
+// would otherwise be offered each other's unsaved comments.
+var KEY = 'deck-comments:'+DECK_ID;
+var comments = JSON.parse(STORE.textContent||'{}'), dirty = false, editing = null, replying = null;
+var scope = 'slide';     // panel shows 'slide' or 'all'
+var pendingQuote = null; // passage highlighted for the comment being composed
+function normalize(cs){ Object.keys(cs).forEach(function(k){ (cs[k]||[]).forEach(function(c){ c.id = c.id||uid(); c.replies = (c.replies||[]).map(function(r){ r.id = r.id||uid(); return r; }); }); }); return cs; }
+normalize(comments);
+// randomUUID needs a secure context, which file:// is but a plain-http share is not.
+function uid(){ return crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2,10)+Date.now().toString(36); }
+function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function lsSet(k,v){ try{ v===null ? localStorage.removeItem(k) : localStorage.setItem(k,v); }catch(e){} }
+var draft = lsGet(KEY);
+if(draft && draft!==JSON.stringify(comments)){
+  $('bannertext').textContent = 'Unsaved comments for \u201c'+document.title+'\u201d were found from a previous session.';
+  $('banner').classList.add('show');
+  $('bannerkeep').onclick = function(){ comments = normalize(JSON.parse(draft)); dirty=true; $('banner').classList.remove('show'); markDirty(); renderPanel(); };
+  $('bannerdrop').onclick = function(){ lsSet(KEY, null); $('banner').classList.remove('show'); };
+}
+// Falls back to the slide's position: a `type: html` slide is inserted verbatim and may carry
+// no data-n, which used to throw here and take the whole comment panel down with it.
+function slideKey(k){ return (slides[k].getAttribute('data-n') || String(k+1)).replace(/^0+/,''); }
+var canWrite = window.isSecureContext && 'showSaveFilePicker' in window, saveState = '';
+function markDirty(){ dirty = true; lsSet(KEY, JSON.stringify(comments)); if(canWrite) save(); else { saveState = 'Not saved to file yet'; } }
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function initials(n){ return n.split(/\s+/).map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2) || '?'; }
+function when(ts){ var d = new Date(ts), diff = (Date.now()-d)/6e4; if(diff<1) return 'just now'; if(diff<60) return Math.round(diff)+' min ago'; if(diff<1440) return Math.round(diff/60)+' h ago'; return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+(d.getFullYear()!==new Date().getFullYear()?' '+d.getFullYear():''); }
+function togglePanel(){ $('cpanel').classList.toggle('open'); document.body.classList.toggle('panel-open', $('cpanel').classList.contains('open')); fit(); renderPanel(); if($('cpanel').classList.contains('open') && $('ctext')) $('ctext').focus(); }
+$('ctoggle').onclick = togglePanel;
+function author(){ return lsGet('deck-author')||''; }
+function ownerOf(id){ // {k, list} of the slide whose comments contain this id
+  for(var k=0; k<slides.length; k++){
+    var list = comments[slideKey(k)] || [];
+    if(findComment(list, id)) return {k:k, list:list};
+  }
+  return null;
+}
+function findComment(list, id){ for(var k=0;k<list.length;k++){ if(list[k].id===id) return {c:list[k], parent:null, list:list, k:k}; for(var r=0;r<list[k].replies.length;r++) if(list[k].replies[r].id===id) return {c:list[k].replies[r], parent:list[k], list:list[k].replies, k:r}; } return null; }
+function cmHtml(c, isReply){
+  var mine = c.a===author();
+  if(editing===c.id) return '<div class="cm'+(isReply?' reply':'')+'" data-id="'+esc(c.id)+'"><textarea class="edit" rows="3">'+esc(c.t)+'</textarea><div class="row"><button class="primary act" data-act="saveedit">Save</button><button class="ghost act" data-act="cancel">Cancel</button></div></div>';
+  return '<div class="cm'+(isReply?' reply':'')+'" data-id="'+esc(c.id)+'">'
+    + '<div class="who"><span class="av">'+esc(initials(c.a))+'</span><span class="nm">'+esc(c.a)+'</span><span class="ts" title="'+esc(c.ts)+'">'+when(c.ts)+(c.edited?' · edited':'')+'</span></div>'
+    + (c.q ? '<blockquote class="q act" data-act="find" title="Find this passage on the slide">'+esc(c.q)+'</blockquote>' : '')
+    + '<p>'+esc(c.t)+'</p>'
+    + '<div class="acts">'+(isReply?'':'<button class="act" data-act="reply">Reply</button>')+'<button class="act" data-act="edit">Edit</button><button class="act danger" data-act="del">Delete</button></div>'
+    + (isReply ? '' : c.replies.map(function(r){ return cmHtml(r, true); }).join('') + (replying===c.id ? '<div class="cm reply composer"><textarea class="edit" rows="2" placeholder="Reply as '+esc(author())+'"></textarea><div class="row"><button class="primary act" data-act="savereply">Reply</button><button class="ghost act" data-act="cancel">Cancel</button></div></div>' : ''))
+    + '</div>';
+}
+function renderPanel(){
+  slides.forEach(function(el,k){
+    var b = el.querySelector('.cbadge'); if(!b){ b=document.createElement('div'); b.className='cbadge'; b.onclick=togglePanel; el.appendChild(b); }
+    var list = comments[slideKey(k)]||[], c = list.reduce(function(n,x){ return n+1+x.replies.length; }, 0);
+    b.textContent = c ? c+' comment'+(c>1?'s':'') : '';
+  });
+  var p = $('cpanel'); if(!p.classList.contains('open')) return;
+  var key = slideKey(i), list = comments[key] = comments[key]||[], title = slideTitle(i);
+  var total = Object.keys(comments).reduce(function(n,k){ return n + (comments[k]||[]).reduce(function(m,x){ return m+1+x.replies.length; },0); }, 0);
+  p.innerHTML = '<header><div><div class="k">Comments · '+(scope==='all' ? 'whole deck' : 'slide '+key)+'</div><div class="ttl">'+esc(scope==='all' ? document.title : title)+'</div>'
+      + '<div class="scope"><button id="sc-slide" aria-pressed="'+(scope!=='all')+'">This slide</button><button id="sc-all" aria-pressed="'+(scope==='all')+'">All ('+total+')</button></div>'
+      + '</div><button class="close" id="cclose" aria-label="Close">✕</button></header>'
+    + '<div class="list">'+(scope==='all' ? allHtml() : (list.length ? list.map(function(c){ return cmHtml(c,false); }).join('') : '<div class="empty">No comments on this slide yet.</div>'))+'</div>'
+    + '<footer>'
+    + (author() ? '<div class="as">Commenting as <b>'+esc(author())+'</b> <button class="link" id="cchange">change</button></div>' : '<input id="cauthor" placeholder="Your name (remembered on this device)" autocomplete="name">')
+    + (pendingQuote ? '<div class="qchip"><span>&ldquo;'+esc(pendingQuote)+'&rdquo;</span><button id="qdrop" title="Comment on the slide instead of this passage">✕</button></div>' : '')
+    + '<textarea id="ctext" rows="3" placeholder="'+(pendingQuote ? 'Comment on the highlighted passage' : 'Add a comment to slide '+key)+'"></textarea>'
+    + '<div class="row"><button class="primary" id="cadd">Comment</button>'+(canWrite ? '' : '<button class="ghost" id="cdl" title="Download this deck with the comments embedded">Download updated deck</button>')+'<span class="hint">'+total+' in deck</span></div>'
+    + '<div class="status'+(dirty?' warn':'')+'" id="cstatus">'+esc(saveState || (canWrite ? 'Comments are written into this file as you add them.' : 'Add comments, then download the updated deck and replace the file.'))+'</div>'
+    + '</footer>';
+  $('cclose').onclick = togglePanel;
+  if($('cdl')) $('cdl').onclick = save;
+  if($('cchange')) $('cchange').onclick = function(){ lsSet('deck-author', null); renderPanel(); };
+  $('sc-slide').onclick = function(){ scope='slide'; renderPanel(); };
+  $('sc-all').onclick = function(){ scope='all'; renderPanel(); };
+  if($('qdrop')) $('qdrop').onclick = function(){ pendingQuote = null; renderPanel(); $('ctext').focus(); };
+  // jump to the slide a comment belongs to, from the all-deck list
+  p.querySelectorAll('.shead').forEach(function(h){ h.onclick = function(){ show(+h.getAttribute('data-k')); }; });
+  $('cadd').onclick = function(){
+    var t = $('ctext').value.trim(); if(!t) return;
+    var a = author() || ($('cauthor') && $('cauthor').value.trim()); if(!a){ $('cauthor').focus(); return; }
+    lsSet('deck-author', a);
+    var c = {id:uid(), a:a, t:t, ts:new Date().toISOString(), replies:[]};
+    if(pendingQuote){ c.q = pendingQuote; pendingQuote = null; }
+    list.push(c);
+    markDirty(); renderPanel(); $('ctext').focus();
+  };
+  $('ctext').onkeydown = function(e){ if((e.metaKey||e.ctrlKey) && e.key==='Enter') $('cadd').click(); };
+  p.querySelectorAll('.act').forEach(function(btn){ btn.onclick = function(){
+    var box = btn.closest('.cm'), id = box.getAttribute('data-id') || box.parentNode.getAttribute('data-id'), act = btn.getAttribute('data-act');
+    var owner = ownerOf(id), f = owner && findComment(owner.list, id);
+    if(!f) return;
+    if(act==='find'){ if(owner.k !== i) show(owner.k); if(!findQuote(f.c.q)) alert('That passage is no longer on this slide.'); return; }
+    if(act==='reply'){ replying = id; editing = null; renderPanel(); box=p.querySelector('.composer textarea'); if(box) box.focus(); }
+    else if(act==='edit'){ editing = id; replying = null; renderPanel(); }
+    else if(act==='cancel'){ editing = replying = null; renderPanel(); }
+    else if(act==='del'){ if(!confirm('Delete this comment'+(f.c.replies&&f.c.replies.length?' and its replies':'')+'?')) return; f.list.splice(f.k,1); markDirty(); renderPanel(); }
+    else if(act==='saveedit'){ var v = box.querySelector('textarea').value.trim(); if(v && v!==f.c.t){ f.c.t = v; f.c.edited = true; markDirty(); } editing=null; renderPanel(); }
+    else if(act==='savereply'){ var rv = box.querySelector('textarea').value.trim(), a = author(); if(!rv) return; if(!a){ a = prompt('Your name'); if(!a) return; lsSet('deck-author', a.trim()); a=a.trim(); }
+      f.c.replies.push({id:uid(), a:a, t:rv, ts:new Date().toISOString()}); replying=null; markDirty(); renderPanel(); }
+  }; });
+}
+function allHtml(){ // every comment in the deck, grouped by slide, each group a jump link
+  var out = '';
+  slides.forEach(function(_, k){
+    var list = comments[slideKey(k)] || []; if(!list.length) return;
+    out += '<div class="sgroup"><button class="shead" data-k="'+k+'">Slide '+esc(slideKey(k))
+        + ' &middot; '+countComments(k)+' <span class="t">'+esc(slideTitle(k))+'</span></button>'
+        + list.map(function(c){ return cmHtml(c, false); }).join('') + '</div>';
+  });
+  return out || '<div class="empty">No comments anywhere in this deck yet.</div>';
+}
+function findQuote(text){ // re-locate a highlighted passage by its text, so it survives a rebuild
+  var want = text.replace(/\s+/g, ' ').trim(); if(!want) return false;
+  // A quote routinely spans elements -- "<b>92%</b> auto-resolved" is three text nodes -- so
+  // flatten the slide into one string, keeping each character's origin node and offset.
+  var walk = document.createTreeWalker(slides[i], NodeFilter.SHOW_TEXT), node, hay = '', map = [];
+  while((node = walk.nextNode())){
+    var t = node.textContent;
+    for(var c = 0; c < t.length; c++){
+      var ch = /\s/.test(t[c]) ? ' ' : t[c];
+      if(ch === ' ' && hay.slice(-1) === ' ') continue;   // collapse runs, as the quote was collapsed
+      hay += ch; map.push([node, c]);
+    }
+  }
+  var at = hay.indexOf(want); if(at < 0) return false;   // passage edited away since the comment
+  var start = map[at], end = map[at + want.length - 1];
+  var r = document.createRange();
+  r.setStart(start[0], start[1]);
+  r.setEnd(end[0], end[1] + 1);
+  var sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+  return true;
+}
+function flatComments(k){ // for export: top-level then replies, threaded text
+  var out = []; (comments[slideKey(k)]||[]).forEach(function(c){
+    out.push({a:c.a, t:(c.q ? 'Re \u201c'+c.q+'\u201d: ' : '')+c.t, ts:c.ts});
+    c.replies.forEach(function(r){ out.push({a:r.a, t:'Re ['+c.a+']: '+r.t, ts:r.ts}); });
+  }); return out;
+}
+
+/* ---------- comment on a highlighted passage ---------- */
+function selectionInSlide(){
+  var sel = getSelection(); if(!sel || sel.isCollapsed || !sel.rangeCount) return null;
+  var r = sel.getRangeAt(0);
+  if(!slides[i].contains(r.commonAncestorContainer)) return null;
+  var t = sel.toString().replace(/\s+/g, ' ').trim();
+  if(t.length < 2 || t.length > 300) return null;   // a stray click, or a whole slide: neither is a quote
+  return {text:t, rect:r.getBoundingClientRect()};
+}
+document.addEventListener('mouseup', function(){
+  var s = selectionInSlide(), btn = $('selbtn');
+  if(!s){ btn.classList.remove('show'); return; }
+  btn.style.left = (s.rect.left + s.rect.width/2) + 'px';
+  btn.style.top = (s.rect.top - 8) + 'px';
+  btn.classList.add('show');
+});
+$('selbtn').onclick = function(){
+  var s = selectionInSlide(); if(!s) return;
+  pendingQuote = s.text;
+  this.classList.remove('show');
+  scope = 'slide';
+  if(!$('cpanel').classList.contains('open')) togglePanel(); else renderPanel();
+  if($('ctext')) $('ctext').focus();
+};
+
+/* ---------- save: write comments back into this HTML file ---------- */
+var fileHandle = null;
+function serialize(){
+  var doc = document.documentElement.cloneNode(true);
+  doc.querySelectorAll('.slide').forEach(function(el){ el.classList.remove('active'); el.removeAttribute('style'); });
+  doc.querySelectorAll('.cbadge, figure.chart[data-chart] > svg').forEach(function(el){ el.remove(); });
+  // If the reader has exported once, loadScript has injected the pptxgenjs script element into
+  // the head. Saving with that in place would make every later open of this deck fetch 460 KB
+  // from a CDN, which is what embedding the fonts was for. A deck has no legitimate remote script.
+  // (As above, script tags are not spelled out in this file.)
+  doc.querySelectorAll('script[src]').forEach(function(el){ el.remove(); });
+  doc.querySelector('#cpanel').className=''; doc.querySelector('#cpanel').innerHTML=''; doc.querySelector('body').className='';
+  doc.querySelector('#banner').className='';
+  // transient chrome: the overview's slide clones, the selection button, a half-typed jump
+  doc.querySelector('#ogrid').innerHTML=''; doc.querySelector('#overview').className='';
+  doc.querySelector('#selbtn').className=''; doc.querySelector('#nav').className='';
+  doc.querySelectorAll('#goto').forEach(function(el){ el.removeAttribute('value'); el.removeAttribute('max'); });
+  // Escape every `<`. Neutralising the closing tag alone is not enough: an HTML comment opener
+  // followed by a script start tag puts the parser in script-data double-escaped state, after
+  // which this block's own end tag stops closing it and it swallows the rest of the document,
+  // runtime included. \u003c is a valid JSON escape, so JSON.parse restores the original text.
+  // (Do not spell that byte sequence out in this file -- it would do it to this very script.)
+  doc.querySelector('#deck-comments').textContent = JSON.stringify(comments, null, 1).replace(/</g, '\\u003c');
+  return '<!DOCTYPE html>\n'+doc.outerHTML;
+}
+function fileName(){ return decodeURIComponent(location.pathname.split('/').pop()) || 'deck.html'; }
+async function save(){
+  var html = serialize();
+  try{
+    if(window.isSecureContext && 'showSaveFilePicker' in window){
+      fileHandle = fileHandle || await window.showSaveFilePicker({suggestedName: fileName(), types:[{description:'HTML', accept:{'text/html':['.html']}}]});
+      var w = await fileHandle.createWritable(); await w.write(html); await w.close();
+    } else {
+      var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([html],{type:'text/html'})); a.download = fileName(); a.click();
+    }
+    dirty=false; STORE.textContent = JSON.stringify(comments); lsSet(KEY, null);
+    saveState = (fileHandle ? 'Saved to '+fileHandle.name : 'Downloaded '+fileName())+' · '+new Date().toLocaleTimeString();
+  }catch(e){ saveState = e.name==='AbortError' ? 'Save cancelled; comments kept in this browser until saved' : 'Save failed: '+e.message; }
+  if($('cstatus')){ $('cstatus').textContent = saveState; $('cstatus').className = 'status'+(dirty?' warn':''); }
+}
+
+/* ---------- export to PowerPoint (pptxgenjs, loaded on demand) ---------- */
+var PPTX_URL = 'https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js';
+// Integrity of pptxgenjs 4.0.1. This page holds the whole confidential deck and, once the
+// reviewer has picked a save location, a write handle to it: a substituted bundle could read
+// both. The browser refuses the script if the hash does not match, so export fails closed.
+// Update this hash whenever PPTX_URL's version changes, or export will stop working.
+var PPTX_SRI = 'sha384-qb0Xhi7LLYpvW1HCK6oMrmDLSY9sy7vwm6ZlV6KjtrlL9yg30+YN4neTwnmX+Kp8';
+function loadScript(url){ return new Promise(function(res,rej){ if(window.PptxGenJS) return res(); var s=document.createElement('script'); s.src=url; s.integrity=PPTX_SRI; s.crossOrigin='anonymous'; s.onload=res; s.onerror=function(){rej(new Error('Could not load '+url+' (blocked, offline, or its integrity hash no longer matches)'));}; document.head.appendChild(s); }); }
+function hex(rgb){ var m = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/.exec(rgb); if(!m || m[4]==='0') return null; return [m[1],m[2],m[3]].map(function(v){ return (+v).toString(16).padStart(2,'0'); }).join('').toUpperCase(); }
+function measure(el, root){ var r=el.getBoundingClientRect(), b=root.getBoundingClientRect(); return {x:(r.left-b.left)/96, y:(r.top-b.top)/96, w:r.width/96, h:r.height/96}; }
+function style(el){
+  var cs = getComputedStyle(el), fam = cs.fontFamily;
+  return { color: hex(cs.color)||'2B2B2B', fontSize: Math.max(8, Math.round(parseFloat(cs.fontSize)*0.75*10)/10),
+    fontFace: /Serif/.test(fam)?'Georgia':/Mono/.test(fam)?'Courier New':'Calibri',
+    bold: parseInt(cs.fontWeight,10)>=600, italic: cs.fontStyle==='italic',
+    align: (cs.textAlign==='center' || (/flex/.test(cs.display) && cs.justifyContent==='center'))?'center':cs.textAlign==='right'||cs.textAlign==='end'?'right':'left',
+    fill: hex(cs.backgroundColor), lineH: parseFloat(cs.lineHeight)||parseFloat(cs.fontSize)*1.3 };
+}
+function isInline(c){ return /^inline/.test(getComputedStyle(c).display); }
+function runs(el, shallow){
+  var out = [];
+  (function walk(node, b, it){
+    Array.prototype.forEach.call(node.childNodes, function(c){
+      if(c.nodeType===3){ var t=c.textContent.replace(/\s+/g,' '); if(t.trim()) out.push({text:t, options:{bold:b, italic:it}}); }
+      else if(c.nodeType===1){
+        if(c.tagName==='BR'){ out.push({text:'', options:{breakLine:true}}); return; }
+        var cs = getComputedStyle(c); if(cs.display==='none') return;
+        if(shallow && !isInline(c)) return;
+        walk(c, b||/^(B|STRONG)$/.test(c.tagName)||parseInt(cs.fontWeight,10)>=600, it||/^(I|EM)$/.test(c.tagName));
+        if(isInline(c) && (parseFloat(cs.marginRight)>3 || parseFloat(cs.paddingRight)>3)) out.push({text:' ', options:{}});
+      }
+    });
+  })(el, false, false);
+  return out;
+}
+function textOpts(el, m, s, cs){
+  var pc = el.parentElement ? getComputedStyle(el.parentElement) : cs, mid = (/flex/.test(pc.display) && pc.alignItems==='center' && pc.flexDirection!=='column') || (/flex/.test(cs.display) && cs.alignItems==='center');
+  return {x:m.x, y:m.y, w:m.w, h:m.h, color:s.color, fontSize:s.fontSize, fontFace:s.fontFace, bold:s.bold, italic:s.italic, align:s.align, valign:mid?'middle':'top', fit:'shrink',
+    margin:[parseFloat(cs.paddingTop)*0.75, parseFloat(cs.paddingRight)*0.75, parseFloat(cs.paddingBottom)*0.75, parseFloat(cs.paddingLeft)*0.75],
+    charSpacing: parseFloat(cs.letterSpacing)>0 ? Math.min(2, parseFloat(cs.letterSpacing)*0.75) : undefined};
+}
+function text(slide, el, root){
+  var r = runs(el, false); if(!r.length) return;
+  var m = measure(el, root); if(m.w<0.05) return;
+  slide.addText(r, textOpts(el, m, style(el), getComputedStyle(el)));
+}
+function shallowText(slide, el, root){ // only el's own text nodes + inline children, measured by Range
+  var r = runs(el, true); if(!r.length) return;
+  var range = document.createRange(), first=null, last=null;
+  Array.prototype.forEach.call(el.childNodes, function(c){ if(c.nodeType===3 ? c.textContent.trim() : (c.nodeType===1 && isInline(c))){ if(!first) first=c; last=c; } });
+  range.setStartBefore(first); range.setEndAfter(last);
+  var rr = range.getBoundingClientRect(), b = root.getBoundingClientRect(), m = {x:(rr.left-b.left)/96, y:(rr.top-b.top)/96, w:rr.width/96, h:rr.height/96};
+  var cs = getComputedStyle(el), o = textOpts(el, m, style(el), cs); o.margin = 0;
+  slide.addText(r, o);
+}
+function box(slide, el, root, pptx){
+  var m = measure(el, root), cs = getComputedStyle(el), fill = hex(cs.backgroundColor), bg = cs.backgroundImage;
+  if(m.w<0.02 || m.h<0.02) return;
+  var round = parseFloat(cs.borderTopLeftRadius) >= Math.min(m.w, m.h)*96/2 - 1;
+  if(fill) slide.addShape(round ? pptx.ShapeType.ellipse : pptx.ShapeType.rect, {x:m.x, y:m.y, w:m.w, h:m.h, fill:{color:fill}, line:{color:fill, width:0}, rectRadius: (!round && parseFloat(cs.borderTopLeftRadius)>2) ? Math.min(0.15, parseFloat(cs.borderTopLeftRadius)/96) : undefined});
+  if(round) return;
+  else if(bg && /gradient/.test(bg)) slide.addShape(pptx.ShapeType.rect, {x:m.x, y:m.y, w:m.w, h:m.h, fill:{color:'5AA3C4'}, line:{width:0}});
+  [['Top', 0, 0, m.w, 0], ['Left', 0, 0, 0, m.h], ['Bottom', 0, m.h, m.w, 0], ['Right', m.w, 0, 0, m.h]].forEach(function(side){
+    var bw = parseFloat(cs['border'+side[0]+'Width']), bc = hex(cs['border'+side[0]+'Color']);
+    if(bw>=1 && bc && cs['border'+side[0]+'Style']!=='none') slide.addShape(pptx.ShapeType.line, {x:m.x+side[1], y:m.y+side[2], w:side[3], h:side[4], line:{color:bc, width:bw*0.75, dashType: cs['border'+side[0]+'Style']==='dashed'?'dash':'solid'}});
+  });
+}
+function list(slide, el, root, pptx){ // bullets drawn as shapes so multi-run items keep them in every renderer
+  var ordered = el.tagName==='OL', k = 0;
+  Array.prototype.forEach.call(el.children, function(li){
+    if(li.tagName!=='LI') return; k++;
+    var r = runs(li, false); if(!r.length) return;
+    var m = measure(li, root), s = style(li), cs = getComputedStyle(li), ind = (parseFloat(cs.paddingLeft)||18)/96, lh = (parseFloat(cs.lineHeight)||parseFloat(cs.fontSize)*1.4)/96;
+    var bc = getComputedStyle(li, '::before'), dot = hex(bc.backgroundColor)||'005581', dsz = Math.max(0.05, (parseFloat(bc.width)||6)/96);
+    if(ordered) slide.addText(String(k)+'.', {x:m.x, y:m.y, w:ind, h:lh, fontSize:s.fontSize, fontFace:s.fontFace, color:s.color, margin:0, valign:'top'});
+    else slide.addShape(pptx.ShapeType.ellipse, {x:m.x+0.02, y:m.y+lh/2-dsz/2, w:dsz, h:dsz, fill:{color:dot}, line:{width:0}});
+    slide.addText(r, {x:m.x+ind, y:m.y, w:m.w-ind, h:m.h, color:s.color, fontSize:s.fontSize, fontFace:s.fontFace, valign:'top', margin:0, fit:'shrink'});
+  });
+}
+function table(slide, el, root){
+  var m = measure(el, root), rows = Array.prototype.map.call(el.rows, function(tr){
+    return Array.prototype.map.call(tr.cells, function(td){ var s=style(td), cs=getComputedStyle(td);
+      return {text:runs(td, false).length ? runs(td, false) : ' ', options:{bold:s.bold||td.tagName==='TH', color:s.color, fontSize:s.fontSize, fontFace:s.fontFace, fill:s.fill?{color:s.fill}:undefined, align:s.align, valign:'top',
+        margin:[parseFloat(cs.paddingTop)*0.75, parseFloat(cs.paddingRight)*0.75, parseFloat(cs.paddingBottom)*0.75, parseFloat(cs.paddingLeft)*0.75],
+        border:[{type:'none'},{type:'none'},{type:'solid', pt:0.75, color:'D0D7DF'},{type:'none'}]}}; });
+  });
+  var colW = Array.prototype.map.call(el.rows[0].cells, function(c){ return c.getBoundingClientRect().width/96; });
+  slide.addTable(rows, {x:m.x, y:m.y, w:m.w, colW:colW, autoPage:false});
+}
+function chart(slide, fig, root, pptx){
+  var d = chartData(fig), m = measure(fig, root), cap = fig.querySelector('figcaption'), capH = cap ? measure(cap, root).h : 0;
+  var type = {bar:pptx.ChartType.bar, stackedBar:pptx.ChartType.bar, line:pptx.ChartType.line, pie:pptx.ChartType.pie}[d.type]||pptx.ChartType.bar;
+  var data = d.series.map(function(s){ return {name:s.name, labels:d.labels, values:s.values}; });
+  var colors = (d.type==='pie' ? PALETTE : PALETTE.slice(0, d.series.length)).map(function(c){ return c.slice(1); });
+  var vmax; if(d.type==='stackedBar'){ vmax = 0; d.labels.forEach(function(_,k){ var t = d.series.reduce(function(a,s){ return a+s.values[k]; },0); if(t>vmax) vmax=t; }); }
+  slide.addChart(type, data, {x:m.x, y:m.y, w:m.w, h:Math.max(0.5, m.h-capH-0.1), chartColors:colors,
+    barDir:'col', barGrouping: d.type==='stackedBar'?'stacked':'clustered', valAxisMaxVal: vmax, valAxisMinVal: vmax!==undefined ? 0 : undefined, showLegend: d.series.length>1||d.type==='pie', legendPos:'b', legendFontSize:9,
+    catAxisLabelFontSize:9, valAxisLabelFontSize:9, valGridLine:{color:'D0D7DF', size:0.5}, showPercent:d.type==='pie', showLabel:false, showValue:d.type!=='pie', dataLabelFontSize:9, dataLabelPosition:d.type==='stackedBar'?'ctr':(d.type==='line'?'t':'outEnd'), dataLabelColor:d.type==='stackedBar'?'FFFFFF':'444444', dataLabelFormatCode: d.type==='pie' ? '0%' : '#,##0.#'});
+  if(cap) text(slide, cap, root);
+}
+function toPng(src, w, h){ // rasterise any image/svg source to a base64 PNG data URL (pptxgenjs needs base64)
+  return new Promise(function(res){ var im = new Image(); im.onload=function(){ var c=document.createElement('canvas'); c.width=Math.max(1,Math.round((w||im.naturalWidth||300)*2)); c.height=Math.max(1,Math.round((h||im.naturalHeight||200)*2)); var g=c.getContext('2d'); g.drawImage(im,0,0,c.width,c.height); try{ res(c.toDataURL('image/png')); }catch(e){ res(null); } }; im.onerror=function(){ res(null); }; im.src=src; });
+}
+var pending = [];
+function image(slide, img, root){
+  var m = measure(img, root), o = {x:m.x, y:m.y, w:m.w, h:m.h, sizing:{type:'contain', w:m.w, h:m.h}};
+  pending.push(toPng(img.src, m.w*96, m.h*96).then(function(png){ if(png) o.data=png; else o.path=img.src; slide.addImage(o); }));
+}
+function svgImage(slide, svg, root){
+  var m = measure(svg, root), xml = new XMLSerializer().serializeToString(svg);
+  pending.push(toPng('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(xml), m.w*96, m.h*96).then(function(png){ if(png) slide.addImage({data:png, x:m.x, y:m.y, w:m.w, h:m.h}); }));
+}
+function numbered(slide, el, root, pptx){ // ol.big / ol.steps / ol.agenda: CSS counters become explicit text
+  var isSteps = el.matches('ol.steps'), isAgenda = el.matches('ol.agenda');
+  Array.prototype.forEach.call(el.children, function(li, k){
+    var cs = getComputedStyle(li, '::before'), m = measure(li, root), n = String(k+1).padStart(2,'0'), s = style(li);
+    if(isAgenda){ // flex row: number | text | who, all vertically centred
+      var who = li.querySelector('.who'), numW = ((parseFloat(cs.width)||0) + (parseFloat(cs.marginRight)||0))/96 || 0.6, lc = getComputedStyle(li), whoW = who ? 1.6 : 0;
+      slide.addText(n, {x:m.x, y:m.y, w:numW, h:m.h, fontSize:parseFloat(cs.fontSize)*0.75||11, fontFace:'Courier New', color:hex(cs.color)||'8B949E', valign:'middle', margin:0, charSpacing:2});
+      slide.addText(runs(li, true), {x:m.x+numW, y:m.y, w:m.w-numW-whoW, h:m.h, fontSize:s.fontSize, fontFace:s.fontFace, color:s.color, valign:'middle', margin:0, fit:'shrink'});
+      if(who){ var ws = style(who); slide.addText(who.textContent.trim(), {x:m.x+m.w-whoW, y:m.y, w:whoW, h:m.h, fontSize:ws.fontSize, fontFace:ws.fontFace, color:ws.color, align:'right', valign:'middle', margin:0, charSpacing:2}); }
+      slide.addShape(pptx.ShapeType.line, {x:m.x, y:m.y+m.h, w:m.w, h:0, line:{color:hex(lc.borderBottomColor)||'D0D7DF', width:0.75}});
+      return;
+    }
+    if(isSteps){
+      slide.addShape(pptx.ShapeType.ellipse, {x:m.x-0.14, y:m.y-0.02, w:0.27, h:0.27, fill:{color:'005581'}, line:{width:0}});
+      slide.addText(String(k+1), {x:m.x-0.14, y:m.y-0.02, w:0.27, h:0.27, align:'center', valign:'middle', fontSize:9, bold:true, color:'FFFFFF', fontFace:'Courier New', margin:0});
+      slide.addShape(pptx.ShapeType.line, {x:m.x-0.01, y:m.y+0.25, w:0, h:Math.max(0, m.h-0.25), line:{color:'D0D7DF', width:0.75}});
+    } else {
+      slide.addText(n, {x:m.x, y:m.y, w:0.9, h:0.8, fontSize:Math.max(28, parseFloat(cs.fontSize)*0.75||40), fontFace:'Courier New', color:hex(cs.color)||'8B949E', valign:'top', margin:0});
+    }
+    walk(slide, li, root, pptx, true);
+  });
+}
+function walk(slide, el, root, pptx, skipBox){
+  if(el.matches('.cbadge, script, style')) return;
+  var cs = getComputedStyle(el); if(cs.display==='none' || cs.visibility==='hidden') return;
+  if(el.matches('figure.chart[data-chart]')){ chart(slide, el, root, pptx); return; }
+  if(el.tagName==='IMG'){ image(slide, el, root); return; }
+  if(el.tagName==='svg'){ svgImage(slide, el, root); return; }
+  if(el.tagName==='TABLE'){ table(slide, el, root); return; }
+  if(el.matches('ol.big, ol.steps, ol.agenda')){ numbered(slide, el, root, pptx); return; }
+  if(el.matches('ul, ol')){ list(slide, el, root, pptx); return; }
+  if(!skipBox) box(slide, el, root, pptx);
+  if(el.matches('.rule')) return;
+  var kids = Array.prototype.filter.call(el.children, function(c){ return getComputedStyle(c).display!=='none'; });
+  if(kids.every(isInline)){ text(slide, el, root); return; }
+  shallowText(slide, el, root);
+  kids.forEach(function(c){ if(isInline(c)) return; walk(slide, c, root, pptx); });
+}
+function pseudo(slide, el, root){
+  var cs = getComputedStyle(el, '::after'); if(!el.hasAttribute('data-n')) return;
+  var m = measure(el, root);
+  slide.addText(el.getAttribute('data-n'), {x:m.w-1.3, y:m.h-0.42, w:1.1, h:0.3, align:'right', fontSize:parseFloat(cs.fontSize)*0.75||8, fontFace:'Courier New', color:hex(cs.color)||'8B949E', charSpacing:2, margin:0});
+}
+function exportSlide(pptx, sec, notes){
+  var slide = pptx.addSlide();
+  sec.style.cssText = 'display:flex !important; transform:none !important; position:absolute; left:0; top:0; visibility:visible';
+  var cs = getComputedStyle(sec), bgi = cs.backgroundImage, m = /url\("?(data:[^")]+)"?\)/.exec(bgi);
+  slide.background = m ? {data:m[1]} : {color: sec.matches('.cover,.dark,.divider') ? '001E2E' : (hex(cs.backgroundColor)||'FFFFFF')};
+  Array.prototype.forEach.call(sec.children, function(c){ walk(slide, c, sec, pptx); });
+  pseudo(slide, sec, sec);
+  if(notes) slide.addNotes(notes);
+  sec.style.cssText = '';
+}
+
+/* legacy PowerPoint review comments injected into the pptx zip */
+var xmlEsc = esc; // same four-character map; kept as a name because the call sites read better
+async function injectComments(blob){
+  var authors = {}, list = [], flat = slides.map(function(_,k){ return flatComments(k); });
+  flat.forEach(function(cs){ cs.forEach(function(c){ if(!(c.a in authors)) { authors[c.a] = list.length; list.push(c.a); } }); });
+  if(!list.length) return blob;
+  var zip = await window.JSZip.loadAsync(blob), P = 'http://schemas.openxmlformats.org/presentationml/2006/main';
+  zip.file('ppt/commentAuthors.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:cmAuthorLst xmlns:p="'+P+'">'+list.map(function(a,k){ return '<p:cmAuthor id="'+k+'" name="'+xmlEsc(a)+'" initials="'+xmlEsc(a.split(/\s+/).map(function(w){return w[0]||'';}).join('').toUpperCase().slice(0,3))+'" lastIdx="999" clrIdx="'+k+'"/>'; }).join('')+'</p:cmAuthorLst>');
+  var ct = await zip.file('[Content_Types].xml').async('string');
+  var overrides = '<Override PartName="/ppt/commentAuthors.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.commentAuthors+xml"/>';
+  var prels = await zip.file('ppt/_rels/presentation.xml.rels').async('string');
+  zip.file('ppt/_rels/presentation.xml.rels', prels.replace('</Relationships>', '<Relationship Id="rIdCmAuth" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/commentAuthors" Target="commentAuthors.xml"/></Relationships>'));
+  for(var k=0; k<slides.length; k++){
+    var cs = flat[k]; if(!cs.length) continue;
+    var n = k+1, idx = 0;
+    zip.file('ppt/comments/comment'+n+'.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:cmLst xmlns:p="'+P+'">'+cs.map(function(c){ idx++; return '<p:cm authorId="'+authors[c.a]+'" dt="'+xmlEsc(c.ts)+'" idx="'+idx+'"><p:pos x="10" y="10"/><p:text>'+xmlEsc(c.t)+'</p:text></p:cm>'; }).join('')+'</p:cmLst>');
+    overrides += '<Override PartName="/ppt/comments/comment'+n+'.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.comments+xml"/>';
+    var rp = 'ppt/slides/_rels/slide'+n+'.xml.rels', srels = zip.file(rp) ? await zip.file(rp).async('string') : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
+    zip.file(rp, srels.replace('</Relationships>', '<Relationship Id="rIdCm" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="../comments/comment'+n+'.xml"/></Relationships>'));
+  }
+  zip.file('[Content_Types].xml', ct.replace('</Types>', overrides+'</Types>'));
+  return zip.generateAsync({type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.presentationml.presentation'});
+}
+async function buildPptx(){
+  await loadScript(PPTX_URL);
+  var pptx = new window.PptxGenJS(); pptx.layout = 'LAYOUT_WIDE'; pptx.title = document.title;
+  var cur = i;
+  slides.forEach(function(sec, k){
+    exportSlide(pptx, sec, flatComments(k).map(function(c){ return '['+c.a+' '+c.ts.slice(0,10)+'] '+c.t; }).join('\n'));
+  });
+  show(cur); await Promise.all(pending); pending = [];
+  return injectComments(await pptx.write({outputType:'blob'}));
+}
+async function exportDeck(){
+  var btn = $('export'); btn.disabled = true; btn.lastChild.textContent = 'Exporting…';
+  try{
+    var blob = await buildPptx();
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fileName().replace(/\.html?$/i,'')+'.pptx'; a.click();
+  }catch(e){ alert('Export failed: '+e.message); console.error(e); }
+  btn.disabled = false; btn.lastChild.textContent = 'PPTX';
+}
+$('export').onclick = exportDeck;
+window.deckSelfTest = async function(){ // console check: export succeeds, comment parts present
+  var blob = await buildPptx(), zip = await window.JSZip.loadAsync(blob);
+  var n = slides.filter(function(_,k){ return flatComments(k).length; }).length, ct = await zip.file('[Content_Types].xml').async('string');
+  var parts = zip.file(/ppt\/comments\/comment\d+\.xml/).length, ok = parts===n && (!n || /commentAuthors\+xml/.test(ct)) && zip.file(/ppt\/slides\/slide\d+\.xml/).length===slides.length;
+  console.assert(ok, 'deckSelfTest', {parts:parts, n:n});
+  return {slides:slides.length, commentParts:parts, ok:ok, base64: await new Promise(function(r){ var fr=new FileReader(); fr.onload=function(){ r(fr.result.split(',')[1]); }; fr.readAsDataURL(blob); })};
+};
+
+show(0);
+})();
+</script>
+</body>
+</html>
