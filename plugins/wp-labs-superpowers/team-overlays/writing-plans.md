@@ -67,4 +67,9 @@ same comment in place — do NOT post a duplicate:
 
 If the chosen CLI (`gh` or `acli`) is missing or unauthenticated, report it and continue.
 
+## Team workflow: record the model in the plan
+
+Add a `Model: <model that wrote this plan>` line to the plan's header, alongside `Spec:`, before
+saving it. See `../model-provenance.md` for the convention this line follows.
+
 <!-- wp-labs team overlay: END -->
