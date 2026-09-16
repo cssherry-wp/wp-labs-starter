@@ -87,6 +87,11 @@ If only the source is missing, ask for the path the same way. Ask once, then wai
   visible in review and in the export.
 - Charts come from data (`chart` block) so they export as native, editable PowerPoint charts;
   use `image` only when no data is recoverable. Values are labelled automatically.
+- **An empty field is omitted, not labelled.** No `Owner: tbd`, no `who` line reading "to be
+  confirmed", no placeholder chip. If the name matters and is missing, the ask belongs on the
+  slide title or in the asks slide, not in a field saying nothing.
+- A milestone or step whose content is a list of goals uses `steps[].items` bullets, not a prose
+  `text` paragraph.
 - No client, company, or person names in the template or references; they come from the
   source only.
 

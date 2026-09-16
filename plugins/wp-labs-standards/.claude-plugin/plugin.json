@@ -1,6 +1,6 @@
 {
   "name": "wp-labs-standards",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "description": "Team coding-standard skills (auto-load by language) + the docs-path convention, plus common-task workflows: /commit, github-pr-prepare, github-pr-review, rebasing, writing-field-guides, writing-dashboards, /write-decks (HTML decks with comments and PowerPoint export), and /brainstorm-decks (research a deck source doc before building it).",
   "author": {
     "name": "Sherry Zhou",

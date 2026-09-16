@@ -204,6 +204,18 @@ ol.steps li::before{
   display:flex; align-items:center; justify-content:center;
 }
 ol.steps li b{display:block; color:var(--ink); font-weight:600; margin-bottom:2px}
+ol.steps ul.sub{list-style:none; margin:4px 0 0; padding:0}
+ol.steps ul.sub li{
+  /* counter-increment must be cleared: `ol.steps li` sets it, and a nested bullet would
+     otherwise advance the step number (week 2 rendering as 6). */
+  counter-increment:none;
+  position:relative; padding:0 0 0 14px; margin:0 0 3px; border:none;
+  font-size:15px; line-height:1.45; color:var(--ink-2);
+}
+ol.steps ul.sub li::before{
+  content:""; position:absolute; left:0; top:.55em;
+  width:5px; height:5px; border-radius:50%; background:var(--accent);
+}
 
 /* ---------- tables ---------- */
 table.tbl{width:100%; border-collapse:collapse; font-size:14.5px}
@@ -322,11 +334,18 @@ ol.big.five li .s{margin-top:5px; font-size:15px}
 }
 #nav button:hover{background:var(--accent-2)}
 #nav button:disabled{background:var(--paper-2); color:var(--ink-3); cursor:default}
-/* the counter is a button (click it to jump to a slide number) but must not look round */
-#counter{min-width:52px; width:auto; height:auto; text-align:center; background:none; border-radius:4px;
-  color:var(--ink-3); font:inherit; letter-spacing:.14em; padding:3px 6px; cursor:pointer;
-  white-space:nowrap; flex:0 0 auto}
-#counter:hover{background:var(--accent-soft); color:var(--accent-ink)}
+/* The counter is a button (click it to jump to a slide number) but must not look round or
+   inherit the round buttons' white-on-accent type: it sits on the light nav pill, so it needs
+   dark text at the nav's own 11px. Selector must out-specify `#nav button` above. */
+#nav button#counter{
+  min-width:0; width:auto; height:auto; flex:0 0 auto;
+  font-family:inherit; font-size:11px; line-height:1; letter-spacing:.1em;
+  background:none; border-radius:5px; padding:5px 7px;
+  color:var(--ink-2); white-space:nowrap; text-align:center; cursor:pointer;
+}
+#nav button#counter b{color:var(--accent-ink); font-weight:700}
+#nav button#counter:hover{background:var(--accent-soft); color:var(--accent-ink)}
+#nav button#counter:hover b{color:var(--accent-ink)}
 
 @media print{
   html,body{background:#fff; overflow:visible}
@@ -475,7 +494,7 @@ body.panel-open #banner{left:calc((100% - 360px)/2)}
 
 <div id="nav">
   <button id="prev" aria-label="Previous">&#8249;</button>
-  <button id="counter" title="Jump to a slide number (or just type a digit)">1 / 1</button>
+  <button id="counter" title="Jump to a slide number (or just type a digit)"><b>1</b> / 1</button>
   <input id="goto" type="number" min="1" inputmode="numeric" aria-label="Go to slide number">
   <button id="next" aria-label="Next">&#8250;</button>
   <button class="tool" id="otoggle" title="Show all slides (O)"><svg viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/></svg>Slides</button>
@@ -504,7 +523,7 @@ function fit(){
 function show(n){
   i = Math.max(0, Math.min(slides.length-1, n));
   slides.forEach(function(el,k){ el.classList.toggle('active', k===i); });
-  $('counter').textContent = (i+1)+' / '+slides.length;
+  $('counter').innerHTML = '<b>'+(i+1)+'</b> / '+slides.length;
   $('prev').disabled = i===0; $('next').disabled = i===slides.length-1;
   fit(); renderPanel();
 }
