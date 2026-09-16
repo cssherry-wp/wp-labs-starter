@@ -143,7 +143,10 @@ it is not specific enough. Rewrite it with the number or the name that makes it 
 - **Getting around**: the Slides button (or `O`) opens a grid of every slide, with each slide's
   comment count on it; click one to jump. Clicking the slide counter, or typing any digit, jumps
   to a slide by number.
-- **Comments**: `C` or the Comments button opens the panel for the current slide. Name is
+- **Comments**: `C` or the Comments button opens the panel for the current slide. The button
+  carries the current slide's comment count (replies included) as a chip, so a reviewer can see
+  there is something to read without opening the panel; the slide itself also shows an
+  "N comments" pill in its lower-left corner. Name is
   asked once and remembered per browser. Comments support replies, edits, deletes. Each change
   is written into the HTML file itself: Chrome asks where to save once (pick the same file),
   other browsers get a "Download updated deck" button. Unsaved changes are also kept in the
