@@ -151,7 +151,9 @@ top-level dirs, or anything contradicting the stated rules from section 2. For e
 (`decision-record.md`) — for every finding, whatever its severity or confidence.
 **Deep security hand-off:** always run `/security-review` against the working diff (the throwaway
 worktree for PR targets), scoped to these changes, and fold its findings into this point. Forward
-`--comment`/effort; security findings are generally not auto-fixable.
+`--comment`/effort and (with `--fix`) `--fix`. Security findings are auto-fix eligible on the same
+terms as any other (`decision-record.md`); they always land in the judgment tier of §6, never a
+cheap model.
 **Deep over-engineering hand-off:** always run `/ponytail-review` against the same working diff to
 hunt reinvented stdlib, unneeded dependencies, speculative abstractions, and dead flexibility; fold
 its findings into this point. Forward `--fix` and `--comment`. Normalize ponytail's output into the
@@ -226,8 +228,10 @@ Score every finding 0–100 for how confident you are it's a real, relevant issu
 Do **not** drop findings by score — report them all. With `--comment`, every comment shows its
 score, e.g. `(confidence 85)`. With `--fix`, a finding is applied only if it is **auto-fix
 eligible**: confidence ≥ 80, evidence `reproduced` (or tool-verified), recommendation `fix in this
-changeset`, and mechanically fixable. Confidence alone is not enough — a confidence-90 finding that
-was inferred rather than reproduced is reported, not applied.
+changeset`, and a fix whose shape is settled — either mechanical, or judgment-requiring with one
+approach you can name and defend. Confidence alone is not enough — a confidence-90 finding that was
+inferred rather than reproduced is reported, not applied, and neither is one where you would be
+picking between approaches rather than applying a chosen one.
 
 ## 6. Apply / comment (only when flagged)
 
@@ -238,7 +242,8 @@ was inferred rather than reproduced is reported, not applied.
      on new files (run the tool's own `--fix`/`--write`, one call per language/tool, no agent
      needed), (b) stale-doc edits, (c) ponytail-flagged mechanical simplifications, (d)
      `/code-review --fix` correctness findings (already its own dispatch — forward `--fix` to it
-     directly, don't re-group its findings here). Keep groups small enough that one agent holds
+     directly, don't re-group its findings here), (e) architecture/structure/security
+     remediations, grouped by the subsystem they touch. Keep groups small enough that one agent holds
      the whole group's context; split a group that spans unrelated files or areas rather than
      handing one agent a grab-bag.
   2. **Pick a model per group**, not per run: a mechanical, low-ambiguity group (formatting,
@@ -253,7 +258,9 @@ was inferred rather than reproduced is reported, not applied.
      description, suggested fix) and the model chosen in step 2 via the `model` parameter.
      Independent groups run in parallel (single message, multiple `Agent` calls); a group whose
      fix depends on another group's result runs after it instead.
-  Locally, stage the applied fixes so the user can review and commit. **With `--ci` the agent is
+  Locally, commit the applied fixes with the `wp-labs-standards:commit` skill once every group has
+  reported — one commit for the whole fix pass, not one per group. Never leave them uncommitted in
+  the working tree. **With `--ci` the agent is
   read-only: apply fixes to the working tree only and do NOT commit, push, or comment — a separate
   privileged job stages the edits into an `[autofix]` commit and pushes it.** (Dispatched agents
   still only touch the working tree under `--ci` — they inherit the same restriction.) Report what
