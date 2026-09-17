@@ -80,8 +80,14 @@ def block(b):
         return '<ol class="big' + (" five" if len(b["big"]) >= 5 else "") + '">' + "".join(
             f'<li><div class="h">{x["h"]}</div>' + (f'<div class="s">{x["s"]}</div>' if x.get("s") else "") + "</li>" for x in b["big"]) + "</ol>"
     if "steps" in b:
-        return '<ol class="steps">' + "".join(
-            f'<li><b>{x["title"]}</b>{x.get("text", "")}' + (f'<i class="who">{x["who"]}</i>' if x.get("who") else "") + "</li>" for x in b["steps"]) + "</ol>"
+        def step(x):
+            out = f'<li><b>{x["title"]}</b>{x.get("text", "")}'
+            if x.get("items"):
+                out += '<ul class="sub">' + "".join(f"<li>{i}</li>" for i in x["items"]) + "</ul>"
+            if x.get("who"):
+                out += f'<i class="who">{x["who"]}</i>'
+            return out + "</li>"
+        return '<ol class="steps">' + "".join(step(x) for x in b["steps"]) + "</ol>"
     if "bars" in b:
         ramp = ["", " b2", " b3", " b4"]
         return '<div class="bars">' + "".join(

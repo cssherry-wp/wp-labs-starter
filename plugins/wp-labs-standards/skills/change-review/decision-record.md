@@ -95,7 +95,13 @@ A finding may be applied automatically (`--fix`, or the CI autofix commit) only 
 2. `Evidence` is `reproduced` — or the fix is one a tool verifies for you (a formatter, a linter's
    own `--fix`);
 3. `Recommendation` is `fix in this changeset` (or `fix now` in an audit);
-4. the fix is mechanical — one obvious edit, no judgment between approaches.
+4. the fix's shape is settled — either mechanical (one obvious edit), or judgment-requiring but
+   with a single approach you can name and defend in the record's `Proposed fix`. A finding whose
+   record still weighs two plausible approaches fails this and stays a suggestion.
+
+Architecture, structure, and security findings are eligible on these same terms — nothing is
+excluded by category. They almost always fall under the judgment half of condition 4, so they go to
+the judgment tier in `SKILL.md` §6 (`opus`), never a cheap model.
 
 Confidence alone was the old gate. It let a confidently-inferred finding self-apply, which is the
 false confidence the record exists to remove. Everything that fails any condition is reported as a

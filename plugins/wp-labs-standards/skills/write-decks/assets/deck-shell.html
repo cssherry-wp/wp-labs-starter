@@ -204,6 +204,18 @@ ol.steps li::before{
   display:flex; align-items:center; justify-content:center;
 }
 ol.steps li b{display:block; color:var(--ink); font-weight:600; margin-bottom:2px}
+ol.steps ul.sub{list-style:none; margin:4px 0 0; padding:0}
+ol.steps ul.sub li{
+  /* counter-increment must be cleared: `ol.steps li` sets it, and a nested bullet would
+     otherwise advance the step number (week 2 rendering as 6). */
+  counter-increment:none;
+  position:relative; padding:0 0 0 14px; margin:0 0 3px; border:none;
+  font-size:15px; line-height:1.45; color:var(--ink-2);
+}
+ol.steps ul.sub li::before{
+  content:""; position:absolute; left:0; top:.55em;
+  width:5px; height:5px; border-radius:50%; background:var(--accent);
+}
 
 /* ---------- tables ---------- */
 table.tbl{width:100%; border-collapse:collapse; font-size:14.5px}
@@ -322,10 +334,18 @@ ol.big.five li .s{margin-top:5px; font-size:15px}
 }
 #nav button:hover{background:var(--accent-2)}
 #nav button:disabled{background:var(--paper-2); color:var(--ink-3); cursor:default}
-/* the counter is a button (click it to jump to a slide number) but must not look round */
-#counter{min-width:52px; width:auto; height:auto; text-align:center; background:none; border-radius:4px;
-  color:var(--ink-3); font:inherit; letter-spacing:.14em; padding:3px 6px; cursor:pointer}
-#counter:hover{background:var(--accent-soft); color:var(--accent-ink)}
+/* The counter is a button (click it to jump to a slide number) but must not look round or
+   inherit the round buttons' white-on-accent type: it sits on the light nav pill, so it needs
+   dark text at the nav's own 11px. Selector must out-specify `#nav button` above. */
+#nav button#counter{
+  min-width:0; width:auto; height:auto; flex:0 0 auto;
+  font-family:inherit; font-size:11px; line-height:1; letter-spacing:.1em;
+  background:none; border-radius:5px; padding:5px 7px;
+  color:var(--ink-2); white-space:nowrap; text-align:center; cursor:pointer;
+}
+#nav button#counter b{color:var(--accent-ink); font-weight:700}
+#nav button#counter:hover{background:var(--accent-soft); color:var(--accent-ink)}
+#nav button#counter:hover b{color:var(--accent-ink)}
 
 @media print{
   html,body{background:#fff; overflow:visible}
@@ -420,6 +440,10 @@ figure.chart img{max-width:100%; max-height:100%; object-fit:contain}
 #nav .tool{background:var(--accent); color:#fff; border:0; height:28px; width:auto; border-radius:14px; padding:0 12px; cursor:pointer; font-family:"JetBrains Mono",monospace; font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; display:inline-flex; align-items:center; gap:6px}
 #nav .tool svg{width:12px; height:12px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
 #nav .tool[disabled]{opacity:.6}
+/* comment count for the CURRENT slide, inside the Comments button; empty = hidden */
+#ccount{background:#fff; color:var(--accent-ink); border-radius:999px; min-width:15px; padding:0 4px;
+  font-size:9.5px; font-weight:700; line-height:15px; letter-spacing:0; text-align:center}
+#ccount:empty{display:none}
 #banner{position:fixed; top:12px; left:50%; transform:translateX(-50%); background:var(--warn-soft); color:var(--warn); border:1px solid var(--warn); padding:6px 14px; font-size:12px; z-index:30; display:none; gap:12px; align-items:center; border-radius:4px}
 #banner.show{display:flex}
 #banner button{border:0; background:var(--warn); color:#fff; padding:3px 8px; cursor:pointer; font-size:11px; border-radius:3px}
@@ -474,11 +498,11 @@ body.panel-open #banner{left:calc((100% - 360px)/2)}
 
 <div id="nav">
   <button id="prev" aria-label="Previous">&#8249;</button>
-  <button id="counter" title="Jump to a slide number (or just type a digit)">1 / 1</button>
+  <button id="counter" title="Jump to a slide number (or just type a digit)"><b>1</b> / 1</button>
   <input id="goto" type="number" min="1" inputmode="numeric" aria-label="Go to slide number">
   <button id="next" aria-label="Next">&#8250;</button>
   <button class="tool" id="otoggle" title="Show all slides (O)"><svg viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/></svg>Slides</button>
-  <button class="tool" id="ctoggle" title="Show or hide comments (C)"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>Comments</button>
+  <button class="tool" id="ctoggle" title="Show or hide comments (C)"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>Comments<span id="ccount" title="Comments on this slide"></span></button>
   <button class="tool" id="export" title="Download as PowerPoint (.pptx) with comments"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>PPTX</button>
 </div>
 <aside id="cpanel" aria-label="Comments"></aside>
@@ -503,7 +527,7 @@ function fit(){
 function show(n){
   i = Math.max(0, Math.min(slides.length-1, n));
   slides.forEach(function(el,k){ el.classList.toggle('active', k===i); });
-  $('counter').textContent = (i+1)+' / '+slides.length;
+  $('counter').innerHTML = '<b>'+(i+1)+'</b> / '+slides.length;
   $('prev').disabled = i===0; $('next').disabled = i===slides.length-1;
   fit(); renderPanel();
 }
@@ -701,6 +725,7 @@ function renderPanel(){
     var b = el.querySelector('.cbadge'); if(!b){ b=document.createElement('div'); b.className='cbadge'; b.onclick=togglePanel; el.appendChild(b); }
     var list = comments[slideKey(k)]||[], c = list.reduce(function(n,x){ return n+1+x.replies.length; }, 0);
     b.textContent = c ? c+' comment'+(c>1?'s':'') : '';
+    if(k===i){ $('ccount').textContent = c || ''; $('ctoggle').title = 'Show or hide comments (C)'+(c ? ' \u00b7 '+c+' on this slide' : ''); }
   });
   var p = $('cpanel'); if(!p.classList.contains('open')) return;
   var key = slideKey(i), list = comments[key] = comments[key]||[], title = slideTitle(i);
@@ -817,6 +842,8 @@ function serialize(){
   var doc = document.documentElement.cloneNode(true);
   doc.querySelectorAll('.slide').forEach(function(el){ el.classList.remove('active'); el.removeAttribute('style'); });
   doc.querySelectorAll('.cbadge, figure.chart[data-chart] > svg').forEach(function(el){ el.remove(); });
+  doc.querySelector('#ccount').textContent = '';   // recomputed on open; don't freeze slide 1's count in
+
   // If the reader has exported once, loadScript has injected the pptxgenjs script element into
   // the head. Saving with that in place would make every later open of this deck fetch 460 KB
   // from a CDN, which is what embedding the fonts was for. A deck has no legitimate remote script.

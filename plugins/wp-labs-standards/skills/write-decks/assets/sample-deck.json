@@ -335,7 +335,11 @@
         {
          "title": "Week 1 &middot; Kickoff",
          "text": "Team, access, briefing.",
-         "who": "Owner: Client lead"
+         "who": "Owner: Client lead",
+         "items": [
+          "A bullet inside a step",
+          "A second bullet"
+         ]
         },
         {
          "title": "Week 2 &middot; Design",

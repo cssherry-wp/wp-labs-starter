@@ -42,7 +42,7 @@ the outer element) where noted.
 | `pts` | `{"pts": [...]}` | bullet list |
 | `refs` | `{"refs": [...]}` | small numbered list for references |
 | `big` | `{"big": [{"h", "s"}]}` | large numbered narrative; five or more items tighten |
-| `steps` | `{"steps": [{"title", "text", "who"}]}` | vertical connected timeline |
+| `steps` | `{"steps": [{"title", "text", "items": [...], "who"}]}` | vertical connected timeline; `items` renders bullets under the step title (use instead of a prose `text` when the step is a list of goals), `who` is an optional attribution line — omit it entirely when there is nobody to name |
 | `bars` | `{"bars": [{"label", "pct"}]}` | horizontal bars labelled `pct%`; `pct` must be a number |
 | `flow` | `{"flow": [{"k", "t"}]}` | left-to-right step boxes with arrows |
 | `chips` | `{"chips": [string or {"text", "tag"}]}` | |
